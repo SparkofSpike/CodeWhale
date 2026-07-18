@@ -290,6 +290,13 @@ pub(super) fn slice_text(text: &str, start: usize, end: usize) -> String {
 pub(super) fn char_display_width(ch: char) -> usize {
     if ch == '\t' {
         4
+    } else if ch == '\u{20E3}' {
+        // U+20E3 COMBINING ENCLOSING KEYCAP completes a keycap sequence
+        // (e.g. 1️⃣ = 1️⃣) that renders as 2 columns
+        // in terminals, but unicode-width reports it as 1 (base = 1,
+        // FE0F = 0, 20E3 = 0). Giving 20E3 a display width of 1 makes
+        // the total 2, matching the terminal.
+        1
     } else {
         // `width()` returns `None` for control/unassigned chars (default them to
         // one column so layout doesn't collapse) and `Some(0)` for genuinely
