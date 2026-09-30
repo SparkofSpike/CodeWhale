@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { UsageCounting } from "@/components/usage-counting";
 import { BUILD_FACTS } from "@/lib/facts";
-import { localeDirection, locales, type Locale } from "@/lib/i18n/config";
+import { isValidLocale, localeDirection, locales, type Locale } from "@/lib/i18n/config";
 import { getChrome, getHome } from "@/lib/i18n/dictionaries";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { buildPageMetadata } from "@/lib/page-meta";
@@ -74,6 +75,13 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+  // A single-segment URL that is not a routed locale — e.g. a stray dotted
+  // path such as /foo.txt, which middleware deliberately leaves alone so real
+  // static files keep resolving — would otherwise bind `[locale]` to that
+  // segment and render the shared home page as a 200 under a fake locale
+  // (`lang="foo.txt"`). An unregistered locale is not a page: answer with an
+  // honest 404 and let the not-found boundary render instead.
+  if (!isValidLocale(locale)) notFound();
   const chrome = getChrome(locale);
   // RTL locales (e.g. ar) set the document direction from the canonical
   // registry so the browser handles bidirectional layout from the root.
