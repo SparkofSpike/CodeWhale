@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Impossible de réordonner l’épingle : {error}",
   "ModelPickerReadinessRefreshed": "Disponibilité des modèles actualisée · lignes du catalogue reconstruites",
   "ModelPickerOpenToRefresh": "Ouvrez /model pour actualiser la disponibilité et le catalogue",
-  "ModelPickerPinnedChip": "épinglé"
+  "ModelPickerPinnedChip": "épinglé",
+  "PinnedPromptJumpToMessage": "Aller à ce message"
 }

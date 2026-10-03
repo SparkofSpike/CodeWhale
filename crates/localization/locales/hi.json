@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "पिन का क्रम नहीं बदला जा सका: {error}",
   "ModelPickerReadinessRefreshed": "मॉडल की तैयारी रीफ़्रेश हुई · कैटलॉग पंक्तियाँ फिर से बनीं",
   "ModelPickerOpenToRefresh": "तैयारी और कैटलॉग रीफ़्रेश करने के लिए /model खोलें",
-  "ModelPickerPinnedChip": "पिन किया"
+  "ModelPickerPinnedChip": "पिन किया",
+  "PinnedPromptJumpToMessage": "इस संदेश पर जाएँ"
 }

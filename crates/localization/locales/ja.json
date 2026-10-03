@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "ピン留めの順序を変更できませんでした: {error}",
   "ModelPickerReadinessRefreshed": "モデルの準備状況を更新しました · カタログ行を再構築しました",
   "ModelPickerOpenToRefresh": "準備状況とカタログを更新するには /model を開いてください",
-  "ModelPickerPinnedChip": "ピン留め"
+  "ModelPickerPinnedChip": "ピン留め",
+  "PinnedPromptJumpToMessage": "このメッセージへジャンプ"
 }

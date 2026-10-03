@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Anheftung konnte nicht verschoben werden: {error}",
   "ModelPickerReadinessRefreshed": "Modellbereitschaft aktualisiert · Katalogzeilen neu aufgebaut",
   "ModelPickerOpenToRefresh": "Öffne /model, um Bereitschaft und Katalog zu aktualisieren",
-  "ModelPickerPinnedChip": "angeheftet"
+  "ModelPickerPinnedChip": "angeheftet",
+  "PinnedPromptJumpToMessage": "Zu dieser Nachricht springen"
 }

@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Tidak dapat mengubah urutan sematan: {error}",
   "ModelPickerReadinessRefreshed": "Kesiapan model diperbarui · baris katalog dibangun ulang",
   "ModelPickerOpenToRefresh": "Buka /model untuk memperbarui kesiapan dan katalog",
-  "ModelPickerPinnedChip": "disematkan"
+  "ModelPickerPinnedChip": "disematkan",
+  "PinnedPromptJumpToMessage": "Lompat ke pesan ini"
 }

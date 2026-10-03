@@ -565,10 +565,15 @@ fn render_workbar(f: &mut Frame, app: &App, area: Rect) {
 /// through every widget that happens to remember.
 fn register_clickable_chrome_for_hover(app: &App) {
     use codewhale_localization::MessageId;
-    let targets: [(Option<Rect>, MessageId); 4] = [
+    let targets: [(Option<Rect>, MessageId); 5] = [
         (
             app.viewport.jump_to_latest_button_area,
             MessageId::KbJumpTopBottom,
+        ),
+        (
+            // The pinned prompt header jumps to the user message it names.
+            app.viewport.pinned_prompt_area,
+            MessageId::PinnedPromptJumpToMessage,
         ),
         (
             app.viewport.last_plugin_cta_review_area,
@@ -1740,6 +1745,13 @@ pub(crate) fn render(f: &mut Frame, app: &mut App, _config: &Config) -> Option<(
                 shell_ocean = chat_widget.ocean_column();
             }
             app.viewport.pending_scroll_delta = parked_scroll_delta;
+            // The sampling constructor above records the pinned prompt header's
+            // hit box from the main session's transcript, but the focus pane
+            // never paints that header — its first row is the agent banner.
+            // Drop the stale box so the banner cannot answer a click meant for
+            // the (hidden) main transcript.
+            app.viewport.pinned_prompt_area = None;
+            app.viewport.pinned_prompt_message = None;
             crate::tui::agent_focus::refresh_focus(app);
             let buf = f.buffer_mut();
             crate::tui::agent_focus::render_focus(app, chat_area, buf);
@@ -2296,6 +2308,27 @@ mod tests {
         assert!(
             registered.iter().any(|hit| hit.area == button),
             "the jump-to-latest button handles a click in mouse_ui and must \
+             light up under the pointer; registered: {registered:?}"
+        );
+    }
+
+    /// The pinned prompt header answers a click in `mouse_ui`; it must light
+    /// up under the pointer like every other clickable chrome.
+    #[test]
+    fn pinned_prompt_header_registers_a_hover_target() {
+        let _guard = crate::tui::hover_layer::HOVER_TEST_LOCK.lock().unwrap();
+        crate::tui::hover_layer::begin_frame();
+        let mut app =
+            crate::test_support::test_app_with_options(crate::test_support::test_tui_options("."));
+        let header = ratatui::layout::Rect::new(4, 3, 40, 1);
+        app.viewport.pinned_prompt_area = Some(header);
+
+        super::register_clickable_chrome_for_hover(&app);
+
+        let registered = crate::tui::hover_layer::registered_targets();
+        assert!(
+            registered.iter().any(|hit| hit.area == header),
+            "the pinned prompt header handles a click in mouse_ui and must \
              light up under the pointer; registered: {registered:?}"
         );
     }

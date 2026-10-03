@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "고정 순서를 바꾸지 못했습니다: {error}",
   "ModelPickerReadinessRefreshed": "모델 준비 상태를 새로 고쳤습니다 · 카탈로그 행을 다시 만들었습니다",
   "ModelPickerOpenToRefresh": "준비 상태와 카탈로그를 새로 고치려면 /model을 여세요",
-  "ModelPickerPinnedChip": "고정됨"
+  "ModelPickerPinnedChip": "고정됨",
+  "PinnedPromptJumpToMessage": "이 메시지로 이동"
 }

@@ -796,6 +796,17 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> Vec<ViewEv
                 return Vec::new();
             }
 
+            // The pinned prompt header names the user message scrolled just
+            // above the viewport; a click returns to it. Resolve the message
+            // against the current layout so a rewrite between paint and click
+            // cannot jump to a stale line offset.
+            if mouse_hits_rect(mouse, app.viewport.pinned_prompt_area) {
+                if let Some(line) = app.pinned_prompt_target_line() {
+                    app.scroll_to_transcript_line(line);
+                }
+                return Vec::new();
+            }
+
             if toggle_tool_run_expand(app, mouse) {
                 return Vec::new();
             }

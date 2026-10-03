@@ -2673,6 +2673,9 @@ pub enum MessageId {
     ModelPickerReadinessRefreshed,
     ModelPickerOpenToRefresh,
     ModelPickerPinnedChip,
+    /// Hover label for the pinned user-prompt header above the transcript:
+    /// clicking the header jumps to the user message it names.
+    PinnedPromptJumpToMessage,
 }
 
 #[allow(dead_code)]
@@ -5118,6 +5121,7 @@ pub const ALL_MESSAGE_IDS: &[MessageId] = &[
     MessageId::ModelPickerReadinessRefreshed,
     MessageId::ModelPickerOpenToRefresh,
     MessageId::ModelPickerPinnedChip,
+    MessageId::PinnedPromptJumpToMessage,
 ];
 
 pub fn tr(locale: Locale, id: MessageId) -> Cow<'static, str> {

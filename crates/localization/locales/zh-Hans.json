@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "无法调整固定顺序：{error}",
   "ModelPickerReadinessRefreshed": "已刷新模型就绪状态 · 已重建目录行",
   "ModelPickerOpenToRefresh": "打开 /model 以刷新就绪状态和目录",
-  "ModelPickerPinnedChip": "已固定"
+  "ModelPickerPinnedChip": "已固定",
+  "PinnedPromptJumpToMessage": "跳转到这条消息"
 }

@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Không thể sắp xếp lại ghim: {error}",
   "ModelPickerReadinessRefreshed": "Đã làm mới trạng thái sẵn sàng của mô hình · đã dựng lại các dòng danh mục",
   "ModelPickerOpenToRefresh": "Mở /model để làm mới trạng thái sẵn sàng và danh mục",
-  "ModelPickerPinnedChip": "đã ghim"
+  "ModelPickerPinnedChip": "đã ghim",
+  "PinnedPromptJumpToMessage": "Nhảy đến tin nhắn này"
 }

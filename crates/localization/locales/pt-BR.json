@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Não foi possível reordenar a fixação: {error}",
   "ModelPickerReadinessRefreshed": "Prontidão dos modelos atualizada · linhas do catálogo reconstruídas",
   "ModelPickerOpenToRefresh": "Abra /model para atualizar a prontidão e o catálogo",
-  "ModelPickerPinnedChip": "fixado"
+  "ModelPickerPinnedChip": "fixado",
+  "PinnedPromptJumpToMessage": "Ir para esta mensagem"
 }

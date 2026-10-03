@@ -1018,6 +1018,16 @@ pub struct ViewportState {
     pub last_transcript_total: usize,
     pub last_transcript_padding_top: usize,
     pub jump_to_latest_button_area: Option<Rect>,
+    /// Painted rect of the pinned user-prompt header above the transcript,
+    /// when one is shown and mouse capture is on. A left click there jumps
+    /// the viewport to the message named by `pinned_prompt_message`.
+    pub pinned_prompt_area: Option<Rect>,
+    /// Original history index of the user message the pinned header
+    /// describes; the click target for `pinned_prompt_area`. Stored as a
+    /// message identity, not a line offset, because line offsets are
+    /// frame-bound and a rewrite between paint and click would otherwise
+    /// land the jump on whatever now sits at the stale offset.
+    pub pinned_prompt_message: Option<usize>,
     /// Inner content rect of the composer (excluding border/padding),
     /// stored at render time for mouse coordinate mapping.
     pub last_composer_content: Option<Rect>,
@@ -1061,6 +1071,8 @@ impl Default for ViewportState {
             last_transcript_total: 0,
             last_transcript_padding_top: 0,
             jump_to_latest_button_area: None,
+            pinned_prompt_area: None,
+            pinned_prompt_message: None,
             last_composer_content: None,
             last_composer_scroll_offset: 0,
             last_composer_top_padding: 0,
@@ -6030,6 +6042,8 @@ impl App {
         self.viewport.last_transcript_total = 0;
         self.viewport.last_transcript_padding_top = 0;
         self.viewport.jump_to_latest_button_area = None;
+        self.viewport.pinned_prompt_area = None;
+        self.viewport.pinned_prompt_message = None;
 
         self.needs_redraw = true;
     }
@@ -6064,6 +6078,51 @@ impl App {
             focus.scroll_top = None;
         }
         self.needs_redraw = true;
+    }
+
+    /// Jump the transcript viewport so rendered line `line` becomes its top
+    /// row. The pinned prompt header calls this to return to the user message
+    /// it names. Mirrors the wheel/scrollbar path: pending wheel deltas are
+    /// dropped so the jump lands where it was asked to, and the viewport
+    /// leaves the live tail.
+    pub fn scroll_to_transcript_line(&mut self, line: usize) {
+        self.viewport.transcript_scroll = TranscriptScroll::at_line(line);
+        self.viewport.pending_scroll_delta = 0;
+        // `at_line` is never the tail sentinel, so this reads as `true` today;
+        // keep the same expression the scrollbar-jump path uses so the two
+        // stay in step if `at_line` ever clamps to tail on its own.
+        self.user_scrolled_during_stream = !self.viewport.transcript_scroll.is_at_tail();
+        self.needs_redraw = true;
+    }
+
+    /// First rendered line of the user message named by the pinned prompt
+    /// header, resolved against the current transcript layout.
+    ///
+    /// The header records the message, not a line offset, and this resolves
+    /// that identity at click time — a rewrite between paint and click then
+    /// cannot land the jump on a stale offset. Returns `None` when the
+    /// message is no longer rendered (collapsed or filtered out), so a stale
+    /// click cannot teleport the viewport.
+    pub fn pinned_prompt_target_line(&self) -> Option<usize> {
+        let message = self.viewport.pinned_prompt_message?;
+        let map = &self.collapsed_cell_map;
+        self.viewport
+            .transcript_cache
+            .line_meta()
+            .iter()
+            .enumerate()
+            .find_map(|(line_index, meta)| {
+                let TranscriptLineMeta::CellLine {
+                    cell_index,
+                    line_in_cell: 0,
+                    ..
+                } = meta
+                else {
+                    return None;
+                };
+                let original = map.get(*cell_index).copied().unwrap_or(*cell_index);
+                (original == message).then_some(line_index)
+            })
     }
 
     pub fn queue_message(&mut self, message: QueuedMessage) {

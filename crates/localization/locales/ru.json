@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Не удалось изменить порядок закрепления: {error}",
   "ModelPickerReadinessRefreshed": "Готовность моделей обновлена · строки каталога перестроены",
   "ModelPickerOpenToRefresh": "Откройте /model, чтобы обновить готовность и каталог",
-  "ModelPickerPinnedChip": "закреплено"
+  "ModelPickerPinnedChip": "закреплено",
+  "PinnedPromptJumpToMessage": "Перейти к этому сообщению"
 }

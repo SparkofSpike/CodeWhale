@@ -2438,5 +2438,6 @@
   "ModelPickerOpenToRefresh": "開啟 /model 以重新整理就緒狀態和目錄",
   "ModelPickerPinnedChip": "已釘選",
   "TranscriptThought": "思考完畢",
-  "TranscriptThoughtFor": "思考耗時 {duration}"
+  "TranscriptThoughtFor": "思考耗時 {duration}",
+  "PinnedPromptJumpToMessage": "跳轉到這則訊息"
 }

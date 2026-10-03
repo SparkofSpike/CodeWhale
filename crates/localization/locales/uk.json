@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Не вдалося змінити порядок закріплення: {error}",
   "ModelPickerReadinessRefreshed": "Готовність моделей оновлено · рядки каталогу перебудовано",
   "ModelPickerOpenToRefresh": "Відкрийте /model, щоб оновити готовність і каталог",
-  "ModelPickerPinnedChip": "закріплено"
+  "ModelPickerPinnedChip": "закріплено",
+  "PinnedPromptJumpToMessage": "Перейти до цього повідомлення"
 }

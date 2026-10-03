@@ -2438,5 +2438,6 @@
   "ModelPickerPinReorderFailed": "Could not reorder pin: {error}",
   "ModelPickerReadinessRefreshed": "Model readiness refreshed · catalog rows rebuilt",
   "ModelPickerOpenToRefresh": "Open /model to refresh readiness and catalog",
-  "ModelPickerPinnedChip": "pinned"
+  "ModelPickerPinnedChip": "pinned",
+  "PinnedPromptJumpToMessage": "Jump to this message"
 }
