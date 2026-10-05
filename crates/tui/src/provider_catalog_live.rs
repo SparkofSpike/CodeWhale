@@ -511,6 +511,24 @@ fn storage_provider(kind: ProviderKind, identity: &str) -> String {
     format!("{}:{}", kind.as_str(), identity.trim())
 }
 
+/// Providers whose model list is owned by their own `/v1/models` roster
+/// rather than the cross-provider Models.dev snapshot: the named live
+/// gateways, plus custom hosts whose private roster no snapshot can serve
+/// (#6289 widened). The active-provider refresh and the picker's freshness
+/// receipt both gate on this one predicate, so they cannot drift apart.
+pub(crate) fn provider_owns_live_catalog(provider: ProviderKind) -> bool {
+    matches!(
+        provider,
+        ProviderKind::Openrouter
+            | ProviderKind::Telecomjs
+            | ProviderKind::Edenai
+            | ProviderKind::Zenmux
+            | ProviderKind::Concentrate
+            | ProviderKind::Codewhale
+            | ProviderKind::Ollama
+    ) || provider == ProviderKind::Custom
+}
+
 /// Whether a catalog scope holds an account-scoped roster that must never be
 /// shared across credentials (#6289).
 ///

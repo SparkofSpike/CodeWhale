@@ -3398,21 +3398,10 @@ impl CodewhaleClient {
             };
             let provider = identity.provider;
             // Custom hosts include Baseten (its `/models` dialect is detected
-            // at fetch time) and every other OpenAI-compatible gateway. The
-            // probe is the only way to learn a private roster, and a failed
-            // probe stays non-fatal.
-            let is_custom_host = provider == ProviderKind::Custom;
-            if !matches!(
-                provider,
-                ProviderKind::Openrouter
-                    | ProviderKind::Telecomjs
-                    | ProviderKind::Edenai
-                    | ProviderKind::Zenmux
-                    | ProviderKind::Concentrate
-                    | ProviderKind::Codewhale
-                    | ProviderKind::Ollama
-            ) && !is_custom_host
-            {
+            // at fetch time) and every other custom host. A private route is
+            // the only place its roster exists, and a failed probe stays
+            // non-fatal.
+            if !crate::provider_catalog_live::provider_owns_live_catalog(provider) {
                 return;
             }
 

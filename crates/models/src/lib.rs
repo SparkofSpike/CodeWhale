@@ -310,8 +310,10 @@ fn strip_snapshot_or_variant_suffix(id: &str) -> Option<String> {
 /// inferred: the sibling-metadata contract rejects that shape (see
 /// `unrecognized_deepseek_models_do_not_inherit_sibling_metadata`).
 fn strip_date_stamp(id: &str) -> Option<String> {
-    // `-YYYY-MM-DD`: a ten-character tail preceded by its own dash.
-    if id.len() > 11 {
+    // `-YYYY-MM-DD`: a ten-character tail preceded by its own dash. The split
+    // index is a byte offset, so it must land on a char boundary: a multi-byte
+    // model id would panic in `split_at` otherwise.
+    if id.len() > 11 && id.is_char_boundary(id.len() - 10) {
         let (head, tail) = id.split_at(id.len() - 10);
         if let Some(head) = head.strip_suffix('-')
             && !head.is_empty()
@@ -1301,6 +1303,17 @@ mod tests {
         // reasoning model, while the OpenAI snapshot contract keeps working.
         assert!(!model_is_openai_reasoning_family("deepseek-v4-pro-0813"));
         assert!(model_is_openai_reasoning_family("gpt-5.5-2026-06-01"));
+    }
+
+    /// Multi-byte model ids must not panic the byte-indexed date scan: the
+    /// `-YYYY-MM-DD` layer splits at `len - 10`, which need not be a UTF-8
+    /// char boundary (review finding from the PR #6 review).
+    #[test]
+    fn non_ascii_ids_do_not_panic_the_snapshot_scan() {
+        for model in ["模型模型模型模型", "ローカルモデル-2026", "モデル-0813"] {
+            assert_eq!(context_window_for_model(model), None, "{model}");
+            assert_eq!(model_reasoning_capability(model), None, "{model}");
+        }
     }
 
     #[test]
