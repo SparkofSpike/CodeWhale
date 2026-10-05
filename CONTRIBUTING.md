@@ -528,7 +528,7 @@ When reporting issues, please use one of the issue templates:
 
 The forms ask for what a report needs (`codewhale --version`, OS, how you got
 Codewhale, and steps to reproduce). Questions go to
-[Discussions](https://github.com/Hmbown/CodeWhale/discussions) or
+[Discussions](https://github.com/codewhale-hq/CodeWhale/discussions) or
 [Discord](https://discord.gg/37gfS3ksug).
 
 ## Security

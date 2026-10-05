@@ -16,7 +16,8 @@ const SAVED_TEXT: &str = "Restored conversation proof";
 
 /// Published codewhale.net terminal media. Default Underwater theme, no
 /// motion, a home-relative workspace, and only states a fresh install really
-/// reaches: the first-run provider picker, home, a typed draft, and /help.
+/// reaches: the first-run provider picker, home, a typed draft, /help, and
+/// the empty Fleet and Tasks work bar.
 #[test]
 #[ignore = "opt-in website media; empty isolated session, no provider calls"]
 fn website_current_terminal_capture() {
@@ -58,6 +59,31 @@ fn website_current_terminal_capture() {
     tui.send(keys::key::enter()).unwrap();
     wait(&mut tui, "/model");
     capture(&mut tui, "website-help");
+    tui.shutdown();
+
+    // The work bar at the taller size the site shows it, opened by the
+    // advertised chords on an emptied composer: Fleet (Ctrl+]), then Tasks.
+    let workspace = make_sealed_workspace_in_home("my-project").unwrap();
+    let (_workspace, mut tui) = start_in(
+        workspace,
+        Launch {
+            rows: 32,
+            cols: 100,
+            keep_composer: true,
+            ..Launch::default()
+        },
+        |_| {},
+    );
+    tui.wait_for_idle(Duration::from_secs(1), WAIT).unwrap();
+    tui.send(keys::key::backspaces(80)).unwrap();
+    wait(&mut tui, "Type a message");
+    assert_website_frame(&mut tui);
+    tui.send([0x1d]).unwrap();
+    wait(&mut tui, "no agents have run this session");
+    capture(&mut tui, "website-workbar-fleet");
+    tui.send(b"\x1b[9;6u").unwrap();
+    wait(&mut tui, "no to-dos yet");
+    capture(&mut tui, "website-workbar");
     tui.shutdown();
 }
 
@@ -210,7 +236,7 @@ fn start_in(
         std::fs::write(path, contents).unwrap();
     }
 
-    let mut tui = Harness::builder(Harness::cargo_bin("codewhale-tui"))
+    let mut tui = Harness::builder(Harness::codewhale_binary())
         .cwd(workspace.workspace())
         .clear_env()
         .seal_home(workspace.home())

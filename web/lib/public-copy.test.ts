@@ -121,7 +121,7 @@ describe("public website copy contracts", () => {
     expect(EN_COMMUNITY.kicker).toBe("International open-source community");
     expect(community).toContain("issues/new/choose");
     expect(community).toContain("docs/LOCALIZATION.md");
-    expect(community).toContain("Hmbown/CodeWhale/pulls");
+    expect(community).toContain("codewhale-hq/CodeWhale/pulls");
     expect(community).toContain("t.recordScope");
     expect(EN_COMMUNITY.recordScope).toContain("keeps the weekly archive of repository activity");
     expect(communityCopy).not.toContain("latest one sits near the top");

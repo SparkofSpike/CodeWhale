@@ -15,11 +15,12 @@
  * See also:
  *   - .github/AUTHOR_MAP for identity mapping
  *   - CHANGELOG.md for the full release narrative
- *   - https://github.com/Hmbown/CodeWhale/graphs/contributors for the live list
+ *   - https://github.com/codewhale-hq/CodeWhale/graphs/contributors for the live list
  */
 
 /** Contributors whose PRs were merged or harvested into this release. */
 export const RELEASE_CONTRIBUTORS: string[] = [
+  "@Guan0923",
   "@Andrea-Bruno",
   "@aiapienthusiast",
   "@gaord",
@@ -46,4 +47,4 @@ export const UNRELEASED_CONTRIBUTORS: string[] = [];
  * Contributors who helped with reports, reproductions, and verification.
  * Credit covers the 0.10.1 reports recorded in docs/CONTRIBUTORS.md.
  */
-export const RELEASE_HELPERS: string[] = ["@BX166", "@cenab"];
+export const RELEASE_HELPERS: string[] = ["@BX166", "@cenab", "@jayanthvee"];

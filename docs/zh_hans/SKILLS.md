@@ -114,7 +114,7 @@ Codewhale 以两个紧凑层级呈现其随附 skills，这样 agentic 工作流
 
 工作区、用户和兼容 harness 的 skills 保持标记为 **custom**；Codewhale 不会从名称猜测其意图。随附包也不会宣传运行时缺失的能力。特别是，图像理解可用，但在真正图像生成工具出现之前，不会捆绑图像生成 skill。
 
-仓库维护与发布操作助手（[`skills/`](../skills/README.md) 下的 `gh-*` skills 和 `codew-release-qa-sweep`）**不**属于最终用户入门包，绝不会自动安装；一个 catalog-matrix 测试固定了这条边界。把它们作为可选包发布是插件交付工作，单独在 [#4836](https://github.com/Hmbown/CodeWhale/issues/4836) 中跟踪。
+仓库维护与发布操作助手（[`skills/`](../skills/README.md) 下的 `gh-*` skills 和 `codew-release-qa-sweep`）**不**属于最终用户入门包，绝不会自动安装；一个 catalog-matrix 测试固定了这条边界。把它们作为可选包发布是插件交付工作，单独在 [#4836](https://github.com/codewhale-hq/CodeWhale/issues/4836) 中跟踪。
 
 ### 调用与别名元数据
 
@@ -140,7 +140,7 @@ ASCII 名称保留现有命令拼写。包含非 ASCII 字符的名称会获得�
 
 ### 入门包对等决策
 
-[#4698](https://github.com/Hmbown/CodeWhale/issues/4698) 中的 v0.9.2 对等审计比较了五个 `xai-grok-memory` / `xai-grok-shell` 参考 skills 与实际的 Codewhale 包。这是一张决策矩阵，不是复制参考文本或宣传不受支持工具的请求：
+[#4698](https://github.com/codewhale-hq/CodeWhale/issues/4698) 中的 v0.9.2 对等审计比较了五个 `xai-grok-memory` / `xai-grok-shell` 参考 skills 与实际的 Codewhale 包。这是一张决策矩阵，不是复制参考文本或宣传不受支持工具的请求：
 
 | 参考 skill | Codewhale 决策 | 运行时依据 |
 | --- | --- | --- |
@@ -246,7 +246,7 @@ ASCII 名称保留现有命令拼写。包含非 ASCII 字符的名称会获得�
 
 ## 就绪状态
 
-审计模型有一个就绪状态字段和可选的就绪信息提供钩子（provider hook），用于将来的就绪缓存（[#4407](https://github.com/Hmbown/CodeWhale/issues/4407)）。目前，当没有接入缓存时，就绪状态始终为 **`Unknown`**。管理器不运行就绪探针，也不会因就绪状态而阻止变更。
+审计模型有一个就绪状态字段和可选的就绪信息提供钩子（provider hook），用于将来的就绪缓存（[#4407](https://github.com/codewhale-hq/CodeWhale/issues/4407)）。目前，当没有接入缓存时，就绪状态始终为 **`Unknown`**。管理器不运行就绪探针，也不会因就绪状态而阻止变更。
 
 ## 配置项
 

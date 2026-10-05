@@ -187,7 +187,7 @@ export interface HomeDict {
   chapterAvailability: string;
   availabilityHeading: string;
   availabilityLede: string;
-  availability: [string, string, string][];
+  availability: [string, string, string, string?][];
   availabilityNote: string;
   accountLink: string;
 

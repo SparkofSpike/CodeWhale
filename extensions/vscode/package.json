@@ -7,16 +7,16 @@
   "license": "MIT",
   "preview": true,
   "icon": "media/icon.png",
-  "homepage": "https://github.com/Hmbown/CodeWhale#readme",
+  "homepage": "https://github.com/codewhale-hq/CodeWhale#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Hmbown/CodeWhale.git",
+    "url": "https://github.com/codewhale-hq/CodeWhale.git",
     "directory": "extensions/vscode"
   },
   "bugs": {
-    "url": "https://github.com/Hmbown/CodeWhale/issues"
+    "url": "https://github.com/codewhale-hq/CodeWhale/issues"
   },
-  "qna": "https://github.com/Hmbown/CodeWhale/issues",
+  "qna": "https://github.com/codewhale-hq/CodeWhale/issues",
   "engines": {
     "vscode": "^1.96.2"
   },

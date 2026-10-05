@@ -30,7 +30,7 @@ const EXTRA_PAGES: readonly { path: string; title: string; description: string }
     path: "/runtime",
     title: "Runtime & Integrations",
     description:
-      "Local Runtime API, HTTP/SSE, baseline ACP stdio adapter, MCP servers, and an early VS Code companion.",
+      "Local Runtime API, HTTP/SSE, baseline ACP stdio adapter, MCP servers, an early VS Code companion, and a community VS Code GUI.",
   },
   {
     // The page's own English copy, so the index cannot drift from it (W01-03).

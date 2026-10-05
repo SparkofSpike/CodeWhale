@@ -24,7 +24,7 @@ if [[ ! "${cargo_version}" =~ ^cargo[[:space:]]+([0-9]+)\.([0-9]+)\. ]] ||
 fi
 
 packages=("${release_crates[@]}")
-crates_user_agent="CodeWhale release publish check (https://github.com/Hmbown/CodeWhale)"
+crates_user_agent="CodeWhale release publish check (https://github.com/codewhale-hq/CodeWhale)"
 
 workspace_version=""
 

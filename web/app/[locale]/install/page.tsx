@@ -37,7 +37,7 @@ export default async function InstallPage({ params }: { params: Promise<{ locale
             <HeroInstall ariaLabel={home.heroInstallAria} copyLabel={home.copy} copiedLabel={home.copied} />
             <p className="install-head-source">
               <Icon name="check" className="icon" />
-              <a href="https://github.com/Hmbown/CodeWhale/blob/main/docs/INSTALL.md" className="link">
+              <a href="https://github.com/codewhale-hq/CodeWhale/blob/main/docs/INSTALL.md" className="link">
                 {pickText(INSTALL_COPY.source, locale)}
               </a>
             </p>

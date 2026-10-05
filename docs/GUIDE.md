@@ -54,7 +54,7 @@ curl -fsSL https://codewhale.net/install.sh | sh
 ```
 
 Windows users should choose the matching installer or archive from
-[GitHub Releases](https://github.com/Hmbown/CodeWhale/releases/latest).
+[GitHub Releases](https://github.com/codewhale-hq/CodeWhale/releases/latest).
 For an existing direct install, use `codewhale update --check`, then
 `codewhale update`. npm and Cargo remain secondary packaging routes; Cargo
 also supports source builds where a compatible prebuilt is unavailable.
@@ -71,7 +71,7 @@ docker run --rm -it \
   -v codewhale-home:/home/codewhale/.codewhale \
   -v "$PWD:/workspace" \
   -w /workspace \
-  ghcr.io/hmbown/codewhale:latest
+  ghcr.io/codewhale-hq/codewhale:latest
 ```
 
 Once the install directory is on PATH, launch Codewhale from the repository or

@@ -21,6 +21,8 @@ const eslintConfig = [
       "dist/**",
       "coverage/**",
       "next-env.d.ts",
+      // Vendored whale-character-v2 reference (executable oracle; not edited here).
+      "vendor/whale-character-v2/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

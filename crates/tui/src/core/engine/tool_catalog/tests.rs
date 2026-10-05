@@ -26,14 +26,41 @@ fn tool(name: &str) -> Tool {
     }
 }
 
-/// `code_execution` writes the script to a tempdir and runs it as a plain
-/// child process in the workspace — no seccomp, no jail, no container. The
-/// description is model-facing, so calling it a sandbox would tell the model
-/// it has isolation the runtime never provides.
+/// The shared launcher applies policy only where enforcement is available.
+/// The model-facing description must not promise unconditional isolation.
 #[test]
 fn code_execution_description_does_not_claim_process_sandboxing() {
     assert!(CODE_EXECUTION_DESCRIPTION.contains("local Python interpreter"));
     assert!(!CODE_EXECUTION_DESCRIPTION.contains("sandbox"));
+}
+
+/// Python output must match our UTF-8 decoder even with non-UTF-8 parent stdio.
+#[tokio::test]
+async fn code_execution_returns_utf8_stdout_and_stderr() {
+    use crate::dependencies::ExternalTool as _;
+    use crate::test_support::{EnvVarGuard, lock_test_env};
+
+    let _env_lock = lock_test_env();
+    if !crate::dependencies::Python::available() {
+        return;
+    }
+    let _encoding = EnvVarGuard::set("PYTHONIOENCODING", "gbk");
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let result = super::execute_code_execution_tool(
+        &json!({"code": r#"import sys; print("\u4e2d\u6587"); print("\u9519\u8bef", file=sys.stderr)"#}),
+        tmp.path(),
+        &crate::tools::spec::ToolContext::new(tmp.path()),
+    )
+    .await
+    .expect("code execution should run");
+    let payload = result.metadata.expect("payload");
+    assert_eq!(
+        (
+            payload["stdout"].as_str().map(str::trim_end),
+            payload["stderr"].as_str().map(str::trim_end),
+        ),
+        (Some("中文"), Some("错误")),
+    );
 }
 
 /// The published synthetic-name list and the predicate that classifies a
@@ -441,7 +468,8 @@ async fn dropped_code_execution_kills_the_interpreter_tree() {
         pid_file.display().to_string()
     );
     let input = json!({ "code": code });
-    let run = super::execute_code_execution_tool(&input, tmp.path());
+    let context = crate::tools::spec::ToolContext::new(tmp.path());
+    let run = super::execute_code_execution_tool(&input, tmp.path(), &context);
     let grandchild = crate::process_tree::drop_once_pid_written(run, &pid_file).await;
     assert!(
         crate::process_tree::wait_for_pid_exit(grandchild, std::time::Duration::from_secs(5)),

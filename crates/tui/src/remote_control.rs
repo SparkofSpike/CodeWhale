@@ -5193,8 +5193,8 @@ mod tests {
     #[test]
     fn observed_git_repo_is_owner_name_not_a_path() {
         assert_eq!(
-            normalize_observed_git_repo("git@github.com:Hmbown/CodeWhale.git").as_deref(),
-            Some("Hmbown/CodeWhale")
+            normalize_observed_git_repo("git@github.com:codewhale-hq/CodeWhale.git").as_deref(),
+            Some("codewhale-hq/CodeWhale")
         );
         assert_eq!(
             normalize_observed_git_repo("https://github.com/Hmbown/cwc.git").as_deref(),
@@ -5224,9 +5224,9 @@ mod tests {
     fn connect_body_can_carry_an_observed_repo_without_a_path() {
         let enrollment = fixture_enrollment("https://api.codewhale.net/");
         let mut start = fixture_start();
-        start.git_remote = Some("git@github.com:Hmbown/CodeWhale.git".to_string());
+        start.git_remote = Some("git@github.com:codewhale-hq/CodeWhale.git".to_string());
         let body = connect_runner_body(&enrollment, &start);
-        assert_eq!(body["gitRemote"], "Hmbown/CodeWhale");
+        assert_eq!(body["gitRemote"], "codewhale-hq/CodeWhale");
         assert!(body.get("workspacePath").is_none());
         assert!(body.get("path").is_none());
     }

@@ -11,7 +11,7 @@ GitHub 慢或无法访问的网络环境（主要是中国大陆）。镜像会�
 ## 来源
 
 **GitHub 是唯一的权威源。** 所有发布、标签和源代码都源自
-`github.com/Hmbown/CodeWhale`。CNB 镜像是 `Sync to CNB` 工作流维护的只读副本，
+`github.com/codewhale-hq/CodeWhale`。CNB 镜像是 `Sync to CNB` 工作流维护的只读副本，
 它存在的唯一目的，是服务 GitHub 被 GFW 封锁或连接缓慢的用户。
 
 每个 CNB 发布都附带 `codewhale-artifacts-sha256.txt`，这是 CNB 构建的
@@ -73,7 +73,7 @@ CNB 不会提前发布该版本。已有 CNB 标签必须与源码一致；恢�
 - `cargo check --workspace --all-targets --locked`
 - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
 - `cargo test --workspace --all-features --locked`
-- `cargo build --release --locked -p codewhale-cli -p codewhale-tui`
+- `cargo build --release --locked -p codewhale-cli --bin codewhale`
 - `node scripts/release/npm-wrapper-smoke.js`
 
 匹配 `work/v*` 的发布分支还会运行
@@ -91,7 +91,7 @@ git ls-remote https://cnb.cool/codewhale.net/codewhale.git \
     refs/tags/vX.Y.Z
 
 # Quick check: is CNB's main at the same commit as origin/main?
-gh_main=$(git ls-remote https://github.com/Hmbown/CodeWhale.git refs/heads/main | awk '{print $1}')
+gh_main=$(git ls-remote https://github.com/codewhale-hq/CodeWhale.git refs/heads/main | awk '{print $1}')
 cnb_main=$(git ls-remote https://cnb.cool/codewhale.net/codewhale.git refs/heads/main | awk '{print $1}')
 test "$gh_main" = "$cnb_main" && echo "in sync" || echo "DIVERGED: gh=$gh_main cnb=$cnb_main"
 ```
@@ -99,7 +99,7 @@ test "$gh_main" = "$cnb_main" && echo "in sync" || echo "DIVERGED: gh=$gh_main c
 或者直接查看工作流运行：
 
 ```bash
-gh run list --workflow=sync-cnb.yml --repo Hmbown/CodeWhale --limit 5
+gh run list --workflow=sync-cnb.yml --repo codewhale-hq/CodeWhale --limit 5
 ```
 
 如果该发布标签最近一次运行是 `success`，说明镜像已经跟上。如果是 `failure`，
@@ -118,10 +118,10 @@ workflow dispatch 路径。
 
 ```bash
 # Prefer rerunning the existing failed tag run when one exists.
-gh run rerun <failed-tag-run-id> --repo Hmbown/CodeWhale
+gh run rerun <failed-tag-run-id> --repo codewhale-hq/CodeWhale
 
 # If no tag run exists, dispatch from the exact existing release tag.
-gh workflow run sync-cnb.yml --repo Hmbown/CodeWhale --ref vX.Y.Z
+gh workflow run sync-cnb.yml --repo codewhale-hq/CodeWhale --ref vX.Y.Z
 ```
 
 修复标签时不要省略 `--ref`：在默认分支上 dispatch 同步的是 `main`，
@@ -135,11 +135,11 @@ gh workflow run sync-cnb.yml --repo Hmbown/CodeWhale --ref vX.Y.Z
 1. 登录 `cnb.cool`，生成一个带 `repo`（push）权限的新个人访问 token。
 2. 更新 `CNB_GIT_TOKEN` 仓库 secret：
    ```bash
-   gh secret set CNB_GIT_TOKEN --repo Hmbown/CodeWhale
+   gh secret set CNB_GIT_TOKEN --repo codewhale-hq/CodeWhale
    ```
 3. 在最近的提交上重新触发工作流：
    ```bash
-   gh workflow run sync-cnb.yml --repo Hmbown/CodeWhale
+   gh workflow run sync-cnb.yml --repo codewhale-hq/CodeWhale
    ```
 4. 用 `gh run list --workflow=sync-cnb.yml` 确认运行成功。
 

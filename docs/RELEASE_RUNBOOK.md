@@ -65,10 +65,10 @@ release workflow will pick them up. It will not: the tag is the release anchor.
 Before tagging, verify the live queue and existing anchors:
 
 ```bash
-gh issue list --repo Hmbown/CodeWhale --milestone "vX.Y.Z" --state open
-gh pr list --repo Hmbown/CodeWhale --state open --limit 100
+gh issue list --repo codewhale-hq/CodeWhale --milestone "vX.Y.Z" --state open
+gh pr list --repo codewhale-hq/CodeWhale --state open --limit 100
 git ls-remote origin refs/heads/main refs/tags/vX.Y.Z
-gh release view vX.Y.Z --repo Hmbown/CodeWhale
+gh release view vX.Y.Z --repo codewhale-hq/CodeWhale
 ./scripts/release/check-published.sh X.Y.Z
 ```
 
@@ -138,7 +138,7 @@ published commands against that runtime: `codewhale doctor --help` and
 `codew --version`.
 
 ```bash
-cargo build --release --locked -p codewhale-cli -p codewhale-tui
+cargo build --release --locked -p codewhale-cli --bin codewhale
 node scripts/release/npm-wrapper-smoke.js
 ```
 
@@ -478,15 +478,15 @@ maintainer approval:
 ```bash
 # 1. land the fix on main (normal PR + required CI)
 # 2. delete the premature Release + tag
-gh release delete vX.Y.Z --repo Hmbown/CodeWhale --yes --cleanup-tag
+gh release delete vX.Y.Z --repo codewhale-hq/CodeWhale --yes --cleanup-tag
 git push origin :refs/tags/vX.Y.Z    # belt-and-suspenders
 git tag -d vX.Y.Z                    # local
 # 3. validate the fixed HEAD first: release.yml refuses a tag without a
 #    green release-candidate receipt (Parity included) for its exact SHA
-gh workflow run release-candidate.yml --repo Hmbown/CodeWhale --ref main \
+gh workflow run release-candidate.yml --repo codewhale-hq/CodeWhale --ref main \
   -f expected_sha="$(git rev-parse origin/main)"
 # 4. once that RC run is green, recut at the same HEAD (version unchanged)
-gh workflow run auto-tag.yml --repo Hmbown/CodeWhale --ref main
+gh workflow run auto-tag.yml --repo codewhale-hq/CodeWhale --ref main
 # 5. release.yml rebuilds assets; rebuild + reinstall locally from the new tag
 ```
 
@@ -525,7 +525,7 @@ for that version — bump to the next patch instead.
     [docs/INSTALL.md](INSTALL.md#7-build-from-source)
   - manual assets: download binaries or the platform archive plus the matching
     `codewhale-artifacts-sha256.txt` or `codewhale-bundles-sha256.txt`
-    manifest from `https://github.com/Hmbown/CodeWhale/releases/tag/vX.Y.Z`
+    manifest from `https://github.com/codewhale-hq/CodeWhale/releases/tag/vX.Y.Z`
   - workspace files: use `/restore list [N]` and `/restore <N>` for side-git
     snapshots; this does not change the installed binary version or rewrite
     conversation history

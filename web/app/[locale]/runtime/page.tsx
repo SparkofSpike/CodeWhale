@@ -5,7 +5,7 @@ import { getFacts } from "@/lib/facts";
 import { getRuntime, pickText } from "@/lib/i18n/dictionaries";
 import { buildPageMetadata } from "@/lib/page-meta";
 
-const REPO_BLOB_BASE = "https://github.com/Hmbown/CodeWhale/blob/main";
+const REPO_BLOB_BASE = "https://github.com/codewhale-hq/CodeWhale/blob/main";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -61,7 +61,16 @@ const INTEGRATIONS: Integration[] = [
       en: "Early companion for the local runtime. It can open Codewhale in a terminal, start and check the Runtime API, and show read-only thread summaries and restore points. It does not yet provide full chat, inline edits, or editor actions.",
       zh: "本地 Runtime 的早期配套扩展。它可以在终端中打开 Codewhale、启动并检查 Runtime API，以及显示只读线程摘要和还原点；目前尚不提供完整聊天、内联编辑或编辑器操作。",
     },
-    href: "https://github.com/Hmbown/CodeWhale/tree/main/extensions/vscode",
+    href: "https://github.com/codewhale-hq/CodeWhale/tree/main/extensions/vscode",
+  },
+  {
+    name: "CodeWhale GUI (VS Code)",
+    icon: "monitor",
+    desc: {
+      en: "The community-maintained graphical frontend, in a separate repository: chat, threads, live file changes, and task tracking in a VS Code sidebar over this Runtime API. Install it from the VS Code Marketplace; the source is on GitHub.",
+      zh: "社区维护的图形前端，位于独立仓库：在 VS Code 侧边栏中基于此 Runtime API 进行对话、管理线程、查看实时文件变更与任务进度。可从 VS Code Marketplace 安装；源码见 GitHub。",
+    },
+    href: "https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode",
   },
   {
     name: "Telegram Bridge",
@@ -70,7 +79,7 @@ const INTEGRATIONS: Integration[] = [
       en: "First-party Telegram bot bridge. Start a headless Codewhale session, then chat with it from any Telegram client — approvals, tool results, and completions surface inline.",
       zh: "官方 Telegram 机器人桥接。启动无头 Codewhale 会话，在任何 Telegram 客户端中与之对话——审批、工具结果和完成状态内联展示。",
     },
-    href: "https://github.com/Hmbown/CodeWhale/tree/main/integrations/telegram-bridge",
+    href: "https://github.com/codewhale-hq/CodeWhale/tree/main/integrations/telegram-bridge",
   },
   {
     name: "Feishu / Lark Bridge",
@@ -79,7 +88,7 @@ const INTEGRATIONS: Integration[] = [
       en: "First-party Feishu / Lark bot bridge. Chat-native agent loop inside your Feishu workspace with approval cards, session linking, and audit trail.",
       zh: "官方飞书 / Lark 机器人桥接。在飞书工作区内实现聊天原生 Agent 循环，支持审批卡片、会话关联和审计日志。",
     },
-    href: "https://github.com/Hmbown/CodeWhale/tree/main/integrations/feishu-bridge",
+    href: "https://github.com/codewhale-hq/CodeWhale/tree/main/integrations/feishu-bridge",
   },
   {
     name: "Weixin Bridge",
@@ -89,7 +98,7 @@ const INTEGRATIONS: Integration[] = [
       en: "Experimental Weixin / WeChat bridge. Receive agent completions and approvals inside WeChat; early-stage and not recommended for production deployments.",
       zh: "实验性微信桥接。在微信中接收 Agent 完成通知和审批；早期阶段，不建议用于生产环境。",
     },
-    href: "https://github.com/Hmbown/CodeWhale/tree/main/integrations/weixin-bridge",
+    href: "https://github.com/codewhale-hq/CodeWhale/tree/main/integrations/weixin-bridge",
   },
 ];
 

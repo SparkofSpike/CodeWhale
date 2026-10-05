@@ -44,7 +44,7 @@ Codewhale 是一个终端编码智能体（agent）。你从某个工作区运�
 curl -fsSL https://codewhale.net/install.sh | sh
 ```
 
-Windows 用户请选择 [GitHub Releases](https://github.com/Hmbown/CodeWhale/releases/latest)
+Windows 用户请选择 [GitHub Releases](https://github.com/codewhale-hq/CodeWhale/releases/latest)
 中的对应安装器或压缩包。已有的直接安装先运行 `codewhale update --check`，再运行
 `codewhale update`。npm 和 Cargo 是次要打包方式；没有兼容预编译资源的平台仍可使用
 受支持的 Cargo 源码构建路径。目录已占用、包管理器安装及 PATH 配置请参阅
@@ -60,7 +60,7 @@ docker run --rm -it \
   -v codewhale-home:/home/codewhale/.codewhale \
   -v "$PWD:/workspace" \
   -w /workspace \
-  ghcr.io/hmbown/codewhale:latest
+  ghcr.io/codewhale-hq/codewhale:latest
 ```
 
 把安装目录加入 PATH 后，从你希望它工作的仓库或目录启动 Codewhale：

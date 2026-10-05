@@ -24,8 +24,8 @@ function runStyle(style: TerminalCaptureStyle): CSSProperties {
  * scripts/render-terminal-capture.mjs), drawn as styled runs in the system
  * monospace font. Nothing is retouched or staged.
  *
- * The frame is 100 columns wide, so on a narrow screen it scrolls sideways
- * inside its own focusable region instead of shrinking past legibility.
+ * The whole frame always fits: the type scales with the frame's width and the
+ * grid's column count, like a screenshot, but stays live, selectable text.
  * Assistive technology gets one summary (`label`); the glyph-by-glyph grid
  * is presentation. Braille cells (the whale mark) are pinned to one column
  * each, because system monospace fonts draw them from a fallback font.
@@ -51,7 +51,7 @@ export function TerminalCapture({
         role="img"
         aria-label={label}
         data-capture-file={data.file}
-        style={{ background: `linear-gradient(${top}, ${bottom})` }}
+        style={{ background: `linear-gradient(${top}, ${bottom})`, ["--cols" as string]: data.cols } as CSSProperties}
       >
         {data.lines.map((runs, row) => (
           <span key={row} className="term-capture-row">

@@ -11,7 +11,7 @@ and each `v*` release tag after its complete GitHub Release is published.
 ## Provenance
 
 **GitHub is the sole canonical source.** All releases, tags, and source code
-originate at `github.com/Hmbown/CodeWhale`. The CNB mirror is a read-only
+originate at `github.com/codewhale-hq/CodeWhale`. The CNB mirror is a read-only
 replica maintained by the `Sync to CNB` workflow — it exists solely to serve
 users behind GFW-blocked or slow GitHub connections.
 
@@ -82,7 +82,7 @@ Linux Rust gates run on Tencent-hosted runners instead of GitHub Actions:
 - `cargo check --workspace --all-targets --locked`
 - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
 - `cargo test --workspace --all-features --locked`
-- `cargo build --release --locked -p codewhale-cli -p codewhale-tui`
+- `cargo build --release --locked -p codewhale-cli --bin codewhale`
 - `node scripts/release/npm-wrapper-smoke.js`
 
 Release branches matching `work/v*` also run
@@ -100,7 +100,7 @@ git ls-remote https://cnb.cool/codewhale.net/codewhale.git \
     refs/tags/vX.Y.Z
 
 # Quick check: is CNB's main at the same commit as origin/main?
-gh_main=$(git ls-remote https://github.com/Hmbown/CodeWhale.git refs/heads/main | awk '{print $1}')
+gh_main=$(git ls-remote https://github.com/codewhale-hq/CodeWhale.git refs/heads/main | awk '{print $1}')
 cnb_main=$(git ls-remote https://cnb.cool/codewhale.net/codewhale.git refs/heads/main | awk '{print $1}')
 test "$gh_main" = "$cnb_main" && echo "in sync" || echo "DIVERGED: gh=$gh_main cnb=$cnb_main"
 ```
@@ -108,7 +108,7 @@ test "$gh_main" = "$cnb_main" && echo "in sync" || echo "DIVERGED: gh=$gh_main c
 Or check the workflow run directly:
 
 ```bash
-gh run list --workflow=sync-cnb.yml --repo Hmbown/CodeWhale --limit 5
+gh run list --workflow=sync-cnb.yml --repo codewhale-hq/CodeWhale --limit 5
 ```
 
 If the most recent run for the release tag is `success`, the mirror
@@ -129,10 +129,10 @@ without pushing anything:
 
 ```bash
 # Prefer rerunning the existing failed tag run when one exists.
-gh run rerun <failed-tag-run-id> --repo Hmbown/CodeWhale
+gh run rerun <failed-tag-run-id> --repo codewhale-hq/CodeWhale
 
 # If no tag run exists, dispatch from the exact existing release tag.
-gh workflow run sync-cnb.yml --repo Hmbown/CodeWhale --ref vX.Y.Z
+gh workflow run sync-cnb.yml --repo codewhale-hq/CodeWhale --ref vX.Y.Z
 ```
 
 Do not omit `--ref` when repairing a tag: a default-branch dispatch syncs
@@ -148,11 +148,11 @@ expired:
    with `repo` (push) scope.
 2. Update the `CNB_GIT_TOKEN` repository secret:
    ```bash
-   gh secret set CNB_GIT_TOKEN --repo Hmbown/CodeWhale
+   gh secret set CNB_GIT_TOKEN --repo codewhale-hq/CodeWhale
    ```
 3. Re-trigger the workflow on a recent commit:
    ```bash
-   gh workflow run sync-cnb.yml --repo Hmbown/CodeWhale
+   gh workflow run sync-cnb.yml --repo codewhale-hq/CodeWhale
    ```
 4. Confirm the run succeeds via `gh run list --workflow=sync-cnb.yml`.
 

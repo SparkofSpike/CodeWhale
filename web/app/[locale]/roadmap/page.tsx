@@ -180,9 +180,9 @@ export default async function RoadmapPage({ params }: { params: Promise<{ locale
   }
 
   const links = [
-    { title: "Issues", detail: t.issuesDetail, href: "https://github.com/Hmbown/CodeWhale/issues" },
-    { title: "Discussions", detail: t.discussionsDetail, href: "https://github.com/Hmbown/CodeWhale/discussions/new?category=ideas" },
-    { title: "Pull requests", detail: t.pullsDetail, href: "https://github.com/Hmbown/CodeWhale/pulls" },
+    { title: "Issues", detail: t.issuesDetail, href: "https://github.com/codewhale-hq/CodeWhale/issues" },
+    { title: "Discussions", detail: t.discussionsDetail, href: "https://github.com/codewhale-hq/CodeWhale/discussions/new?category=ideas" },
+    { title: "Pull requests", detail: t.pullsDetail, href: "https://github.com/codewhale-hq/CodeWhale/pulls" },
   ];
 
   return (
@@ -194,7 +194,7 @@ export default async function RoadmapPage({ params }: { params: Promise<{ locale
           id="roadmap-status"
           title={t.sectionTitle}
           link={
-            <Link href="https://github.com/Hmbown/CodeWhale/issues" className="section-link">
+            <Link href="https://github.com/codewhale-hq/CodeWhale/issues" className="section-link">
               {t.browseIssues}
               <Icon name="external" className="icon" />
             </Link>

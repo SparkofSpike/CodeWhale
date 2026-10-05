@@ -7,7 +7,7 @@ Codewhale 每次发布都会把一个多架构的 Linux 镜像推到 GitHub Cont
 Registry。
 
 ```bash
-docker pull ghcr.io/hmbown/codewhale:latest
+docker pull ghcr.io/codewhale-hq/codewhale:latest
 ```
 
 ## 快速开始
@@ -22,7 +22,7 @@ docker run --rm -it \
   -v codewhale-home:/home/codewhale/.codewhale \
   -v "$PWD:/workspace" \
   -w /workspace \
-  ghcr.io/hmbown/codewhale:latest
+  ghcr.io/codewhale-hq/codewhale:latest
 ```
 
 想获得可复现的安装，请用固定的发布标签：
@@ -33,15 +33,15 @@ docker run --rm -it \
   -v codewhale-home:/home/codewhale/.codewhale \
   -v "$PWD:/workspace" \
   -w /workspace \
-  ghcr.io/hmbown/codewhale:vX.Y.Z
+  ghcr.io/codewhale-hq/codewhale:vX.Y.Z
 ```
 
 把 `vX.Y.Z` 换成
-[GitHub Releases](https://github.com/Hmbown/CodeWhale/releases) 里的标签。
+[GitHub Releases](https://github.com/codewhale-hq/CodeWhale/releases) 里的标签。
 
 ## 默认镜像约定
 
-`ghcr.io/hmbown/codewhale:latest` 和各个 semver 标签都是保守的运行时镜像：
+`ghcr.io/codewhale-hq/codewhale:latest` 和各个 semver 标签都是保守的运行时镜像：
 
 - 容器以非 root 的 `codewhale` 用户运行，UID/GID 为 `1000:1000`
 - 镜像不授予免密 `sudo`
@@ -61,7 +61,7 @@ Codewhale 标签构建它：
 
 ```bash
 docker build -f docs/examples/Dockerfile.toolbox \
-  --build-arg CODEWHALE_IMAGE=ghcr.io/hmbown/codewhale:vX.Y.Z \
+  --build-arg CODEWHALE_IMAGE=ghcr.io/codewhale-hq/codewhale:vX.Y.Z \
   --build-arg TOOLBOX_PACKAGES="git openssh-client curl build-essential pkg-config python3 python3-pip nodejs npm" \
   -t codewhale-toolbox:my-project .
 ```
@@ -97,7 +97,7 @@ SSH 材料要显式挂载，最好只读，并且只给真正需要它的项目�
 镜像，并把项目状态卷显式写出来：
 
 ```bash
-CODEWHALE_IMAGE=ghcr.io/hmbown/codewhale:vX.Y.Z \
+CODEWHALE_IMAGE=ghcr.io/codewhale-hq/codewhale:vX.Y.Z \
 CODEWHALE_TOOLBOX_IMAGE=codewhale-toolbox:my-project \
 CODEWHALE_HOME_VOLUME=codewhale-my-project-home \
 CODEWHALE_WORKSPACE="$PWD" \
@@ -238,7 +238,7 @@ sudo chown -R 1000:1000 ~/.codewhale
 docker run --rm -it \
   -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
   -v ~/.codewhale:/home/codewhale/.codewhale \
-  ghcr.io/hmbown/codewhale:latest
+  ghcr.io/codewhale-hq/codewhale:latest
 ```
 
 这条 `chown` 会改变主机上 `~/.codewhale` 目录的属主。如果不想让容器里的 UID
@@ -251,7 +251,7 @@ stdin 不是 TTY 时，`codewhale` 会退到调度器的一次性模式（`codew
 
 ```bash
 echo "Explain the Cargo.toml in structured English." | \
-  docker run --rm -i -e DEEPSEEK_API_KEY ghcr.io/hmbown/codewhale:latest
+  docker run --rm -i -e DEEPSEEK_API_KEY ghcr.io/codewhale-hq/codewhale:latest
 ```
 
 ## 在本地构建

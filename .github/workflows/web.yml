@@ -106,7 +106,7 @@ jobs:
             echo
             echo "Revision \`${REVISION}\` passed the web gates but has **not** been deployed."
             echo
-            echo "A maintainer can publish it with \`gh workflow run web.yml --repo Hmbown/CodeWhale --ref main\`."
+            echo "A maintainer can publish it with \`gh workflow run web.yml --repo codewhale-hq/CodeWhale --ref main\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:

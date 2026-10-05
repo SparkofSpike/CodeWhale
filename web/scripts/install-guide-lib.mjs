@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Marked, Renderer } from "marked";
 import GithubSlugger from "github-slugger";
 
-const DOCS_URL = "https://github.com/Hmbown/CodeWhale/blob/main/docs/";
+const DOCS_URL = "https://github.com/codewhale-hq/CodeWhale/blob/main/docs/";
 
 function docLink(href) {
   const url = new URL(href, DOCS_URL);

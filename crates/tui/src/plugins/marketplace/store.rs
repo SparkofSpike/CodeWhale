@@ -346,11 +346,9 @@ mod tests {
             else {
                 panic!("uninstallable candidate")
             };
-            assert!(
-                spec.starts_with(
-                    "https://codeload.github.com/Hmbown/codewhale-plugin-marketplace/"
-                )
-            );
+            assert!(spec.starts_with(
+                "https://codeload.github.com/codewhale-hq/codewhale-plugin-marketplace/"
+            ));
             assert!(spec.contains("#path="));
         }
         assert!(!store.path().exists(), "browsing must not write or fetch");

@@ -1,7 +1,7 @@
 import type { HomeDict } from "../types";
 
 /**
- * Japanese home dictionary — native copy for the Tidal Folio landing page,
+ * Japanese home dictionary — native copy for the whale-road landing page,
  * in the current direction: your models, more capable together; agents
  * and control on your own machine; availability stated per surface as it
  * is today. Product vocabulary stays literal (Plan / Work / Operate, Ask /
@@ -9,15 +9,15 @@ import type { HomeDict } from "../types";
  */
 
 export const home: HomeDict = {
-  metaTitle: "Codewhale — 選んだモデルで開発し、作業を自動化する",
+  metaTitle: "Codewhale：あらゆるモデルで使えるオープンソースのコーディングエージェント",
   metaDescription:
-    "オープンソースのエージェントと、自由に選べるホスト型またはローカルの AI モデルを使って、ソフトウェアを開発し、ファイルを扱い、日々の作業を自動化できます。",
-  heroTitle: "選んだモデルで開発し、作業を自動化する",
+    "Codewhale はターミナルで使うオープンソースのコーディングエージェントです。選んだホスト型またはローカルのモデルで、プロジェクトを読み、ファイルを編集し、テストを実行します。",
+  heroTitle: "あらゆるモデルで使えるオープンソースのコーディングエージェント",
   heroIntro:
-    "{brand} のエージェントは、ソフトウェアを開発し、ファイルを扱い、繰り返し行う作業を再利用できるワークフローにまとめられます。達成したいことを伝えて仕事に合うホスト型またはローカルのモデルを選び、必要に応じてプロバイダーを自由に切り替えながら作業を進めてください。",
-  getCodewhale: "Codewhale を入手",
+    "{brand} はターミナルからプロジェクトを読み、ファイルを編集し、テストを実行します。ホスト型またはローカルのモデルを接続し、どの操作に承認が必要かを選べます。",
+  getCodewhale: "Codewhale をインストール",
   heroInstallAria: "インストールコマンド",
-  exploreProduct: "製品を見る",
+  exploreProduct: "仕組みを見る",
   shotPreview: "ターミナルのプレビュー",
   shotBuild: "v{version} 開発ビルド",
   screenshotAlt:
@@ -29,81 +29,87 @@ export const home: HomeDict = {
   publishedRelease: "リリース済み",
   figcaptionSourceCandidate: "未リリース",
   chapterTerminal: "あなたのターミナル",
-  chapterTerminalTitle: "作りたいものから始める",
-  gainHeading: "Codewhale でできること",
-  gainLede: "プロジェクトや質問、自動化したい作業から始めて、ひとつのエージェントと一緒に進めることも、大きな仕事を複数のエージェントに分担させることもできます。",
+  chapterTerminalTitle: "編集とコマンドを実行中にひとつずつ確認する",
+  gainHeading: "タスクを任せながら制御を保つ",
+  gainLede: "バグの修正、モジュールの説明、繰り返す作業の自動化など、求める結果を伝えてください。ひとつのエージェントから始め、仕事が大きくなったらエージェントを追加できます。",
   gain: [
     [
-      "作りたいものを形にする",
-      "作りたいものを説明し、コードを読み、ファイルを編集し、コマンドを実行して結果を確認できるエージェントと一緒に取り組めます。"
+      "コードを変更して確認する",
+      "エージェントがプロジェクトを調べ、ファイルを編集し、テストを実行します。作業中の編集とコマンドの結果をひとつずつ確認できます。"
     ],
     [
-      "日々の作業を自動化する",
-      "繰り返し行う作業のスクリプトやワークフローを作れば、必要なときにターミナルから何度でも実行できます。"
+      "繰り返しの作業を自動化する",
+      "スクリプトや CI から codewhale exec を実行します。Fleet を使うと、大きな仕事を複数のエージェントに分担できます。"
     ],
     [
-      "さまざまなモデルを使う",
-      "エージェントにホスト型またはローカルのモデルを使い、モデルや役割に合った仕事をそれぞれに任せられます。"
+      "制御を保つ",
+      "作業を始める前に権限を設定し、承認リクエストに応え、いつでもタスクを停止できます。/receipts を実行すると、セッション内のすべてのファイル、コマンド、承認が一覧表示されます。"
     ]
   ],
   chapterModels: "あなたのモデル",
-  modelsHeading: "作業に合わせて選べるモデル",
+  modelsHeading: "タスクごとにモデルを選ぶ",
   modelsBody:
-    "ホスト型のプロバイダーに直接接続することも、ゲートウェイを通じて複数のプロバイダーを利用することも、モデルをローカルで実行することもでき、作業中にセッションごとに使うモデルを選べます。",
+    "セッションごとに、組み込みのプロバイダー、任意の OpenAI 互換エンドポイント、またはローカルモデルを選べます。モデルの接続は Codewhale のアカウントとは別に扱われます。",
   modelsFacts: [
     ["ホスト型", "自分の API キーを codewhale auth set --provider <id> で保存"],
-    ["ゲートウェイ", "ひとつのエンドポイントで多くのモデル、プロバイダーは自分で選ぶ"],
-    ["ローカル", "localhost 上の vLLM、SGLang、Ollama。通常キー不要"],
+    ["ゲートウェイ", "ひとつのエンドポイントで多くのモデルを利用。プロバイダーは引き続き自分で選ぶ"],
+    ["ローカル", "localhost 上の vLLM、SGLang、Ollama。通常はキー不要"],
   ],
   modelsLink: "モデルとプロバイダーを見る",
-  startHeading: "Codewhale を使い始めるには",
-  startLede: "Codewhale をインストールしてモデルを接続したら、ターミナルで最初の作業を伝え、複数のエージェントに分担してほしくなったときに Fleet を追加できます。",
-  startGuideLink: "はじめかたガイドを読む",
+  startHeading: "インストールし、モデルを接続し、タスクを実行する",
+  startLede: "プロジェクトフォルダーから 3 つの手順で最初のタスクを実行できます。複数のエージェントが必要な作業になったら、あとから Fleet を追加できます。",
+  startGuideLink: "はじめかたガイドに沿って進める",
   startVocabularyLink: "製品用語を見る",
   chapterAvailability: "動作環境",
-  availabilityHeading: "Codewhale を使える場所",
-  availabilityLede: "Codewhale は今すぐターミナルで使え、Web アプリ、デスクトップアプリ、クラウドコンピューターも現在開発しています。",
+  availabilityHeading: "今すぐターミナルで使う",
+  availabilityLede: "ターミナル、ローカルブラウザークライアント、コミュニティの CodeWhale GUI は今すぐ使えます。デスクトップアプリと、作り直しているホスト型 Web アプリは開発中で、同じセッションモデルを共有します。",
   availability: [
     [
-      "ターミナル",
+      "ターミナルとローカルブラウザー",
       "リリース済み",
-      "Linux、macOS、Windows 向けのリリースバイナリを GitHub で提供しています。npm と Cargo からもインストールできます。Android の Termux 版はプレビューです。"
+      "Linux、macOS、Windows にインストールし、codewhale を実行します。ローカルブラウザークライアントを使うには codewhale web を実行します。npm と Cargo でもインストールできます。Android の Termux 版はプレビューです。"
     ],
     [
-      "ウェブアプリ",
+      "CodeWhale GUI（VS Code）",
+      "利用可能",
+      "コミュニティが保守する独立したプロジェクトです。同じ Codewhale Runtime 上で、VS Code のサイドバーからチャット、スレッド、ファイル変更を扱えます。VS Code Marketplace からインストールできます。",
+      "https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode"
+    ],
+    [
+      "ホスト型 Web アプリ",
       "開発プレビュー",
-      "開発プレビューでアカウントへのアクセスとブラウザのペアリングを利用できます。"
+      "デスクトップアプリに合わせて作り直しています。現在はサインインしたうえで、実行中のターミナルセッションで /rc と入力すると、そのセッションを Web で続けられます。ホスト型のタスク実行は引き続き検証中です。"
     ],
     [
       "デスクトップ",
       "開発ビルド",
-      "macOS アプリは開発中です。一般向けのダウンロードは後日提供予定です。"
+      "Codewhale の主要なクライアントになりつつあるネイティブアプリです。フォルダー、会話、モデル接続をひとつのウィンドウにまとめます。一般向けのダウンロードはまだありません。"
     ],
     [
       "クラウドコンピューター",
       "開発中",
-      "タスクを実行するためのホスト型コンピューター。"
+      "タスクを実行するホスト型コンピューター。"
     ]
   ],
-  availabilityNote: "ターミナルは Codewhale のアカウントなしで使え、ホスト型モデルの利用料金はプロバイダーから請求されます。",
+  availabilityNote: "ターミナル、ローカルブラウザー、GUI は Codewhale のアカウントなしで使えます。ホスト型 Web とデスクトップはアカウントを使いますが、アカウントはモデル接続の代わりにはなりません。自分のキーでの利用料金はプロバイダーから請求されます。",
   accountLink: "アカウントを作成",
-  surfacesHeading: "Codewhale のさまざまな使い方",
+  surfacesHeading: "エージェントが扱える範囲を広げる",
   surfaces: [
-    ["TUI", "対話型のターミナル作業"],
-    ["codewhale exec", "スクリプトと CI"],
-    ["ローカル Web クライアント","localhost のインターフェース。ホスト型のブラウザ作業環境は開発中"],
-    ["Runtime API + MCP", "ローカル連携"],
-    ["Fleet","複数のエージェントでひとつの仕事に取り組む"],
+    ["ファイルとコマンド", "設定した権限の範囲で、プロジェクトを読み、ファイルを編集し、テストを実行し、出力を確認します。"],
+    ["プラグインと MCP", "ツールやサービスを追加で接続します。各プラグインは、内容を確認して有効にするまでオフのままです。"],
+    ["Computer Use · プレビュー", "エージェントがほかのアプリを見て操作できるようにするプラグインです。自分で有効にし、求められるシステム権限を付与します。"],
+    ["保存済みセッション", "会話とツールの結果をまとめて保存し、最初からやり直さずに再開できます。ローカルブラウザーは、あなたのコンピューター上の同じセッションを開きます。"],
+    ["Fleet", "異なるモデルと役割を持つエージェントにタスクの各部分を割り当て、それぞれの進捗を確認します。"],
   ],
-  runtimeLink: "連携機能を見る",
-  installBandHeading: "macOS または Linux に Codewhale をインストールする",
+  runtimeLink: "すべての連携機能を見る",
+  installBandHeading: "macOS または Linux にインストールする",
   copy: "コピー",
   copied: "コピー済み ✓",
   binaries: "バイナリ",
   chinaMirrors: "中国ミラー",
   installGuideLink: "インストールガイドを読む",
-  communityHeading: "Codewhale を一緒により良くする",
-  communityBody: "バグの報告でも、機能のアイデアでも、初めてのプルリクエストでも、皆さんの声を聞き、これからの取り組みを一緒に進めていきたいと考えています。",
+  communityHeading: "Codewhale を一緒に作る",
+  communityBody: "GitHub でバグを報告したり、機能を提案したり、初めてのプルリクエストを送ったりしてください。小さく、テスト済みの修正を歓迎します。",
   communityLinksAria: "コミュニティリンク",
   contribute: "プルリクエストを送る",
 };

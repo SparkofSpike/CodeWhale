@@ -6,13 +6,14 @@ import { InstallCodeBlock } from "./install-code-block";
 
 /**
  * The hero's copyable install plate: one segmented choice between the
- * checked shell installer (macOS and Linux) and npm (any platform with
- * Node 18+), above the same copy block the install page uses. The option
+ * checked shell installer (macOS and Linux), winget on Windows, and npm (any
+ * platform with Node 18+), above the same copy block the install page uses. The option
  * labels are code-owned proper nouns; only the group's accessible name is
  * translated.
  */
 const OPTIONS = [
   { id: "shell", label: "macOS · Linux", cmd: INSTALL_COMMANDS.shell },
+  { id: "windows", label: "Windows", cmd: INSTALL_COMMANDS.windows },
   { id: "npm", label: "npm", cmd: INSTALL_COMMANDS.npm },
 ] as const;
 

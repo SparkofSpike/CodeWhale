@@ -151,7 +151,7 @@ fn from_command_currency(currency: CommandCurrency) -> CostCurrency {
 
 /// Stable provider identity text at the command boundary.
 ///
-/// The TUI persists either the canonical `ApiProvider::as_str()` spelling or —
+/// The TUI persists either the canonical `ProviderKind::as_str()` spelling or —
 /// for named custom providers — the exact configured identity text. This
 /// function never leaks URLs, credentials, or filesystem paths.
 pub(crate) fn to_provider_id(identity: &str) -> CommandProviderId {
@@ -280,6 +280,7 @@ pub(crate) fn key_to_message_id(key: &'static str) -> Option<MessageId> {
 /// return owned values. Command handlers never receive or name `App`.
 struct CommandHost<'a> {
     app: RefCell<&'a mut App>,
+    config: Option<&'a crate::config::Config>,
 }
 
 type SharedCommandHost<'a> = Rc<CommandHost<'a>>;
@@ -346,6 +347,13 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
             .as_ref()
             .map(|j| j.entries.len())
             .unwrap_or(0);
+        // An entry a bounded save archived (#6842) is restored, with any
+        // ancestors the journal no longer holds, before branching to it.
+        if let Err(e) = manager.restore_archived_journal_chain(&mut session, entry_id) {
+            return Err(format!(
+                "branch failed: could not restore {entry_id} from the session's journal archive: {e}"
+            ));
+        }
         match session.journal_branch_to(entry_id) {
             Ok(()) => {
                 if let Err(e) = manager.save_session(&session) {
@@ -397,7 +405,22 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
             if let Ok(mut session) = manager.load_session(&session_id) {
                 session.ensure_journal();
                 if let Some(journal) = session.journal.as_ref() {
-                    let rendered = crate::session_tree::render_tree(journal);
+                    let mut rendered = crate::session_tree::render_tree(journal);
+                    match manager.load_journal_archive(&session_id) {
+                        Ok(archived) if !archived.is_empty() => {
+                            rendered.push_str(&format!(
+                                "{} older off-branch entries are archived in {}/{}.jsonl \
+                                 (not drawn); `/branch <id>` restores one.\n",
+                                archived.len(),
+                                crate::session_manager::JOURNAL_ARCHIVE_DIR,
+                                session_id,
+                            ));
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            rendered.push_str(&format!("journal archive could not be read: {e}\n"))
+                        }
+                    }
                     return Ok(TreeBodyProjection::Journal { rendered });
                 }
             }
@@ -1853,12 +1876,38 @@ impl CommandModelContext for ModelAdapter<'_> {
 
     fn set_model_selection(&mut self, model: String, provider: Option<CommandProviderId>) {
         let mut app = self.host.app.borrow_mut();
-        if let Some(provider) = provider {
-            let identity = provider.0;
-            let provider = crate::config::ApiProvider::parse(&identity)
-                .unwrap_or(crate::config::ApiProvider::Custom);
-            app.set_provider_identity(provider, identity);
-        }
+        let admission = (|| {
+            let config = self.host.config.ok_or_else(|| {
+                "The model command has no active provider configuration.".to_string()
+            })?;
+            let identity = match provider {
+                Some(provider) => {
+                    let identity = config.resolve_provider_identity(&provider.0)?;
+                    if identity.key.as_str() != provider.0 {
+                        return Err(
+                            "The model command must name the exact admitted provider route."
+                                .to_string(),
+                        );
+                    }
+                    identity
+                }
+                None => app.admitted_provider_identity()?.clone(),
+            };
+            config.verify_provider_identity(&identity)?;
+            Ok(identity)
+        })();
+        let identity = match admission {
+            Ok(identity) => identity,
+            Err(reason) => {
+                app.push_status_toast(
+                    reason,
+                    crate::tui::app::StatusToastLevel::Error,
+                    Some(8_000),
+                );
+                return;
+            }
+        };
+        app.set_provider_identity_record(identity);
         app.set_model_selection(model);
     }
 
@@ -1996,7 +2045,7 @@ impl CommandSkillsContext for SkillsAdapter<'_> {
             .borrow()
             .active_skill_provenance
             .as_ref()
-            .map(|authority| authority.plugin_name.clone())
+            .map(|provenance| provenance.authority().plugin_name.clone())
     }
 
     fn refresh_skill_cache(&mut self) {
@@ -2703,7 +2752,7 @@ fn discover_visible(app: &App) -> crate::skills::SkillRegistry {
         &app.workspace,
         &app.skills_dir,
         app.skills_discovery_mode,
-        Some(app.plugin_registry.as_ref()),
+        Some(app.extension_plugin_view().as_ref()),
     )
     .into_enabled()
 }
@@ -2848,21 +2897,18 @@ impl CommandSkillGroupContext for SkillGroupAdapter<'_> {
                     reason: "frontmatter does not allow user invocation".into(),
                 });
             }
-            let plugin_provenance = match &skill.source {
-                crate::skills::SkillSource::Native => None,
-                crate::skills::SkillSource::Plugin { authority, .. } => {
-                    if let Err(reason) = crate::plugins::registry::verify_plugin_component_authority(
-                        authority,
-                        crate::plugins::activation::PluginActivationCapability::Skills,
-                    ) {
-                        return Err(SkillActivationError::PluginRejected {
-                            name: skill.name.clone(),
-                            reason,
-                        });
-                    }
-                    Some(authority.as_ref().clone())
-                }
-            };
+            let plugin_provenance = skill.source.provenance();
+            if let Some(provenance) = &plugin_provenance
+                && let Err(reason) = provenance.verify_for(
+                    &self.host.app.borrow().workspace,
+                    Some(self.host.app.borrow().extension_plugin_view().as_ref()),
+                )
+            {
+                return Err(SkillActivationError::PluginRejected {
+                    name: skill.name.clone(),
+                    reason,
+                });
+            }
             let skill = skill.clone();
             let instruction = format!(
                 "You are now using a skill. Follow these instructions:\n\n# Skill: {}\n\n{}\n\n---\n\nNow respond to the user's request following the above skill instructions.",
@@ -3176,10 +3222,17 @@ impl CommandSkillGroupContext for SkillGroupAdapter<'_> {
         if tokio::runtime::Handle::try_current().is_err() {
             return restore();
         }
+        // A sealed test's home must follow the work onto the blocking pool.
+        #[cfg(test)]
+        let ticket = crate::test_support::env_scope_ticket();
         run_async(async move {
-            tokio::task::spawn_blocking(restore)
-                .await
-                .map_err(|error| format!("Restore task failed: {error}"))?
+            tokio::task::spawn_blocking(move || {
+                #[cfg(test)]
+                let _membership = crate::test_support::join_env_scope(ticket);
+                restore()
+            })
+            .await
+            .map_err(|error| format!("Restore task failed: {error}"))?
         })
     }
 
@@ -4557,9 +4610,18 @@ impl<'a> CommandContextBundle<'a> {
 impl App {
     /// Build an App-free capability envelope backed by authoritative TUI
     /// operations. The shared proxy is synchronous and local to one dispatch.
+    #[cfg(test)]
     pub(crate) fn command_contexts(&mut self) -> CommandContextBundle<'_> {
+        self.command_contexts_with_config(None)
+    }
+
+    pub(crate) fn command_contexts_with_config<'a>(
+        &'a mut self,
+        config: Option<&'a crate::config::Config>,
+    ) -> CommandContextBundle<'a> {
         let host = Rc::new(CommandHost {
             app: RefCell::new(self),
+            config,
         });
         CommandContextBundle {
             session: SessionAdapter { host: host.clone() },
@@ -4745,8 +4807,9 @@ mod tests {
     fn model_adapter_delegates_selection_and_route_invalidation_to_app() {
         let mut app = test_app();
         app.last_effective_model = Some("stale-model".to_string());
+        let config = crate::config::Config::default();
         {
-            let mut bundle = app.command_contexts();
+            let mut bundle = app.command_contexts_with_config(Some(&config));
             let mut parts = bundle.parts();
             let model = parts.model.as_mut().expect("model facet");
             model.set_model_selection("auto".to_string(), Some(to_provider_id("deepseek")));
@@ -4759,6 +4822,92 @@ mod tests {
         }
         assert!(app.last_effective_model.is_none());
         assert_eq!(app.provider_identity_for_persistence(), "deepseek");
+    }
+
+    #[test]
+    fn model_adapter_admits_cross_provider_and_case_distinct_custom_routes_from_borrowed_config() {
+        use crate::config::{Config, ProviderConfig, ProvidersConfig};
+        let config = Config {
+            provider: Some("openai".to_string()),
+            providers: Some(ProvidersConfig {
+                custom: [
+                    ("CustomA".to_string(), "http://127.0.0.1:4111/v1"),
+                    ("customa".to_string(), "http://127.0.0.1:4222/v1"),
+                ]
+                .into_iter()
+                .map(|(key, endpoint)| {
+                    (
+                        key,
+                        ProviderConfig {
+                            kind: Some("openai-compatible".to_string()),
+                            base_url: Some(endpoint.to_string()),
+                            ..Default::default()
+                        },
+                    )
+                })
+                .collect(),
+                ..Default::default()
+            }),
+            ..Config::default()
+        };
+        let mut app = test_app();
+        app.set_provider_identity_record(config.active_provider_identity().unwrap());
+        for (key, model) in [
+            ("CustomA", "private-a"),
+            ("customa", "private-b"),
+            ("openai", "gpt-5.5"),
+        ] {
+            {
+                let mut bundle = app.command_contexts_with_config(Some(&config));
+                let mut parts = bundle.parts();
+                parts
+                    .model
+                    .as_mut()
+                    .unwrap()
+                    .set_model_selection(model.to_string(), Some(to_provider_id(key)));
+            }
+            assert_eq!(
+                app.admitted_provider_identity().unwrap(),
+                &config.resolve_provider_identity(key).unwrap()
+            );
+            assert_eq!(app.provider_identity_for_persistence(), key);
+            assert_eq!(app.model, model);
+        }
+        // Exact keys do not inherit a same-kind sibling or a generic custom route.
+        for refused in ["CUSTOMA", "custom", "antigravity"] {
+            let captured = app.admitted_provider_identity().unwrap().clone();
+            {
+                let mut bundle = app.command_contexts_with_config(Some(&config));
+                let mut parts = bundle.parts();
+                parts.model.as_mut().unwrap().set_model_selection(
+                    "must-not-apply".to_string(),
+                    Some(to_provider_id(refused)),
+                );
+            }
+            assert_eq!(app.admitted_provider_identity().unwrap(), &captured);
+            assert_eq!(app.model, "gpt-5.5");
+        }
+    }
+
+    #[test]
+    fn model_adapter_without_active_config_refuses_before_route_or_model_mutation() {
+        let mut app = test_app();
+        let model = app.model.clone();
+        let captured = app.admitted_provider_identity().unwrap().clone();
+        app.last_effective_model = Some("captured-live-route".to_string());
+        {
+            let mut bundle = app.command_contexts();
+            let mut parts = bundle.parts();
+            let facet = parts.model.as_mut().unwrap();
+            facet.set_model_selection("must-not-apply".to_string(), Some(to_provider_id("openai")));
+            facet.set_model_selection("must-not-apply".to_string(), None);
+        }
+        assert_eq!(app.model, model);
+        assert_eq!(app.admitted_provider_identity().unwrap(), &captured);
+        assert_eq!(
+            app.last_effective_model.as_deref(),
+            Some("captured-live-route")
+        );
     }
 
     #[test]
@@ -4867,7 +5016,12 @@ mod tests {
         harness.app.system_prompt = Some(SystemPrompt::Text("policy".to_string()));
         harness.app.session.last_prompt_tokens = None;
         harness.app.session.last_completion_tokens = Some(0);
-        let expected_provider = harness.app.api_provider.display_name().to_string();
+        let expected_provider = harness
+            .app
+            .api_provider
+            .provider()
+            .display_name()
+            .to_string();
         let expected_support = crate::config::provider_has_balance_api(harness.app.api_provider);
         let mut bundle = harness.app.command_contexts();
         let mut parts = bundle
@@ -5885,37 +6039,10 @@ mod tests {
 
     // ─── FEAT-022 skill-group adapter tests ───────────────────────────────────
 
-    /// Pins HOME to a tempdir for the duration of the test under the
+    /// Seals the user's home for the duration of the test under the
     /// crate-wide env mutex (keeps global skill/snapshot discovery hermetic).
-    struct ScopedHome {
-        prev: Option<std::ffi::OsString>,
-        _home: TempDir,
-        _guard: crate::test_support::TestEnvLock,
-    }
-    impl Drop for ScopedHome {
-        fn drop(&mut self) {
-            // SAFETY: process-wide lock still held.
-            unsafe {
-                match self.prev.take() {
-                    Some(v) => std::env::set_var("HOME", v),
-                    None => std::env::remove_var("HOME"),
-                }
-            }
-        }
-    }
-    fn scoped_home(_workspace: &TempDir) -> ScopedHome {
-        let guard = crate::test_support::lock_test_env();
-        let prev = std::env::var_os("HOME");
-        let home = TempDir::new().expect("home tempdir");
-        // SAFETY: serialised by the global env lock.
-        unsafe {
-            std::env::set_var("HOME", home.path());
-        }
-        ScopedHome {
-            prev,
-            _home: home,
-            _guard: guard,
-        }
+    fn scoped_home(_workspace: &TempDir) -> crate::test_support::SealedHome {
+        crate::test_support::SealedHome::new()
     }
 
     /// The fixture's skills dir lives inside its workspace, so the workspace
@@ -6938,7 +7065,7 @@ mod tests {
         let mut app = control_test_app(&tmpdir);
         init_control_git_repo(
             tmpdir.path(),
-            &format!("https://hunter:{secret}@github.com/Hmbown/CodeWhale.git"),
+            &format!("https://hunter:{secret}@github.com/codewhale-hq/CodeWhale.git"),
             "main",
         );
 
@@ -6947,11 +7074,11 @@ mod tests {
             let mut parts = bundle.parts();
             let facet = parts.control.as_deref_mut().expect("control slot");
             let target = facet.resolve_hosted_work_target().expect("target");
-            assert_eq!(target.repo, "Hmbown/CodeWhale");
+            assert_eq!(target.repo, "codewhale-hq/CodeWhale");
             assert_eq!(target.branch, "main");
             assert_eq!(
                 target.url,
-                "https://app.codewhale.net/work?repo=Hmbown%2FCodeWhale&branch=main"
+                "https://app.codewhale.net/work?repo=codewhale-hq%2FCodeWhale&branch=main"
             );
             assert!(!target.url.contains(secret));
             assert!(!target.repo.contains(secret));
@@ -7260,7 +7387,11 @@ mod tests {
         std::fs::write(&import_file, &json).unwrap();
 
         // This window is on a non-default route; the import must bind to it.
-        app.api_provider = crate::config::ApiProvider::Openai;
+        app.set_provider_identity_record(
+            crate::config::Config::default()
+                .resolve_provider_identity(crate::config::ProviderKind::Openai.as_str())
+                .expect("captured fixture provider"),
+        );
         let receipt = {
             let mut bundle = app.command_contexts();
             let mut parts = bundle.parts();

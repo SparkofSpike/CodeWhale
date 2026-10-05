@@ -3,6 +3,7 @@
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use serde_json::Value;
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use codewhale_palette as palette;
@@ -753,12 +754,12 @@ pub(super) fn wrap_text(text: &str, width: usize) -> Vec<String> {
     let mut lines = Vec::new();
     let mut current = String::new();
 
-    for ch in text.chars() {
+    for grapheme in text.graphemes(true) {
         let tentative = if current.is_empty() {
-            ch.to_string()
+            grapheme.to_string()
         } else {
             let mut t = current.clone();
-            t.push(ch);
+            t.push_str(grapheme);
             t
         };
 
@@ -766,7 +767,7 @@ pub(super) fn wrap_text(text: &str, width: usize) -> Vec<String> {
             lines.push(std::mem::take(&mut current));
         }
 
-        current.push(ch);
+        current.push_str(grapheme);
     }
 
     lines.push(current);
@@ -928,5 +929,26 @@ mod ansi_colour_tests {
         // A byte-window scan must not panic on multi-byte text.
         assert!(!output_is_image("日本語のテキストのみ"));
         assert!(!output_is_image(""));
+    }
+
+    #[test]
+    fn wrap_text_breaks_between_graphemes() {
+        // An emoji-presentation heart and a keycap are one two-column
+        // grapheme each, the way Ratatui counts cells.
+        for text in ["ab\u{2764}\u{fe0f}cd", "ab1\u{fe0f}\u{20e3}cd"] {
+            for width in 2..=6 {
+                let lines = wrap_text(text, width);
+                let rejoined: Vec<&str> =
+                    lines.iter().flat_map(|line| line.graphemes(true)).collect();
+                assert_eq!(
+                    rejoined,
+                    text.graphemes(true).collect::<Vec<_>>(),
+                    "width {width} split a grapheme: {lines:?}"
+                );
+                for line in &lines {
+                    assert!(line.width() <= width, "line {line:?} exceeds width {width}");
+                }
+            }
+        }
     }
 }

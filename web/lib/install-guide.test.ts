@@ -21,7 +21,7 @@ describe("canonical installation guide", () => {
   it("resolves relative docs and preserves duplicate-heading and legacy anchors", () => {
     const guide = buildInstallGuide('# Start\n\n## Notes\n\n## Notes\n\n<a id="legacy"></a>\n\n[Keys](KEYBINDINGS.md) [Notes](INSTALL.md#notes-1) [Old](#legacy)\n');
     expect(guide.anchors).toEqual(["start", "notes", "notes-1", "legacy"]);
-    expect(guide.chunks[0].text).toContain('href="https://github.com/Hmbown/CodeWhale/blob/main/docs/KEYBINDINGS.md"');
+    expect(guide.chunks[0].text).toContain('href="https://github.com/codewhale-hq/CodeWhale/blob/main/docs/KEYBINDINGS.md"');
     expect(guide.chunks[0].text).toContain('href="#notes-1"');
     expect(installAnchorErrors("INSTALL.md#notes-1 INSTALL.md#missing", guide.anchors)).toEqual(["missing"]);
   });

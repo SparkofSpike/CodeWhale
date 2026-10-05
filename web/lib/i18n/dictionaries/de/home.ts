@@ -1,23 +1,24 @@
 import type { HomeDict } from "../types";
 
 /**
- * German home dictionary — native copy for the Tidal Folio landing page,
- * in the current direction: your models, more capable together; agents
- * and control on your own machine; availability stated per surface as it
- * is today. Product vocabulary stays literal (Plan / Work / Operate, Ask /
- * Auto-Review / Full Access, Codewhale, TUI, codewhale exec, Fleet).
+ * German home dictionary — native copy for the whale-road landing page,
+ * translated from the English reference: an open-source coding agent for
+ * any model, control over approvals, and availability stated per surface
+ * as it is today. Product vocabulary stays literal (Plan / Work / Operate,
+ * Ask / Auto-Review / Full Access, Codewhale, codewhale exec, Fleet,
+ * /receipts).
  */
 
 export const home: HomeDict = {
-  metaTitle: "Codewhale — Entwickle und automatisiere mit den Modellen deiner Wahl",
+  metaTitle: "Codewhale: der Open-Source-Coding-Agent für jedes Modell",
   metaDescription:
-    "Entwickle Software, arbeite mit deinen Dateien und automatisiere alltägliche Aufgaben mit Open-Source-Agenten und gehosteten oder lokalen KI-Modellen deiner Wahl.",
-  heroTitle: "Entwickle und automatisiere mit den Modellen deiner Wahl",
+    "Codewhale ist ein Open-Source-Coding-Agent für dein Terminal. Er liest dein Projekt, bearbeitet Dateien und führt deine Tests mit dem gehosteten oder lokalen Modell deiner Wahl aus.",
+  heroTitle: "Der Open-Source-Coding-Agent für jedes Modell",
   heroIntro:
-    "{brand} gibt dir Agenten, die Software entwickeln, mit deinen Dateien arbeiten und wiederkehrende Aufgaben in wiederverwendbare Workflows verwandeln können. Beschreibe, was du erreichen möchtest, und wähle gehostete oder lokale Modelle, die zur Aufgabe passen, wobei du den Anbieter im Laufe der Arbeit wechseln kannst.",
-  getCodewhale: "Codewhale holen",
+    "{brand} liest dein Projekt, bearbeitet Dateien und führt deine Tests in deinem Terminal aus. Verbinde ein gehostetes oder lokales Modell und lege fest, welche Aktionen deine Freigabe brauchen.",
+  getCodewhale: "Codewhale installieren",
   heroInstallAria: "Installationsbefehl",
-  exploreProduct: "Produkt ansehen",
+  exploreProduct: "So funktioniert es",
   shotPreview: "Terminal-Vorschau",
   shotBuild: "Entwicklungsbuild v{version}",
   screenshotAlt:
@@ -29,87 +30,92 @@ export const home: HomeDict = {
   publishedRelease: "veröffentlicht",
   figcaptionSourceCandidate: "unveröffentlicht",
   chapterTerminal: "Dein Terminal",
-  chapterTerminalTitle: "Beginne mit etwas, das du erstellen möchtest",
-  gainHeading:
-    "Was du mit Codewhale machen kannst",
+  chapterTerminalTitle: "Verfolge jede Änderung und jeden Befehl während der Ausführung",
+  gainHeading: "Gib die Aufgabe ab und behalte die Kontrolle",
   gainLede:
-    "Beginne mit einem Projekt, einer Frage oder einer Aufgabe, die du automatisieren möchtest, und arbeite dann mit einem Agenten oder verteile Teile einer größeren Aufgabe auf mehrere.",
+    "Bitte um ein Ergebnis: einen Fehler beheben, ein Modul erklären oder eine wiederkehrende Aufgabe automatisieren. Beginne mit einem Agenten und füge weitere hinzu, wenn die Aufgabe wächst.",
   gain: [
     [
-      "Entwickle etwas",
-      "Beschreibe, was du erstellen möchtest, und arbeite mit Agenten, die deinen Code lesen, Dateien bearbeiten, Befehle ausführen und das Ergebnis prüfen können."
+      "Ändere Code und prüfe ihn",
+      "Der Agent untersucht dein Projekt, bearbeitet Dateien und führt deine Tests aus. Verfolge jede Änderung und jedes Befehlsergebnis, während er arbeitet."
     ],
     [
-      "Automatisiere alltägliche Arbeit",
-      "Erstelle Skripte und Workflows für wiederkehrende Aufgaben, damit du sie bei Bedarf erneut im Terminal ausführen kannst."
+      "Automatisiere wiederkehrende Arbeit",
+      "Führe codewhale exec aus Skripten und CI aus. Nutze Fleet, um eine größere Aufgabe auf mehrere Agenten aufzuteilen."
     ],
     [
-      "Arbeite mit verschiedenen Modellen",
-      "Nutze gehostete oder lokale Modelle für deine Agenten und setze unterschiedliche Modelle und Rollen für die Teile einer Aufgabe ein, zu denen sie passen."
+      "Behalte die Kontrolle",
+      "Lege Berechtigungen fest, bevor die Arbeit beginnt, beantworte Freigabeanfragen und stoppe eine Aufgabe jederzeit. Führe /receipts aus, um jede Datei, jeden Befehl und jede Freigabe einer Sitzung aufzulisten."
     ]
   ],
   chapterModels: "Deine Modelle",
-  modelsHeading: "Eine Auswahl an Modellen für jede Aufgabe",
+  modelsHeading: "Wähle ein Modell für jede Aufgabe",
   modelsBody:
-    "Verbinde dich direkt mit einem Anbieter gehosteter Modelle, greife über ein Gateway auf mehrere Anbieter zu oder führe ein Modell lokal aus, und wähle während der Arbeit das Modell für jede Sitzung.",
+    "Wähle für jede Sitzung einen integrierten Anbieter, einen beliebigen OpenAI-kompatiblen Endpoint oder ein lokales Modell. Deine Modellverbindung bleibt von jedem Codewhale-Konto getrennt.",
   modelsFacts: [
     ["Gehostet", "Dein eigener API-Schlüssel, gespeichert mit codewhale auth set --provider <id>"],
-    ["Gateway", "Ein Endpoint für viele Modelle, den Provider wählst weiterhin du"],
-    ["Lokal", "vLLM, SGLang, Ollama auf localhost — meist ohne Schlüssel"],
+    ["Gateway", "Ein Endpoint für viele Modelle; den Anbieter wählst weiterhin du"],
+    ["Lokal", "vLLM, SGLang oder Ollama auf localhost, meist ohne Schlüssel"],
   ],
-  modelsLink: "Modelle und Anbieter entdecken",
-  startHeading: "Erste Schritte mit Codewhale",
+  modelsLink: "Modelle und Anbieter durchsuchen",
+  startHeading: "Installieren, Modell verbinden, Aufgabe ausführen",
   startLede:
-    "Sobald du Codewhale installiert und ein Modell verbunden hast, kannst du deine erste Aufgabe im Terminal beschreiben und Fleet hinzunehmen, wenn mehrere Agenten die Arbeit unter sich aufteilen sollen.",
-  startGuideLink: "Leitfaden für die ersten Schritte lesen",
+    "Führe deine erste Aufgabe in drei Schritten in deinem Projektordner aus. Füge später Fleet hinzu, wenn die Arbeit mehrere Agenten braucht.",
+  startGuideLink: "Dem Leitfaden für die ersten Schritte folgen",
   startVocabularyLink: "Produktvokabular ansehen",
   chapterAvailability: "Wo es läuft",
-  availabilityHeading: "Wo du Codewhale nutzen kannst",
+  availabilityHeading: "Nutze Codewhale schon heute in deinem Terminal",
   availabilityLede:
-    "Du kannst Codewhale heute schon im Terminal nutzen, während wir an der Web-App, der Desktop-App und den Cloud-Computern arbeiten.",
+    "Nutze jetzt das Terminal, den lokalen Browser-Client oder die von der Community gepflegte CodeWhale GUI. Die Desktop-App und die neu aufgebaute gehostete Web-App sind in Entwicklung und teilen dasselbe Sitzungsmodell.",
   availability: [
     [
-      "Terminal",
+      "Terminal und lokaler Browser",
       "Veröffentlicht",
-      "Binärdateien aus den GitHub-Releases für Linux, macOS und Windows; npm und Cargo sind Alternativen. Android unter Termux ist eine Vorschau."
+      "Installiere Codewhale unter Linux, macOS oder Windows und führe dann codewhale aus, oder codewhale web für den lokalen Browser-Client. npm und Cargo funktionieren ebenfalls; Android unter Termux ist eine Vorschau."
     ],
     [
-      "Web-App",
+      "CodeWhale GUI (VS Code)",
+      "Verfügbar",
+      "Ein separates, von der Community gepflegtes Projekt: Chat, Threads und Dateiänderungen in einer VS Code-Seitenleiste über dieselbe Codewhale Runtime. Installiere sie über den VS Code Marketplace.",
+      "https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode"
+    ],
+    [
+      "Gehostete Web-App",
       "Entwicklungsvorschau",
-      "Kontozugang und Kopplung mit dem Browser in der Entwicklungsvorschau."
+      "Wird neu aufgebaut, damit sie zur Desktop-App passt. Heute kannst du dich anmelden und dann in einer laufenden Terminal-Sitzung /rc eingeben, um sie im Web fortzusetzen; die Ausführung gehosteter Aufgaben wird noch qualifiziert."
     ],
     [
       "Desktop-App",
       "Entwicklungsbuild",
-      "Die macOS-App ist in Entwicklung; ein öffentlicher Download folgt später."
+      "Die native App, die zum wichtigsten Codewhale-Client wird: Ordner, Unterhaltungen und Modellverbindungen in einem Fenster. Einen öffentlichen Download gibt es noch nicht."
     ],
     [
       "Cloud-Computer",
       "In Entwicklung",
-      "Gehostete Computer zum Ausführen deiner Aufgaben."
+      "Gehostete Computer, die deine Aufgaben ausführen."
     ]
   ],
   availabilityNote:
-    "Du kannst das Terminal ohne Codewhale-Konto nutzen, und die Nutzung gehosteter Modelle rechnet dein Anbieter ab.",
+    "Terminal, lokaler Browser und GUI brauchen kein Codewhale-Konto. Gehostetes Web und Desktop nutzen ein Konto, das deine Modellverbindung nicht ersetzt; dein Anbieter rechnet die Nutzung über deinen eigenen Schlüssel ab.",
   accountLink: "Konto erstellen",
-  surfacesHeading: "Möglichkeiten, mit Codewhale zu arbeiten",
+  surfacesHeading: "Erweitere, worauf der Agent zugreifen kann",
   surfaces: [
-    ["TUI", "Interaktive Arbeit im Terminal"],
-    ["codewhale exec", "Skripte und CI"],
-    ["Lokaler Web-Client","Oberfläche auf localhost; gehostete Arbeitsumgebung im Browser in Entwicklung"],
-    ["Runtime API + MCP", "Lokale Integrationen"],
-    ["Fleet","Mehrere Agenten für dieselbe Aufgabe"],
+    ["Dateien und Befehle", "Lies das Projekt, bearbeite Dateien, führe Tests aus und prüfe die Ausgabe innerhalb der Berechtigungen, die du festlegst."],
+    ["Plugins und MCP", "Verbinde weitere Tools und Dienste. Jedes Plugin bleibt deaktiviert, bis du es prüfst und aktivierst."],
+    ["Computer Use · Vorschau", "Ein Plugin, mit dem der Agent andere Apps sehen und bedienen kann. Du aktivierst es und erteilst die Systemberechtigungen, die es anfordert."],
+    ["Gespeicherte Sitzungen", "Halte Unterhaltung und Tool-Ergebnisse zusammen und setze die Arbeit fort, statt neu anzufangen. Der lokale Browser öffnet dieselbe Sitzung auf deinem Computer."],
+    ["Fleet", "Weise Teile einer Aufgabe Agenten mit unterschiedlichen Modellen und Rollen zu und verfolge dann ihren Fortschritt."],
   ],
-  runtimeLink: "Integrationen entdecken",
-  installBandHeading: "Installiere Codewhale auf macOS oder Linux",
+  runtimeLink: "Alle Integrationen ansehen",
+  installBandHeading: "Installation unter macOS oder Linux",
   copy: "Kopieren",
   copied: "Kopiert ✓",
   binaries: "Binärdateien",
   chinaMirrors: "China-Mirrors",
   installGuideLink: "Installationsleitfaden lesen",
-  communityHeading: "Hilf mit, Codewhale zu verbessern",
+  communityHeading: "Entwickle Codewhale mit uns",
   communityBody:
-    "Ob du einen Fehler gefunden hast, eine Idee für eine Funktion hast oder deinen ersten Pull Request einreichen möchtest: Wir möchten von dir hören und gemeinsam an der weiteren Entwicklung arbeiten.",
+    "Melde einen Fehler, schlage eine Funktion vor oder sende deinen ersten Pull Request auf GitHub. Kleine, getestete Korrekturen sind willkommen.",
   communityLinksAria: "Community-Links",
   contribute: "Pull Request senden",
 };

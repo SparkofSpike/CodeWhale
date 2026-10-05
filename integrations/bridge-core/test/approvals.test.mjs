@@ -23,7 +23,7 @@ const identities = {
 };
 const actors = {
   "telegram-bridge": "telegram-user:alice", "feishu-bridge": "feishu-openId:alice",
-  "wecom-bridge": "wecom-user:alice", "weixin-bridge": "weixin-user:chat-a"
+  "wecom-bridge": "wecom-user:alice", "weixin-bridge": "weixin-account:bot-a:user:chat-a"
 };
 async function withStore(fn, options = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "bridge-approvals-"));
@@ -43,7 +43,8 @@ function extract(source, name) {
 }
 async function shipping(bridge, names, values) {
   const source = await readFile(path.join(root, bridge, "src/index.mjs"), "utf8");
-  return new Function(...Object.keys(values), names.map((name) => extract(source, name)).join("\n") +
+  const functions = bridge === "weixin-bridge" && names.includes("turnActor") ? ["accountIdentity", ...names] : names;
+  return new Function(...Object.keys(values), functions.map((name) => extract(source, name)).join("\n") +
     `\nreturn { ${names.join(", ")} };`)(...Object.values(values));
 }
 async function withRuntime(fn) {
@@ -195,7 +196,8 @@ for (const bridge of Object.keys(identities)) {
       await store.recordTurnOrigin(chatId, threadId, turnId, actors[bridge]);
       await store.patchChat(chatId, { authorizedIdentity: identities[bridge]("bob"), activeTurnId: "later-turn" });
       const reopened = await ThreadStore.open(store.filePath, { actions: true });
-      const { decideApproval: consumer } = await shipping(bridge, ["turnActor", "decideApproval"], environment(reopened, runtime));
+      const { decideApproval: consumer } = await shipping(bridge, ["turnActor", "decideApproval"], environment(reopened, runtime,
+        bridge === "weixin-bridge" ? { botAccount: { accountId: "bot-a" } } : {}));
       const action = { decision: "allow", approvalId: "approval-a", remember: true };
       await consumer(chatId, { ...action, approvalId: "approval-b" }, identities[bridge]("alice"));
       if (bridge !== "weixin-bridge") {
@@ -208,6 +210,38 @@ for (const bridge of Object.keys(identities)) {
     }));
   });
 }
+
+test("Weixin shipping decision rejects replacement or missing account identity without transferring the origin", async () => {
+  await withRuntime(async (runtime) => withStore(async (store) => {
+    await store.recordTurnOrigin(chatId, threadId, turnId, actors["weixin-bridge"]);
+    const reopened = await ThreadStore.open(store.filePath, { actions: true });
+    const botAccount = { accountId: "bot-a" };
+    const { decideApproval: consumer } = await shipping("weixin-bridge", ["turnActor", "decideApproval"],
+      environment(reopened, runtime, { botAccount }));
+    const action = { decision: "allow", approvalId: "approval-a", remember: true };
+    for (const accountId of ["bot-b", "", null]) {
+      botAccount.accountId = accountId;
+      await consumer(chatId, action);
+      assert.equal(runtime.state.posts.length, 0);
+      assert.equal(reopened.turnOrigin(chatId, threadId, turnId).actorId, actors["weixin-bridge"]);
+    }
+    botAccount.accountId = "bot-a";
+    await consumer(chatId, action);
+    assert.deepEqual(runtime.state.posts, [{ route: "/v1/approvals/approval-a", body: { decision: "allow", remember: true } }]);
+  }));
+});
+
+test("Weixin shipping decision refuses a legacy origin without bot account provenance after reload", async () => {
+  await withRuntime(async (runtime) => withStore(async (store) => {
+    await store.recordTurnOrigin(chatId, threadId, turnId, "weixin-user:chat-a");
+    const reopened = await ThreadStore.open(store.filePath, { actions: true });
+    const { decideApproval: consumer } = await shipping("weixin-bridge", ["turnActor", "decideApproval"],
+      environment(reopened, runtime, { botAccount: { accountId: "bot-a" } }));
+    await consumer(chatId, { decision: "allow", approvalId: "approval-a", remember: true });
+    assert.equal(runtime.state.posts.length, 0);
+    assert.equal(reopened.turnOrigin(chatId, threadId, turnId).actorId, "weixin-user:chat-a");
+  }));
+});
 
 for (const bridge of ["telegram-bridge", "feishu-bridge", "wecom-bridge"]) {
   test(`${bridge} accepted start binds before delivery; failed, queued and later starts cannot transfer an old approval`, async () => {

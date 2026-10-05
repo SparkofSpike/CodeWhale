@@ -18,10 +18,7 @@
 //! * One test per property, with its cases in a table — not one test per case.
 //! * Never assert `a || b` where `b` is trivially true of any English string.
 
-use super::constants::{
-    TOOL_OUTPUT_HEAD_LINES, TOOL_OUTPUT_LINE_LIMIT, TOOL_OUTPUT_TAIL_LINES,
-    TOOL_SUCCESS_OUTPUT_PREVIEW_LINES,
-};
+use super::constants::{TOOL_OUTPUT_HEAD_LINES, TOOL_OUTPUT_LINE_LIMIT, TOOL_OUTPUT_TAIL_LINES};
 use super::thinking::cached_color_depth;
 use super::{
     ASSISTANT_GLYPH, ExecCell, ExecSource, GenericToolCell, HistoryCell, PlanUpdateCell,
@@ -38,6 +35,25 @@ use crate::tui::ui_text::{
 use codewhale_models::{ContentBlock, Message, Role};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+
+#[test]
+fn extension_prompt_snapshots_and_withdrawal_show_the_complete_model_input() {
+    let instructions = format!("{}\nLast instruction.", "x".repeat(12_000));
+    for block in [Some(instructions.as_str()), None] {
+        let message = crate::runtime_handoff::extension_prompt_contributions_runtime_message(block);
+        let cells = super::history_cells_from_message(&message);
+        let [HistoryCell::System { content }] = cells.as_slice() else {
+            panic!("runtime instructions must be shown as a system receipt");
+        };
+        match block {
+            Some(text) => assert!(
+                content.contains(text),
+                "the full model-visible text stays auditable"
+            ),
+            None => assert!(content.contains("withdrawn")),
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -408,15 +424,27 @@ fn whatever_live_truncates_the_transcript_still_holds() {
         .filter(|i| live_text.contains(&format!("row {i:02} plain content")))
         .count();
     assert_eq!(
-        previewed, TOOL_SUCCESS_OUTPUT_PREVIEW_LINES,
-        "a successful exec previews exactly {TOOL_SUCCESS_OUTPUT_PREVIEW_LINES} \
-         rows: {live_text}"
+        previewed, 3,
+        "a successful exec previews only the opening and final result rows: {live_text}"
     );
     assert!(
         live_text.contains(first) && live_text.contains(&last),
         "the bounded preview retains context and the final result: {live_text}"
     );
+    let output_hint = crate::tui::key_shortcuts::tool_details_shortcut_action_hint("output");
+    assert!(
+        live_text.contains(&output_hint),
+        "a shortened success must point to its full output: {live_text}"
+    );
+    assert!(
+        !live_text.contains("row 15 plain content"),
+        "the live preview should leave routine middle output for details: {live_text}"
+    );
     assert!(transcript_text.contains(first) && transcript_text.contains(&last));
+    assert!(
+        transcript_text.contains("row 15 plain content"),
+        "the full transcript must retain output omitted from the live card: {transcript_text}"
+    );
 
     // Successful generic tool: output collapses entirely live, and does so
     // without spending a row telling the user it collapsed.
