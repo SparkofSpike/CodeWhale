@@ -1020,11 +1020,21 @@ impl From<CatalogRefreshError> for ModelsFetchError {
 // fields that the existing typed provider parsers reject.
 #[derive(Deserialize)]
 struct ModelsPage<'a> {
-    #[serde(borrow, alias = "models")]
-    data: &'a serde_json::value::RawValue,
+    #[serde(borrow)]
+    data: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow)]
+    models: Option<&'a serde_json::value::RawValue>,
     #[serde(default)]
     has_more: bool,
     last_id: Option<String>,
+}
+
+impl<'a> ModelsPage<'a> {
+    fn rows(&self) -> Result<&'a serde_json::value::RawValue, CatalogRefreshError> {
+        self.data
+            .or(self.models)
+            .ok_or(CatalogRefreshError::InvalidResponse)
+    }
 }
 
 struct BoundedModelsRows(usize);
@@ -1102,7 +1112,7 @@ where
             let page: ModelsPage<'_> =
                 serde_json::from_str(&body).map_err(|_| CatalogRefreshError::InvalidResponse)?;
             let page_rows = BoundedModelsRows(limits.rows.saturating_sub(rows.len()))
-                .deserialize(&mut serde_json::Deserializer::from_str(page.data.get()))
+                .deserialize(&mut serde_json::Deserializer::from_str(page.rows()?.get()))
                 .map_err(|_| CatalogRefreshError::InvalidResponse)?;
             rows.extend(page_rows);
             if !page.has_more {
