@@ -1118,3 +1118,66 @@ async fn unpaginated_custom_identities_keep_exact_identity_and_endpoint_ownershi
     }
     assert_eq!(cache.entries.len(), 3);
 }
+
+/// `models` is the wider spelling some relays echo beside the OpenAI `data`
+/// roster, and it is often a stub. It is not a second name for `data`: when it
+/// was declared as one (`alias = "models"`), a body carrying both keys failed
+/// the whole probe with `duplicate field`, so a route whose roster was present
+/// and well-formed reported `invalid_response` and listed nothing. `data` is
+/// the roster this envelope reads first; `models` stays for hosts that serve
+/// only that spelling.
+#[tokio::test]
+async fn roster_envelope_carrying_data_and_models_reads_the_data_roster() {
+    let server = MockServer::start().await;
+    mount_models_json(
+        &server,
+        200,
+        json!({
+            "object": "list",
+            "data": [{"id": "relay-real-a"}, {"id": "relay-real-b"}],
+            "models": [{"id": "wider-spelling-stub"}],
+            "total_count": 2,
+        }),
+    )
+    .await;
+    let client = custom_mock_client_for_identity(&server, "relay-private");
+    let delta = client
+        .fetch_catalog_delta()
+        .await
+        .expect("both spellings present is a complete roster, not an invalid response");
+    assert_eq!(
+        delta
+            .offerings
+            .iter()
+            .map(|row| row.wire_model_id.as_str())
+            .collect::<Vec<_>>(),
+        ["relay-real-a", "relay-real-b"]
+    );
+}
+
+/// An empty `data` roster beside a populated `models` array is an empty
+/// listing, not a reason to read the other key. A present `data` is the
+/// OpenAI-compatible roster; only a host that serves no `data` at all falls
+/// back to the wider spelling.
+#[tokio::test]
+async fn roster_envelope_with_empty_data_is_an_empty_listing_not_a_models_fallback() {
+    let server = MockServer::start().await;
+    mount_models_json(
+        &server,
+        200,
+        json!({
+            "object": "list",
+            "data": [],
+            "models": [{"id": "wider-spelling-stub"}],
+        }),
+    )
+    .await;
+    let client = custom_mock_client_for_identity(&server, "relay-private");
+    assert_eq!(
+        client
+            .fetch_catalog_delta()
+            .await
+            .expect_err("an empty data roster is an empty listing"),
+        CatalogRefreshError::EmptyList
+    );
+}
