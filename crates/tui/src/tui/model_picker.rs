@@ -2599,14 +2599,14 @@ fn provider_catalog_receipt_for_route(
     .ok()?;
     (admitted.provider == provider).then_some(())?;
     let identity = admitted.key.as_str();
+    let base_url = config.base_url_for_route(&admitted);
     // One predicate with the active-provider refresh: any route whose roster
-    // is probed (named live gateways and custom hosts) reports its freshness
-    // here, so a widened probe cannot leave this receipt behind.
-    if !crate::provider_catalog_live::provider_owns_live_catalog(provider) {
+    // is probed (named live gateways, custom hosts, and builtin names on a
+    // private endpoint) reports its freshness here, so a widened probe cannot
+    // leave this receipt behind.
+    if !crate::provider_catalog_live::provider_owns_live_catalog(provider, &base_url) {
         return None;
     }
-
-    let base_url = config.base_url_for_route(&admitted);
     let endpoint_matches = match source {
         Some(CatalogSource::Live {
             base_url_fingerprint,

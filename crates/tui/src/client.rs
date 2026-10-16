@@ -3644,7 +3644,10 @@ impl CodewhaleClient {
             // at fetch time) and every other custom host. A private route is
             // the only place its roster exists, and a failed probe stays
             // non-fatal.
-            if !crate::provider_catalog_live::provider_owns_live_catalog(provider) {
+            if !crate::provider_catalog_live::provider_owns_live_catalog(
+                provider,
+                &config.active_route_base_url(),
+            ) {
                 return;
             }
 
@@ -3720,6 +3723,47 @@ impl CodewhaleClient {
                     }
                 }
             });
+        }
+    }
+
+    /// Best-effort refresh of every configured route that owns its own
+    /// `/v1/models` roster, so opening `/model` finds each relay already probed
+    /// instead of a route still waiting for a provider switch.
+    ///
+    /// [`Self::spawn_active_provider_catalog_refresh`] keeps its own faster path
+    /// for the active route (it also publishes that route's persisted scope
+    /// before the probe). This is the wider sweep behind it, for the relays a
+    /// session is *not* currently on — the picker lists every configured route,
+    /// so every one of them has to be able to answer, not just the active one.
+    ///
+    /// Each route is probed through the same `update_provider_catalog` the
+    /// explicit `models --update` command uses, so the TTL, the typed receipt,
+    /// the credential-change guard and the superseded-refresh ticket are shared
+    /// rather than reimplemented. Failures stay non-fatal: a route that cannot
+    /// answer keeps its persisted and configured rows.
+    pub fn spawn_configured_provider_catalog_refresh(config: &Config) {
+        #[cfg(test)]
+        let _ = config;
+        #[cfg(not(test))]
+        {
+            let active = config.active_provider_identity().ok();
+            for identity in crate::provider_lake::configured_providers(config) {
+                if active.as_ref() == Some(&identity) {
+                    continue;
+                }
+                let base_url = config.base_url_for_route(&identity);
+                if !crate::provider_catalog_live::provider_owns_live_catalog(
+                    identity.provider,
+                    &base_url,
+                ) {
+                    continue;
+                }
+                let route_config = config.clone();
+                tokio::spawn(async move {
+                    let _ = crate::provider_lake::update_provider_catalog(&route_config, &identity)
+                        .await;
+                });
+            }
         }
     }
 
