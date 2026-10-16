@@ -1181,3 +1181,72 @@ async fn roster_envelope_with_empty_data_is_an_empty_listing_not_a_models_fallba
         CatalogRefreshError::EmptyList
     );
 }
+
+/// A custom table is reached through the OpenAI-compatible surface, so its
+/// `/models` listing follows the OpenAI auth convention even when the table
+/// declares `wire = "anthropic"` for Messages. A relay can answer
+/// `/v1/messages` on either header and still reject `x-api-key` on
+/// `/v1/models` with `401 missing_api_key`, so the listing must not inherit
+/// the Messages choice.
+#[tokio::test]
+async fn custom_messages_wire_listing_authenticates_with_bearer() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let server = MockServer::start().await;
+    mount_models_json(
+        &server,
+        200,
+        json!({"object": "list", "data": [{"id": "relay-model"}]}),
+    )
+    .await;
+    let mut providers = ProvidersConfig::default();
+    providers.custom.insert(
+        "relay-messages-wire".to_string(),
+        ProviderConfig {
+            kind: Some("openai-compatible".to_string()),
+            api_key: Some(KEY.to_string()),
+            base_url: Some(format!("{}/v1", server.uri())),
+            model: Some("relay-model".to_string()),
+            wire: Some("anthropic".to_string()),
+            ..ProviderConfig::default()
+        },
+    );
+    let client = CodewhaleClient::new(&Config {
+        provider: Some("relay-messages-wire".to_string()),
+        providers: Some(providers),
+        ..Config::default()
+    })
+    .expect("custom Messages-wire relay client");
+
+    let delta = client
+        .fetch_catalog_delta()
+        .await
+        .expect("the relay's listing answers on its own terms");
+    assert_eq!(
+        delta
+            .offerings
+            .iter()
+            .map(|row| row.wire_model_id.as_str())
+            .collect::<Vec<_>>(),
+        ["relay-model"]
+    );
+
+    let request = server
+        .received_requests()
+        .await
+        .expect("requests")
+        .pop()
+        .expect("one listing request");
+    let expected = format!("Bearer {KEY}");
+    assert_eq!(
+        request
+            .headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok()),
+        Some(expected.as_str()),
+        "the listing follows the OpenAI auth convention"
+    );
+    assert!(
+        request.headers.get("x-api-key").is_none(),
+        "the listing must not inherit the Messages x-api-key convention"
+    );
+}

@@ -288,6 +288,7 @@ impl CodewhaleClient {
                     false,
                     client.force_http1,
                     config,
+                    AuthHeaderSurface::Inference,
                 )?
                 .build()?;
                 client.base_url = base_url;

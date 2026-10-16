@@ -370,6 +370,7 @@
                 "https://api.codewhale.net/v1",
                 wire,
                 false,
+                AuthHeaderSurface::Inference,
             )
             .expect("headers");
             assert_eq!(
