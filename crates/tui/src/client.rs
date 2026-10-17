@@ -4732,43 +4732,31 @@ struct ListedRow {
 
 impl ListedRowLimits {
     fn to_models_dev_limit(&self) -> Option<codewhale_config::models_dev::ModelsDevLimit> {
-        let context = catalog_number_u64(
-            self.limit
-                .as_ref()
-                .and_then(|block| block.context.as_ref())
-                .or_else(|| {
-                    self.metadata
-                        .as_ref()
-                        .and_then(|block| block.context_limit.as_ref())
-                })
-                .or(self.context_length.as_ref())
-                .or(self.context_window.as_ref())
-                .or(self.max_model_len.as_ref())
-                .or(self.max_context_length.as_ref())
-                .or_else(|| {
-                    self.metadata
-                        .as_ref()
-                        .and_then(|block| block.context_budget.as_ref())
-                }),
-        )
-        .ok()
-        .flatten()
-        .filter(|tokens| *tokens > 0);
-        let output = catalog_number_u64(
-            self.limit
-                .as_ref()
-                .and_then(|block| block.output.as_ref())
-                .or_else(|| {
-                    self.metadata
-                        .as_ref()
-                        .and_then(|block| block.output_budget.as_ref())
-                })
-                .or(self.max_output_tokens.as_ref())
-                .or(self.max_completion_tokens.as_ref()),
-        )
-        .ok()
-        .flatten()
-        .filter(|tokens| *tokens > 0);
+        let block = self.limit.as_ref();
+        let metadata = self.metadata.as_ref();
+        // Each candidate is parsed on its own and the first readable one wins:
+        // selecting by presence first would let one unreadable field hide every
+        // field below it, reintroducing the 128K fallback this pass exists to
+        // replace.
+        let context = [
+            block.and_then(|block| block.context.as_ref()),
+            metadata.and_then(|block| block.context_limit.as_ref()),
+            self.context_length.as_ref(),
+            self.context_window.as_ref(),
+            self.max_model_len.as_ref(),
+            self.max_context_length.as_ref(),
+            metadata.and_then(|block| block.context_budget.as_ref()),
+        ]
+        .into_iter()
+        .find_map(stated_token_count);
+        let output = [
+            block.and_then(|block| block.output.as_ref()),
+            metadata.and_then(|block| block.output_budget.as_ref()),
+            self.max_output_tokens.as_ref(),
+            self.max_completion_tokens.as_ref(),
+        ]
+        .into_iter()
+        .find_map(stated_token_count);
         (context.is_some() || output.is_some()).then_some(
             codewhale_config::models_dev::ModelsDevLimit {
                 context,
@@ -4777,6 +4765,14 @@ impl ListedRowLimits {
             },
         )
     }
+}
+
+/// A positive whole token count, or `None` when the field is unreadable.
+fn stated_token_count(value: Option<&CatalogNumber>) -> Option<u64> {
+    catalog_number_u64(value)
+        .ok()
+        .flatten()
+        .filter(|tokens| *tokens > 0)
 }
 
 /// Per-model limits a provider's `/models` body states, keyed by wire id.
@@ -5302,7 +5298,7 @@ fn catalog_delta_from_models_body(
             fetched_at,
         )?
     } else {
-        let listed_limits = listed_limits_by_model_id(body);
+        let mut listed_limits = listed_limits_by_model_id(body);
         let models = apply_provider_model_cutline(
             api_provider,
             parse_models_response_for_provider(body, api_provider)
@@ -5310,6 +5306,19 @@ fn catalog_delta_from_models_body(
         );
         if models.is_empty() {
             return Err(CatalogRefreshError::EmptyList);
+        }
+        // OpenCode Go's cutline rewrites a listed id to its canonical spelling.
+        // Key the limits map the same way so a row keeps the numbers the
+        // provider stated for it.
+        if api_provider == ProviderKind::OpencodeGo {
+            listed_limits = listed_limits
+                .into_iter()
+                .map(|(id, limit)| {
+                    let canonical = crate::config::opencode_go_model_id(&id)
+                        .map_or_else(|| id.clone(), str::to_string);
+                    (canonical, limit)
+                })
+                .collect();
         }
         models
             .into_iter()
