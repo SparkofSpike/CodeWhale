@@ -1118,3 +1118,135 @@ async fn unpaginated_custom_identities_keep_exact_identity_and_endpoint_ownershi
     }
     assert_eq!(cache.entries.len(), 3);
 }
+
+/// `models` is the wider spelling some relays echo beside the OpenAI `data`
+/// roster, and it is often a stub. It is not a second name for `data`: when it
+/// was declared as one (`alias = "models"`), a body carrying both keys failed
+/// the whole probe with `duplicate field`, so a route whose roster was present
+/// and well-formed reported `invalid_response` and listed nothing. `data` is
+/// the roster this envelope reads first; `models` stays for hosts that serve
+/// only that spelling.
+#[tokio::test]
+async fn roster_envelope_carrying_data_and_models_reads_the_data_roster() {
+    let server = MockServer::start().await;
+    mount_models_json(
+        &server,
+        200,
+        json!({
+            "object": "list",
+            "data": [{"id": "relay-real-a"}, {"id": "relay-real-b"}],
+            "models": [{"id": "wider-spelling-stub"}],
+            "total_count": 2,
+        }),
+    )
+    .await;
+    let client = custom_mock_client_for_identity(&server, "relay-private");
+    let delta = client
+        .fetch_catalog_delta()
+        .await
+        .expect("both spellings present is a complete roster, not an invalid response");
+    assert_eq!(
+        delta
+            .offerings
+            .iter()
+            .map(|row| row.wire_model_id.as_str())
+            .collect::<Vec<_>>(),
+        ["relay-real-a", "relay-real-b"]
+    );
+}
+
+/// An empty `data` roster beside a populated `models` array is an empty
+/// listing, not a reason to read the other key. A present `data` is the
+/// OpenAI-compatible roster; only a host that serves no `data` at all falls
+/// back to the wider spelling.
+#[tokio::test]
+async fn roster_envelope_with_empty_data_is_an_empty_listing_not_a_models_fallback() {
+    let server = MockServer::start().await;
+    mount_models_json(
+        &server,
+        200,
+        json!({
+            "object": "list",
+            "data": [],
+            "models": [{"id": "wider-spelling-stub"}],
+        }),
+    )
+    .await;
+    let client = custom_mock_client_for_identity(&server, "relay-private");
+    assert_eq!(
+        client
+            .fetch_catalog_delta()
+            .await
+            .expect_err("an empty data roster is an empty listing"),
+        CatalogRefreshError::EmptyList
+    );
+}
+
+/// A custom table is reached through the OpenAI-compatible surface, so its
+/// `/models` listing follows the OpenAI auth convention even when the table
+/// declares `wire = "anthropic"` for Messages. A relay can answer
+/// `/v1/messages` on either header and still reject `x-api-key` on
+/// `/v1/models` with `401 missing_api_key`, so the listing must not inherit
+/// the Messages choice.
+#[tokio::test]
+async fn custom_messages_wire_listing_authenticates_with_bearer() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let server = MockServer::start().await;
+    mount_models_json(
+        &server,
+        200,
+        json!({"object": "list", "data": [{"id": "relay-model"}]}),
+    )
+    .await;
+    let mut providers = ProvidersConfig::default();
+    providers.custom.insert(
+        "relay-messages-wire".to_string(),
+        ProviderConfig {
+            kind: Some("openai-compatible".to_string()),
+            api_key: Some(KEY.to_string()),
+            base_url: Some(format!("{}/v1", server.uri())),
+            model: Some("relay-model".to_string()),
+            wire: Some("anthropic".to_string()),
+            ..ProviderConfig::default()
+        },
+    );
+    let client = CodewhaleClient::new(&Config {
+        provider: Some("relay-messages-wire".to_string()),
+        providers: Some(providers),
+        ..Config::default()
+    })
+    .expect("custom Messages-wire relay client");
+
+    let delta = client
+        .fetch_catalog_delta()
+        .await
+        .expect("the relay's listing answers on its own terms");
+    assert_eq!(
+        delta
+            .offerings
+            .iter()
+            .map(|row| row.wire_model_id.as_str())
+            .collect::<Vec<_>>(),
+        ["relay-model"]
+    );
+
+    let request = server
+        .received_requests()
+        .await
+        .expect("requests")
+        .pop()
+        .expect("one listing request");
+    let expected = format!("Bearer {KEY}");
+    assert_eq!(
+        request
+            .headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok()),
+        Some(expected.as_str()),
+        "the listing follows the OpenAI auth convention"
+    );
+    assert!(
+        request.headers.get("x-api-key").is_none(),
+        "the listing must not inherit the Messages x-api-key convention"
+    );
+}

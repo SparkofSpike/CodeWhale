@@ -1022,11 +1022,21 @@ impl From<CatalogRefreshError> for ModelsFetchError {
 // fields that the existing typed provider parsers reject.
 #[derive(Deserialize)]
 struct ModelsPage<'a> {
-    #[serde(borrow, alias = "models")]
-    data: &'a serde_json::value::RawValue,
+    #[serde(borrow)]
+    data: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow)]
+    models: Option<&'a serde_json::value::RawValue>,
     #[serde(default)]
     has_more: bool,
     last_id: Option<String>,
+}
+
+impl<'a> ModelsPage<'a> {
+    fn rows(&self) -> Result<&'a serde_json::value::RawValue, CatalogRefreshError> {
+        self.data
+            .or(self.models)
+            .ok_or(CatalogRefreshError::InvalidResponse)
+    }
 }
 
 struct BoundedModelsRows(usize);
@@ -1104,7 +1114,7 @@ where
             let page: ModelsPage<'_> =
                 serde_json::from_str(&body).map_err(|_| CatalogRefreshError::InvalidResponse)?;
             let page_rows = BoundedModelsRows(limits.rows.saturating_sub(rows.len()))
-                .deserialize(&mut serde_json::Deserializer::from_str(page.data.get()))
+                .deserialize(&mut serde_json::Deserializer::from_str(page.rows()?.get()))
                 .map_err(|_| CatalogRefreshError::InvalidResponse)?;
             rows.extend(page_rows);
             if !page.has_more {
@@ -1852,6 +1862,7 @@ impl CodewhaleClient {
             auth_disabled,
             force_http1,
             config,
+            AuthHeaderSurface::Inference,
         )?;
         let http_client = if plugin_provider.is_some() || api_key_source == "Claude sign-in" {
             http_client.redirect(reqwest::redirect::Policy::none())
@@ -1868,6 +1879,7 @@ impl CodewhaleClient {
             auth_disabled,
             force_http1,
             config,
+            AuthHeaderSurface::Listing,
         )?
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
@@ -1883,6 +1895,7 @@ impl CodewhaleClient {
             auth_disabled,
             true,
             config,
+            AuthHeaderSurface::Inference,
         )?;
         let http1_client = if plugin_provider.is_some() || api_key_source == "Claude sign-in" {
             http1_client.redirect(reqwest::redirect::Policy::none())
@@ -2353,6 +2366,7 @@ impl CodewhaleClient {
             false,
             false,
             &Config::default(),
+            AuthHeaderSurface::Inference,
         )?
         .build()
         .map_err(Into::into)
@@ -2367,6 +2381,7 @@ impl CodewhaleClient {
         auth_disabled: bool,
         force_http1: bool,
         config: &Config,
+        surface: AuthHeaderSurface,
     ) -> Result<reqwest::ClientBuilder> {
         let headers = build_default_headers(
             api_key,
@@ -2375,6 +2390,7 @@ impl CodewhaleClient {
             base_url,
             wire_format,
             auth_disabled,
+            surface,
         )?;
         let mut builder = crate::tls::reqwest_client_builder()
             .default_headers(headers)
@@ -2416,6 +2432,7 @@ impl CodewhaleClient {
             crate::config::DEFAULT_DEEPSEEK_BASE_URL,
             WireFormat::ChatCompletions,
             false,
+            AuthHeaderSurface::Inference,
         )
     }
 
@@ -2433,6 +2450,7 @@ impl CodewhaleClient {
             base_url,
             provider_default_wire_format(api_provider),
             false,
+            AuthHeaderSurface::Inference,
         )
     }
 
@@ -2450,8 +2468,27 @@ impl CodewhaleClient {
             base_url,
             provider_default_wire_format(api_provider),
             true,
+            AuthHeaderSurface::Inference,
         )
     }
+}
+
+/// Which request surface a client's default auth header is built for.
+///
+/// Anthropic's `x-api-key` convention belongs to Anthropic's own service, not
+/// to the Messages wire format by itself. A custom table speaks Messages
+/// because its host does, but it is still reached through the
+/// OpenAI-compatible config surface, and its listing follows the OpenAI
+/// convention: a relay can answer `/v1/messages` on either header while
+/// answering `/v1/models` only on `Authorization: Bearer`. Keeping the two
+/// surfaces apart stops a listing from inheriting a header chosen for the
+/// Messages endpoint.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AuthHeaderSurface {
+    /// Chat, Messages and Responses requests: the wire dialect decides.
+    Inference,
+    /// The provider's own `/models` listing.
+    Listing,
 }
 
 fn build_default_headers(
@@ -2461,6 +2498,7 @@ fn build_default_headers(
     base_url: &str,
     wire_format: WireFormat,
     auth_disabled: bool,
+    surface: AuthHeaderSurface,
 ) -> Result<HeaderMap> {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -2479,10 +2517,17 @@ fn build_default_headers(
             HeaderValue::from_static("2023-06-01"),
         );
     }
+    // A custom host's listing never inherits the Messages choice. Its
+    // `kind = "openai-compatible"` surface means Bearer, and a relay that
+    // accepts Messages on either header may still reject `x-api-key` on
+    // `/v1/models` with `401 missing_api_key`.
+    let listing_on_custom_host =
+        surface == AuthHeaderSurface::Listing && api_provider == ProviderKind::Custom;
     let auth_header_name = if auth_disabled {
         None
     } else if !api_key.is_empty()
         && uses_anthropic_messages
+        && !listing_on_custom_host
         && !matches!(
             api_provider,
             ProviderKind::Openmodel | ProviderKind::Codewhale
@@ -2750,6 +2795,7 @@ pub async fn verify_provider_api_key(
         base_url,
         provider_default_wire_format(provider),
         false,
+        AuthHeaderSurface::Listing,
     )
     .map_err(|err| format!("failed to build auth headers: {err:#}"))?;
     let client = crate::tls::reqwest_client_builder()
@@ -3758,7 +3804,10 @@ impl CodewhaleClient {
             // at fetch time) and every other custom host. A private route is
             // the only place its roster exists, and a failed probe stays
             // non-fatal.
-            if !crate::provider_catalog_live::provider_owns_live_catalog(provider) {
+            if !crate::provider_catalog_live::provider_owns_live_catalog(
+                provider,
+                &config.active_route_base_url(),
+            ) {
                 return;
             }
 
@@ -3834,6 +3883,47 @@ impl CodewhaleClient {
                     }
                 }
             });
+        }
+    }
+
+    /// Best-effort refresh of every configured route that owns its own
+    /// `/v1/models` roster, so opening `/model` finds each relay already probed
+    /// instead of a route still waiting for a provider switch.
+    ///
+    /// [`Self::spawn_active_provider_catalog_refresh`] keeps its own faster path
+    /// for the active route (it also publishes that route's persisted scope
+    /// before the probe). This is the wider sweep behind it, for the relays a
+    /// session is *not* currently on — the picker lists every configured route,
+    /// so every one of them has to be able to answer, not just the active one.
+    ///
+    /// Each route is probed through the same `update_provider_catalog` the
+    /// explicit `models --update` command uses, so the TTL, the typed receipt,
+    /// the credential-change guard and the superseded-refresh ticket are shared
+    /// rather than reimplemented. Failures stay non-fatal: a route that cannot
+    /// answer keeps its persisted and configured rows.
+    pub fn spawn_configured_provider_catalog_refresh(config: &Config) {
+        #[cfg(test)]
+        let _ = config;
+        #[cfg(not(test))]
+        {
+            let active = config.active_provider_identity().ok();
+            for identity in crate::provider_lake::configured_providers(config) {
+                if active.as_ref() == Some(&identity) {
+                    continue;
+                }
+                let base_url = config.base_url_for_route(&identity);
+                if !crate::provider_catalog_live::provider_owns_live_catalog(
+                    identity.provider,
+                    &base_url,
+                ) {
+                    continue;
+                }
+                let route_config = config.clone();
+                tokio::spawn(async move {
+                    let _ = crate::provider_lake::update_provider_catalog(&route_config, &identity)
+                        .await;
+                });
+            }
         }
     }
 

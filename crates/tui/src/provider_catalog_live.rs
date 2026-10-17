@@ -624,20 +624,37 @@ fn storage_provider(kind: ProviderKind, identity: &str) -> String {
 
 /// Providers whose model list is owned by their own `/v1/models` roster
 /// rather than the cross-provider Models.dev snapshot: the named live
-/// gateways, plus custom hosts whose private roster no snapshot can serve
-/// (#6289 widened). The active-provider refresh and the picker's freshness
-/// receipt both gate on this one predicate, so they cannot drift apart.
+/// gateways, custom hosts whose private roster no snapshot can serve, and any
+/// builtin name pointed at an endpoint outside its official family (#6289
+/// widened).
+///
+/// `base_url` is what separates the last two: `openai` against
+/// `api.openai.com` is the reviewed snapshot row, while `openai` against a
+/// relay is a private roster only its own listing can describe. A vendor-named
+/// table that actually relays a private host is as unserved by the snapshot as
+/// a `[providers.<name>]` table is. The active-provider refresh and the
+/// picker's freshness receipt both gate on this one predicate, so they cannot
+/// drift apart.
 #[cfg(test)]
 #[test]
 fn orcarouter_and_existing_custom_routes_own_live_catalogs() {
-    assert!(provider_owns_live_catalog(ProviderKind::Orcarouter));
-    assert!(provider_owns_live_catalog(ProviderKind::Custom));
-    assert!(provider_owns_live_catalog(ProviderKind::Openrouter));
-    assert!(provider_owns_live_catalog(ProviderKind::Ollama));
-    assert!(!provider_owns_live_catalog(ProviderKind::Openai));
+    assert!(provider_owns_live_catalog(ProviderKind::Orcarouter, ""));
+    assert!(provider_owns_live_catalog(ProviderKind::Custom, ""));
+    assert!(provider_owns_live_catalog(ProviderKind::Openrouter, ""));
+    assert!(provider_owns_live_catalog(ProviderKind::Ollama, ""));
+    // A builtin name on its own official endpoint keeps the snapshot row.
+    assert!(!provider_owns_live_catalog(
+        ProviderKind::Openai,
+        "https://api.openai.com/v1"
+    ));
+    // The same name on a private relay owns its roster.
+    assert!(provider_owns_live_catalog(
+        ProviderKind::Openai,
+        "https://relay.example.test/v1"
+    ));
 }
 
-pub(crate) fn provider_owns_live_catalog(provider: ProviderKind) -> bool {
+pub(crate) fn provider_owns_live_catalog(provider: ProviderKind, base_url: &str) -> bool {
     matches!(
         provider,
         ProviderKind::Openrouter
@@ -649,6 +666,7 @@ pub(crate) fn provider_owns_live_catalog(provider: ProviderKind) -> bool {
             | ProviderKind::Codewhale
             | ProviderKind::Ollama
     ) || provider == ProviderKind::Custom
+        || codewhale_config::provider_preserves_custom_base_url_model(provider, base_url)
 }
 
 /// Whether a catalog scope holds an account-scoped roster that must never be

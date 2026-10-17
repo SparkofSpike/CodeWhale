@@ -768,12 +768,12 @@ impl ProviderDashboardRow {
             runtime_status,
             is_active,
         );
-        let available_model_count = catalog_model_count_for_provider(provider);
-        let catalog_status = if available_model_count == 0 {
-            ProviderCatalogStatus::DefaultOnly
-        } else {
-            ProviderCatalogStatus::Bundled
-        };
+        // The provider-level snapshot (Models.dev plus bundled seeds) is one
+        // source; the exact route's own roster further down is another. Keep
+        // them separate so the status below can weigh both — a custom relay
+        // ships no bundled seeds, so this count alone says nothing about
+        // whether the route has a listing.
+        let bundled_model_count = catalog_model_count_for_provider(provider);
         let mut messages = Vec::new();
         // Use the same route-effective resolver as the active runtime. In
         // particular, Kimi Code's bare K3 model has a conservative 262K
@@ -890,9 +890,6 @@ impl ProviderDashboardRow {
                 &credential_resolution,
             ));
         }
-        if catalog_status == ProviderCatalogStatus::DefaultOnly {
-            messages.push("catalog snapshot missing; using provider default".to_string());
-        }
 
         let route_identity =
             route_identity_for_model(config, &identity, &default_route.logical_model);
@@ -938,6 +935,19 @@ impl ProviderDashboardRow {
             &base_url,
         )
         .len();
+        // "Snapshot missing" means the row has nothing but its default model.
+        // A provider-level snapshot OR this route's own roster is enough to
+        // show more, so judge the two sources together: reading only the
+        // provider-level count told every custom relay its catalog was missing
+        // while its live listing was already rendered underneath.
+        let catalog_status = if bundled_model_count == 0 && available_model_count == 0 {
+            ProviderCatalogStatus::DefaultOnly
+        } else {
+            ProviderCatalogStatus::Bundled
+        };
+        if catalog_status == ProviderCatalogStatus::DefaultOnly {
+            messages.push("catalog snapshot missing; using provider default".to_string());
+        }
         // #5772: the status projection needs an ambient candidate path to
         // report `ambient_path_changed`, so resolving it for a provider the
         // user never consented to would derive (and then render) another CLI's

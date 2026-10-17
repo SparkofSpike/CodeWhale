@@ -35,6 +35,7 @@
             "https://openrouter.ai/api/v1",
             WireFormat::ChatCompletions,
             false,
+            AuthHeaderSurface::Inference,
         )
         .expect("headers");
         assert_eq!(
@@ -78,6 +79,7 @@
                 "https://example.invalid/v1",
                 WireFormat::ChatCompletions,
                 false,
+                AuthHeaderSurface::Inference,
             )
             .expect("headers");
             assert!(
@@ -95,6 +97,7 @@
             "https://openrouter.ai/api/v1",
             WireFormat::ChatCompletions,
             false,
+            AuthHeaderSurface::Inference,
         )
         .expect("headers");
         // A user title on the legacy header alone must follow onto the
@@ -116,6 +119,7 @@
             "https://openrouter.ai/api/v1",
             WireFormat::ChatCompletions,
             false,
+            AuthHeaderSurface::Inference,
         )
         .expect("headers");
         for name in ["x-title", "x-openrouter-title"] {

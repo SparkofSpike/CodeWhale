@@ -13503,6 +13503,10 @@ async fn run_interactive_prepared(
     // alongside the Models.dev snapshot. Currently active for TelecomJS, whose
     // model list is not covered by the Models.dev catalog.
     crate::client::CodewhaleClient::spawn_active_provider_catalog_refresh(config);
+    // The picker lists every configured route, so the relays this session is
+    // not currently on are probed too; otherwise a relay's roster stays empty
+    // until the user switches to it.
+    crate::client::CodewhaleClient::spawn_configured_provider_catalog_refresh(config);
 
     // Boot janitors — snapshot prune (7-day default), spillover prune
     // (#422), and managed-session cleanup (v0.8.44) — are best-effort disk

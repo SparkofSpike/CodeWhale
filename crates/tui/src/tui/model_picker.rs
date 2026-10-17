@@ -356,6 +356,15 @@ enum DefaultSection {
 /// Most rows the default view's recent section shows.
 const RECENT_ROW_LIMIT: usize = 8;
 
+/// Most rows one custom relay's own roster contributes to the default view.
+///
+/// A relay has no bundled snapshot to browse: its roster exists only in the
+/// listing that route itself answered. Hiding all of it but the configured
+/// default is what made `/model` show one row for a route the provider panel
+/// had just listed a dozen for. The bound keeps a gateway fronting a thousand
+/// models from taking the view over.
+const CUSTOM_ROSTER_ROWS_IN_DEFAULT_VIEW: usize = 20;
+
 /// A fresh live roster for the row's exact route omits its id. Only a fresh
 /// roster may say so: a stale one lags the provider (and would condemn ids it
 /// simply never saw). The row stays selectable and nothing is rewritten.
@@ -2355,6 +2364,29 @@ fn assign_default_sections(
             row.default_rank = Some((DefaultSection::ProviderDefault, usize::MAX));
         }
     }
+    // A custom relay's roster is the reason the route was configured, and the
+    // default view used to hide every one of its rows but the provider default
+    // -- the panel listed the route's dozen models and `/model` showed one.
+    // Surface the route's own live rows, bounded per route so a large gateway
+    // cannot take the view over.
+    let mut shown_per_route: BTreeMap<String, usize> = BTreeMap::new();
+    for row in rows.iter_mut() {
+        if row.default_rank.is_some()
+            || row.provider != Some(ProviderKind::Custom)
+            || !matches!(row.metadata.source, Some(CatalogSource::Live { .. }))
+        {
+            continue;
+        }
+        let Some(identity) = row_provider_identity(row).map(str::to_string) else {
+            continue;
+        };
+        let shown = shown_per_route.entry(identity).or_default();
+        if *shown >= CUSTOM_ROSTER_ROWS_IN_DEFAULT_VIEW {
+            continue;
+        }
+        *shown += 1;
+        row.default_rank = Some((DefaultSection::ProviderDefault, usize::MAX));
+    }
 }
 
 /// Model ids this exact route was used with recently, so a model picked
@@ -2597,14 +2629,14 @@ fn provider_catalog_receipt_for_route(
     .ok()?;
     (admitted.provider == provider).then_some(())?;
     let identity = admitted.key.as_str();
+    let base_url = config.base_url_for_route(&admitted);
     // One predicate with the active-provider refresh: any route whose roster
-    // is probed (named live gateways and custom hosts) reports its freshness
-    // here, so a widened probe cannot leave this receipt behind.
-    if !crate::provider_catalog_live::provider_owns_live_catalog(provider) {
+    // is probed (named live gateways, custom hosts, and builtin names on a
+    // private endpoint) reports its freshness here, so a widened probe cannot
+    // leave this receipt behind.
+    if !crate::provider_catalog_live::provider_owns_live_catalog(provider, &base_url) {
         return None;
     }
-
-    let base_url = config.base_url_for_route(&admitted);
     let endpoint_matches = match source {
         Some(CatalogSource::Live {
             base_url_fingerprint,
@@ -6089,6 +6121,75 @@ model = "deepseek/deepseek-v4-flash"
         app.model = "z-ai/glm-5.3".to_string();
         app.active_route_base_url = crate::config::DEFAULT_OPENROUTER_BASE_URL.to_string();
         (config, app, home, workspace)
+    }
+
+    /// A custom relay's roster exists only in the listing that route itself
+    /// answered, so nothing else can fill its rows in. Filtering every one of
+    /// them out of the default view left `/model` showing a single row for a
+    /// route the provider panel had just listed a dozen for.
+    #[test]
+    fn a_custom_relays_live_roster_reaches_the_default_view() {
+        let _env = crate::test_support::lock_test_env();
+        let _live = crate::provider_lake::lock_live_snapshot();
+        let (config, app, home, _workspace) = resumed_openrouter_session_with_named_custom_routes();
+        let _home = crate::test_support::EnvVarGuard::set("CODEWHALE_HOME", home.path());
+        crate::provider_catalog_live::reset_cache_for_test();
+        crate::provider_lake::clear_live_snapshot();
+
+        // The listing the relay answered, recorded the way the probe records
+        // it. `command_code` is not the session's route, so the row can only
+        // reach the default view through the relay-roster rule.
+        let base_url = "https://command.example.test/v1";
+        let fingerprint = codewhale_config::catalog::base_url_fingerprint(base_url);
+        let ticket = crate::provider_catalog_live::begin_refresh_for_identity(
+            ProviderKind::Custom,
+            "command_code",
+            base_url,
+        );
+        let offering = |id: &str| codewhale_config::catalog::CatalogOffering {
+            provider: "command_code".to_string(),
+            wire_model_id: id.to_string(),
+            source: codewhale_config::catalog::CatalogSource::Live {
+                base_url_fingerprint: fingerprint.clone(),
+                fetched_at: 7,
+            },
+            ..Default::default()
+        };
+        let roster: Vec<_> = (0..CUSTOM_ROSTER_ROWS_IN_DEFAULT_VIEW + 5)
+            .map(|index| offering(&format!("relay-{index}")))
+            .collect();
+        crate::provider_catalog_live::record_success_if_current(
+            &ticket,
+            codewhale_config::catalog::ProviderCatalogDelta {
+                provider: "command_code".to_string(),
+                base_url_fingerprint: fingerprint,
+                fetched_at: 7,
+                offerings: roster,
+            },
+        )
+        .expect("the relay listing is recorded");
+
+        let picker = ModelPickerView::new(&app, &config);
+        assert_eq!(picker.view, ModelListView::Configured);
+        let visible: Vec<_> = picker
+            .visible_model_rows()
+            .iter()
+            .filter(|row| {
+                row.provider == Some(ProviderKind::Custom)
+                    && row_provider_identity(row) == Some("command_code")
+                    && row.id.starts_with("relay-")
+            })
+            .map(|row| row.id.clone())
+            .collect();
+        assert_eq!(
+            visible.len(),
+            CUSTOM_ROSTER_ROWS_IN_DEFAULT_VIEW,
+            "the relay's own roster shows in the default view, bounded per route: {visible:?}"
+        );
+        assert!(
+            visible.contains(&"relay-0".to_string()),
+            "the first listed row is offered: {visible:?}"
+        );
     }
 
     #[test]
