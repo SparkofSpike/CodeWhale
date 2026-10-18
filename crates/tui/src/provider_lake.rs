@@ -655,7 +655,10 @@ static SOURCE_ROWS_CACHE: RwLock<BTreeMap<String, SourceRowsCacheEntry>> =
 /// few providers at a time without tracking recency.
 const MAX_SOURCE_ROWS_CACHE_ENTRIES: usize = 32;
 
-type SourceRowsCacheEntry = ((u64, u64), Arc<BTreeMap<(String, String), CatalogOffering>>);
+type SourceRowsCacheEntry = (
+    (u64, u64, bool),
+    Arc<BTreeMap<(String, String), CatalogOffering>>,
+);
 
 fn source_rows_for_provider(
     provider: &str,
@@ -674,6 +677,12 @@ fn source_rows_for_provider(
         // happens to be zero, so an unclouded partition can never be served a
         // partition the overlay already patched.
         cloud.map_or(u64::MAX, |cloud| cloud.generation),
+        // The live layer's own presence is part of the key. A caller whose
+        // `LIVE_SNAPSHOT` read failed passes `None` under the *current*
+        // generation, and keying on the generation alone would then cache a
+        // bundled-only partition that shadows Models.dev rows until the next
+        // bump.
+        models_dev.is_some(),
     );
     if let Ok(cache) = SOURCE_ROWS_CACHE.read()
         && let Some((cached_generation, cached)) = cache.get(provider)

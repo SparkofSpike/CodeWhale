@@ -407,7 +407,7 @@ pub(crate) fn route_is_valid_for_model(
         base_url_override: Some(config.base_url_for_route(identity)),
         limit_overrides: Vec::new(),
     };
-    RouteResolver::new()
+    RouteResolver::bundled()
         .resolve(&request)
         .is_ok_and(|candidate| candidate.validation().ok)
 }

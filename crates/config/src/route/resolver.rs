@@ -131,6 +131,25 @@ impl RouteResolver {
         Self::from_offerings(default_offerings())
     }
 
+    /// The process-wide resolver built from the committed bundled asset.
+    ///
+    /// [`Self::new`] re-projects the entire bundled Models.dev asset — every
+    /// text-chat row, the corrections pass, and the de-duplication maps — on
+    /// every call. Callers that only need to resolve against that bundled
+    /// layer should share this one instead: the asset is a committed constant,
+    /// so the projection is identical for the life of the process, and a
+    /// route-validity check that runs once per model row otherwise pays a full
+    /// catalog rebuild per row.
+    ///
+    /// Returns a shared reference, so the caller cannot mutate it. Use
+    /// [`Self::new`] or [`Self::with_configured_models`] when the resolver
+    /// needs route-specific configured offerings added.
+    #[must_use]
+    pub fn bundled() -> &'static Self {
+        static BUNDLED: std::sync::OnceLock<RouteResolver> = std::sync::OnceLock::new();
+        BUNDLED.get_or_init(Self::new)
+    }
+
     /// Construct a resolver from a provider-scoped offering catalog.
     ///
     /// This is the bridge for Models.dev snapshots: callers parse a catalog,
