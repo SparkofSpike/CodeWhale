@@ -902,6 +902,30 @@ pub(crate) fn cached_entry_for_route(
         .cloned())
 }
 
+/// Borrow one exact cached route for the duration of `read`.
+///
+/// The picker asks about one route once per model row, and on a relay
+/// publishing a few hundred models that turned into one full deep clone of the
+/// whole catalog entry per row. Callers that only need to look something up
+/// (rather than keep the entry) use this instead.
+pub(crate) fn with_cached_entry_for_route<R>(
+    kind: ProviderKind,
+    identity: &str,
+    base_url: &str,
+    read: impl FnOnce(&codewhale_config::catalog::CachedProviderCatalog) -> R,
+) -> Result<Option<R>> {
+    ensure_cache_loaded()?;
+    let cache = CACHE
+        .read()
+        .map_err(|_| anyhow::anyhow!("catalog cache unavailable"))?;
+    Ok(cache
+        .get(
+            &storage_provider(kind, identity),
+            &base_url_fingerprint(base_url),
+        )
+        .map(read))
+}
+
 /// Whether a saved `(provider, model)` pin is absent from that exact route's
 /// FRESH live roster (#6035). `None` when no fresh roster exists: a stale,
 /// failed, or absent roster cannot prove drift, and bundled catalog rows say

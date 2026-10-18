@@ -753,6 +753,57 @@ pub(crate) fn resolve_for_model(
     )
 }
 
+/// Route-scoped readiness facts that do not change per model.
+///
+/// [`resolve_for_model`] re-resolves the credential source and the auth class
+/// for every model it is asked about, and the model picker asks once per row.
+/// A relay publishing a few hundred models therefore walked the credential
+/// resolver — including the secret store — a few hundred times to produce the
+/// same answer. Hoist those facts once per route and keep the per-model work
+/// to the parts that actually name a model.
+#[derive(Debug, Clone)]
+pub(crate) struct RouteReadinessScope {
+    identity: ProviderIdentity,
+    endpoint: String,
+    credentials: CredentialState,
+    auth_class: ProviderAuthClass,
+    credential_generation: Option<crate::route_receipt::CredentialGeneration>,
+}
+
+impl RouteReadinessScope {
+    pub(crate) fn for_route(config: &crate::config::Config, identity: &ProviderIdentity) -> Self {
+        Self {
+            identity: identity.clone(),
+            endpoint: crate::route_receipt::endpoint_identity(&config.base_url_for_route(identity)),
+            credentials: credential_state_for_provider(config, identity),
+            auth_class: auth_class_for_provider(config, identity),
+            credential_generation: config.readonly_health_credential_generation(identity),
+        }
+    }
+
+    /// The single-model answer, with the route-scoped facts reused.
+    pub(crate) fn resolve(
+        &self,
+        config: &crate::config::Config,
+        model: &str,
+        checks: &ProviderReadinessSnapshot,
+    ) -> ResolvedProviderReadiness {
+        let route = ProviderRouteIdentity {
+            identity: self.identity.clone(),
+            endpoint: self.endpoint.clone(),
+            model: model.trim().to_string(),
+            auth_class: self.auth_class,
+            credential_generation: self.credential_generation.clone(),
+        };
+        resolve_with_identity(
+            &route,
+            self.credentials,
+            route_is_valid_for_model(config, &self.identity, Some(model)),
+            checks,
+        )
+    }
+}
+
 fn provider_owned_failure(envelope: &ErrorEnvelope) -> bool {
     matches!(
         envelope.category,
