@@ -206,6 +206,50 @@ struct PaneRenderState {
     focused: bool,
 }
 
+/// Wall-clock marks for one `/model` build, logged only when
+/// `CODEWHALE_PICKER_PROFILE` is set.
+///
+/// Opening the picker runs on the UI thread, so a slow open freezes the whole
+/// TUI and cannot be profiled from outside the process. Each mark reports the
+/// time since the previous one, which is what names the responsible stage.
+struct PickerProfile {
+    started: std::time::Instant,
+    last: std::time::Instant,
+    marks: Vec<(&'static str, u128)>,
+}
+
+impl PickerProfile {
+    fn start() -> Option<Self> {
+        let enabled = std::env::var("CODEWHALE_PICKER_PROFILE")
+            .is_ok_and(|value| !value.trim().is_empty() && value.trim() != "0");
+        let now = std::time::Instant::now();
+        enabled.then_some(Self {
+            started: now,
+            last: now,
+            marks: Vec::new(),
+        })
+    }
+
+    fn mark(&mut self, label: &'static str) {
+        let now = std::time::Instant::now();
+        self.marks
+            .push((label, now.duration_since(self.last).as_micros()));
+        self.last = now;
+    }
+
+    fn finish(mut self, label: &str) {
+        self.mark("tail");
+        let total = self.started.elapsed().as_micros();
+        let marks = self
+            .marks
+            .iter()
+            .map(|(name, micros)| format!("{name}={}us", micros))
+            .collect::<Vec<_>>()
+            .join(" ");
+        tracing::info!(total_ms = total / 1000, marks = %marks, "{label} build timing");
+    }
+}
+
 pub struct ModelPickerView {
     initial_model: String,
     /// Exact runtime value before the picker opened. Keep this raw so choosing
@@ -565,6 +609,10 @@ impl ModelPickerView {
     }
 
     pub fn new(app: &App, config: &Config) -> Self {
+        // `/model` blocks the UI thread, so a stall can only be attributed by
+        // measuring the build in place. `CODEWHALE_PICKER_PROFILE=1` turns the
+        // marks on; nothing is logged otherwise.
+        let mut profile = PickerProfile::start();
         let initial_model = if app.auto_model {
             "auto".to_string()
         } else {
@@ -576,11 +624,20 @@ impl ModelPickerView {
         } else {
             app.model.clone()
         };
+        if let Some(profile) = profile.as_mut() {
+            profile.mark("initial-model");
+        }
         let model_rows = picker_model_rows_for_app(app, config);
+        if let Some(profile) = profile.as_mut() {
+            profile.mark("model-rows");
+        }
         let configured_providers: Vec<_> = configured_providers(config)
             .into_iter()
             .filter(|identity| app.admitted_provider_identity().ok() != Some(identity))
             .collect();
+        if let Some(profile) = profile.as_mut() {
+            profile.mark("configured-providers");
+        }
         let mut default_visible_rows: Vec<_> = model_rows
             .iter()
             .filter(|row| model_row_visible_in_view(row, ModelListView::Configured))
@@ -678,6 +735,9 @@ impl ModelPickerView {
             theme: app.ui_theme,
         };
         view.restore_memory(app.model_picker_memory.as_ref());
+        if let Some(profile) = profile {
+            profile.finish("picker-new");
+        }
         view
     }
 
@@ -2124,9 +2184,13 @@ fn picker_pins_for_app(app: &App) -> Vec<PinnedModel> {
 }
 
 fn picker_model_rows_for_app(app: &App, config: &Config) -> Vec<ModelPickerRow> {
+    let mut profile = PickerProfile::start();
     let mut rows = Vec::new();
     let auto_hint = auto_picker_hint(app, config);
     push_auto_model_row(&mut rows, app, config, &auto_hint);
+    if let Some(profile) = profile.as_mut() {
+        profile.mark("auto-row");
+    }
     // One snapshot supplies both IDs, capabilities, and freshness so a cache
     // replacement cannot produce mixed-generation picker rows.
     let codex_roster = codex_model_cache::model_roster_for(config);
@@ -2161,6 +2225,9 @@ fn picker_model_rows_for_app(app: &App, config: &Config) -> Vec<ModelPickerRow> 
         app.api_provider,
         app.provider_identity_for_persistence(),
     );
+    if let Some(profile) = profile.as_mut() {
+        profile.mark("active-model-ids");
+    }
     if let Ok(identity) = app.admitted_provider_identity() {
         push_provider_model_rows(
             &mut rows,
@@ -2172,14 +2239,31 @@ fn picker_model_rows_for_app(app: &App, config: &Config) -> Vec<ModelPickerRow> 
             &app.provider_health,
         );
     }
+    if let Some(profile) = profile.as_mut() {
+        profile.mark("active-route-rows");
+    }
 
+    let mut per_route = Vec::new();
     for identity in config.provider_identities() {
         if app.admitted_provider_identity().ok() == Some(&identity) {
             continue;
         }
+        let before = rows.len();
+        let route_started = std::time::Instant::now();
         push_inactive_route_rows(&mut rows, app, config, &identity, &codex_roster);
+        per_route.push(format!(
+            "{}={}rows/{}us",
+            identity.key.as_str(),
+            rows.len() - before,
+            route_started.elapsed().as_micros()
+        ));
     }
-
+    if let Some(profile) = profile.as_mut() {
+        profile.mark("inactive-routes");
+        if !per_route.is_empty() {
+            tracing::info!(routes = %per_route.join(" "), "picker per-route row cost");
+        }
+    }
     // The fleet comes first (design §10 F1): every model the person added
     // to the selected Fleet rides the pin machinery ahead of their own pins,
     // labelled with the roles it fills, so the list leads with what they
@@ -2237,6 +2321,9 @@ fn picker_model_rows_for_app(app: &App, config: &Config) -> Vec<ModelPickerRow> 
         )
     });
     assign_default_sections(&mut rows, app, config, current, &pins);
+    if let Some(profile) = profile {
+        profile.finish("picker-rows");
+    }
     rows
 }
 
