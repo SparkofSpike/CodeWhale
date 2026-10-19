@@ -139,6 +139,25 @@ DeepSeek provider. Precedence is the active provider's configured default, then
 its catalog default — so an explicit `default_text_model` is not silently
 overridden by whichever model the shipped catalog lists first.
 
+### DeepSeek V4.1 Flash
+
+`deepseek-flash` is DeepSeek's id for its newest Flash model. On 2026-10-17
+DeepSeek moved it to DeepSeek-V4.1-Flash-1017 with the same API and price.
+Codewhale 0.10.1 and later use `deepseek-flash` by default, so they run the
+new model without an update:
+
+1. Create an API key at <https://platform.deepseek.com/api_keys>.
+2. Run `codewhale`, open `/provider` (or press `F3`), choose DeepSeek and
+   paste the key. Setting `DEEPSEEK_API_KEY` works too.
+3. Give it a task. To choose the model explicitly, run
+   `codewhale --provider deepseek --model deepseek-flash`, or type
+   `/model deepseek-flash` in a session.
+
+`deepseek-v4-pro` is DeepSeek's larger model. The retired ids
+`deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` still answer: DeepSeek
+serves them with the same Flash model. On this route `web_search` asks
+DeepSeek's own search first.
+
 Refresh model catalogs without installing a new Codewhale release:
 
 ```sh
@@ -1002,7 +1021,7 @@ upload to Hugging Face and does not perform direct Hugging Face Hub HTTP search.
 work. The chat picker also exposes `mimo-v2.6-flash` (the replacement for the
 retired Omni model `mimo-v2.5`) and `mimo-v2.5-pro-ultraspeed`. Xiaomi MiMo TTS is available through
 `codewhale --provider xiaomi-mimo speech "text" --model tts` (or the `tts`
-alias). In Act and Operate, the provider-specific `speech` / `tts` tools are
+alias). In Work and Operate, the provider-specific `speech` / `tts` tools are
 available through deferred discovery when the Xiaomi MiMo route is configured.
 
 `/provider xiaomi-mimo ultraspeed` and `/provider xiaomi-mimo pro-ultraspeed`

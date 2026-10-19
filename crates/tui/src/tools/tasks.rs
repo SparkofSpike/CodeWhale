@@ -23,7 +23,7 @@ use crate::work_graph::{
     CancelOutcome, OperationIntent, OperationObservation, OperationOwnerSnapshot, OwnerState,
     task_owner_snapshot,
 };
-use codewhale_execpolicy::command_safety::{SafetyLevel, analyze_command};
+use codewhale_execpolicy::command_safety::{SafetyAnalysis, SafetyLevel, analyze_command};
 
 const MAX_SUMMARY_CHARS: usize = 900;
 const DEFAULT_GATE_TIMEOUT_MS: u64 = 120_000;
@@ -373,6 +373,14 @@ impl ToolSpec for TasksTool {
         }
     }
 
+    fn refusal_before_approval(&self, input: &Value, context: &ToolContext) -> Option<ToolResult> {
+        if context.auto_approve || self.resolve_action(input).ok()? != "gate_run" {
+            return None;
+        }
+        let command = input.get("command")?.as_str()?;
+        dangerous_gate_block(&analyze_command(command))
+    }
+
     async fn execute(&self, input: Value, context: &ToolContext) -> Result<ToolResult, ToolError> {
         crate::core::engine::tool_catalog::enforce_tool_denial(
             context,
@@ -394,6 +402,23 @@ impl ToolSpec for TasksTool {
             ))),
         }
     }
+}
+
+fn dangerous_gate_block(safety: &SafetyAnalysis) -> Option<ToolResult> {
+    if safety.level != SafetyLevel::Dangerous {
+        return None;
+    }
+    Some(
+        ToolResult::error(format!(
+            "BLOCKED: gate command classified dangerous: {}",
+            safety.reasons.join("; ")
+        ))
+        .with_metadata(json!({
+            "safety_level": "dangerous",
+            "blocked": true,
+            "reasons": safety.reasons,
+        })),
+    )
 }
 
 /// The exact schema the legacy per-action tool exposed, kept so hidden alias
@@ -667,17 +692,10 @@ impl TasksTool {
             .clamp(1_000, MAX_GATE_TIMEOUT_MS);
         let cwd = resolve_cwd(context, optional_str(input, "cwd")?)?;
 
-        let safety = analyze_command(&command);
-        if !context.auto_approve && matches!(safety.level, SafetyLevel::Dangerous) {
-            return Ok(ToolResult::error(format!(
-                "BLOCKED: gate command classified dangerous: {}",
-                safety.reasons.join("; ")
-            ))
-            .with_metadata(json!({
-                "safety_level": "dangerous",
-                "blocked": true,
-                "reasons": safety.reasons,
-            })));
+        if !context.auto_approve
+            && let Some(blocked) = dangerous_gate_block(&analyze_command(&command))
+        {
+            return Ok(blocked);
         }
 
         let started = Instant::now();

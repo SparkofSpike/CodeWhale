@@ -14,7 +14,7 @@ Sources:
 - ProjectContext: Project instructions - 160 tokens (High, tier 5)
 - ProjectContextPack: Project context pack [<workspace>] - 0 tokens (High, tier 5) - disabled; project_map provides this information on demand
 - SkillsBlock: Available skills [<skills>] - 0 tokens (High, tier 5) - no skills discovered
-- ContextManagement: ACT runtime mode - 0 tokens (High, tier 3) - mode enforced by runtime policy and the live tool catalog; no prompt doctrine
+- ContextManagement: WORK runtime mode - 0 tokens (High, tier 3) - mode enforced by runtime policy and the live tool catalog; no prompt doctrine
 - CompactionRelayTemplate: Session relay template [bundled in this codewhale-tui build (COMPACT_TEMPLATE, compiled in)] - 0 tokens (High, tier 3) - loaded only when /relay is requested; automatic compaction owns its successor brief
 - RuntimePolicy: Core execution discipline - 295 tokens (High, tier 3)
 - AuthorityRecap: Authority recap - 88 tokens (High, tier 1)

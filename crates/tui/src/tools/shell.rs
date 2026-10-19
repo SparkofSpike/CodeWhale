@@ -2094,7 +2094,7 @@ impl ShellManager {
     /// Prepare a program for a tool that runs workspace code outside
     /// `exec_shell`, under the policy and sandbox configuration a shell
     /// command would get in this session.
-    fn prepare_runner(
+    pub(crate) fn prepare_runner(
         &self,
         program: &str,
         args: Vec<String>,
@@ -2404,6 +2404,9 @@ impl ShellManager {
             .with_policy(policy)
             .with_env(extra_env);
         let exec_env = self.sandbox_manager.prepare(&spec);
+        if matches!(spec.sandbox_policy, ExecutionSandboxPolicy::ReadOnly) {
+            require_native_readonly_execution(&exec_env)?;
+        }
 
         Self::execute_interactive_sandboxed(command, &work_dir, timeout_ms, &exec_env)
     }
@@ -3121,6 +3124,9 @@ impl ShellManager {
             .get_mut(task_id)
             .ok_or_else(|| anyhow!("Task {task_id} not found"))?;
         wait_while_running(shell, wait, timeout_ms);
+        if shell.status != ShellStatus::Running && shell.owner_agent.is_some() {
+            shell.completion_reported = true;
+        }
 
         let (
             stdout_delta,
@@ -3573,7 +3579,11 @@ impl ShellManager {
             let owned = active_session_id.is_none_or(|session_id| {
                 !session_id.is_empty() && shell.owner_session_id == session_id
             });
-            if owned && shell.status != ShellStatus::Running && !shell.completion_reported {
+            if owned
+                && shell.owner_agent.is_none()
+                && shell.status != ShellStatus::Running
+                && !shell.completion_reported
+            {
                 shell.completion_reported = true;
                 completions.push(shell.completion_evidence());
                 // The bytes are now in the caller's hands (they become a durable
@@ -3750,7 +3760,7 @@ impl ShellManager {
             .map(|(id, shell)| {
                 (
                     id.clone(),
-                    shell.completion_reported,
+                    shell.completion_reported || shell.owner_agent.is_some(),
                     // Oldest by finish, like the age rule in `cleanup`.
                     shell.finished_at.unwrap_or(shell.started_at),
                     shell.retained_output_bytes(),
@@ -3764,7 +3774,8 @@ impl ShellManager {
         if finished.len() <= MAX_FINISHED_SHELL_RECORDS && total_bytes <= MAX_FINISHED_SHELL_BYTES {
             return;
         }
-        // Undelivered completions last, then oldest first.
+        // Undelivered parent completions last, then oldest first. Child-owned
+        // results never reach the parent model, so they rank with delivered.
         finished.sort_by(|a, b| a.1.cmp(&b.1).reverse().then_with(|| a.2.cmp(&b.2)));
         let mut remaining_count = finished.len();
         let mut remaining_bytes = total_bytes;
@@ -3827,9 +3838,9 @@ use crate::tools::spec::{
 };
 use async_trait::async_trait;
 use codewhale_execpolicy::command_safety::{
-    NetworkRead, ReadonlyRejection, SafetyLevel, agent_readonly_verdict, analyze_command,
-    extract_primary_command, is_parallel_readonly_command, normalize_windows_command_paths,
-    readonly_network_reads, split_leading_cd,
+    NetworkRead, ReadonlyRejection, SafetyAnalysis, SafetyLevel, agent_readonly_verdict,
+    analyze_command, extract_primary_command, is_parallel_readonly_command,
+    normalize_windows_command_paths, readonly_network_reads, split_leading_cd,
 };
 use codewhale_execpolicy::toml_rules::{ExecPolicyConfig, RuleDecision};
 use serde_json::json;
@@ -5381,8 +5392,13 @@ fn finish_contract_bash_result(
             tail_lines(output.trim(), 20)
         };
         let notice = promotion_notice(context, task_id, result.duration_ms / 1_000, &output);
+        let completion = if context.owner_agent_id.is_some() {
+            "Its completion stays in task/status and is not injected into the parent model."
+        } else {
+            "Its completion reaches you as a runtime event before your next step; if you end the turn first, a headless run stops it unseen."
+        };
         return Ok(ToolResult::success(format!(
-            "{notice}\n\nOutput so far:\n{so_far}\n\nCompletion will appear as a runtime event. To see more output or block until it finishes, call `task_shell_wait` directly with task_id=\"{task_id}\"; do not sleep-poll with bash. To stop it, send the same call with cancel=true. It also stops when the session ends."
+            "{notice}\n\nOutput so far:\n{so_far}\n\n{completion} To see more output or block until it finishes, call `task_shell_wait` directly with task_id=\"{task_id}\"; do not sleep-poll with bash. To stop it, send the same call with cancel=true. It also stops when the session ends."
         )).with_metadata(metadata));
     }
     if result.status != ShellStatus::Completed {
@@ -5467,6 +5483,15 @@ impl ToolSpec for LowercaseBashTool {
         self.is_read_only_for(input)
     }
 
+    fn refusal_before_approval(
+        &self,
+        input: &serde_json::Value,
+        context: &ToolContext,
+    ) -> Option<ToolResult> {
+        let translated = contract_bash_legacy_input(input).ok()?;
+        BashTool::contract_delegate().refusal_before_approval(&translated, context)
+    }
+
     async fn execute(
         &self,
         input: serde_json::Value,
@@ -5477,6 +5502,30 @@ impl ToolSpec for LowercaseBashTool {
             .execute(translated, context)
             .await
     }
+}
+
+fn dangerous_command_block(safety: &SafetyAnalysis) -> Option<ToolResult> {
+    if safety.level != SafetyLevel::Dangerous {
+        return None;
+    }
+    let reasons = safety.reasons.join("; ");
+    let suggestions = if safety.suggestions.is_empty() {
+        String::new()
+    } else {
+        format!("\nSuggestions: {}", safety.suggestions.join("; "))
+    };
+    Some(ToolResult {
+        content: format!(
+            "BLOCKED: This command was blocked for safety reasons.\n\nReasons: {reasons}{suggestions}\n\nNote: allow_shell=true exposes shell tools, but it does not disable built-in shell safety validation."
+        ),
+        success: false,
+        metadata: Some(json!({
+            "safety_level": "dangerous",
+            "blocked": true,
+            "reasons": safety.reasons,
+            "suggestions": safety.suggestions,
+        })),
+    })
 }
 
 fn contract_bash_legacy_input(input: &serde_json::Value) -> Result<serde_json::Value, ToolError> {
@@ -5772,6 +5821,30 @@ impl ToolSpec for BashTool {
         exec_shell_input_starts_detached(input)
     }
 
+    fn refusal_before_approval(
+        &self,
+        input: &serde_json::Value,
+        context: &ToolContext,
+    ) -> Option<ToolResult> {
+        if context.auto_approve {
+            return None;
+        }
+        let input = if context.shell_policy == ShellPolicy::ReadOnly {
+            normalize_readonly_cd(input)
+        } else {
+            input.clone()
+        };
+        let action = match self.forced_action {
+            Some(forced) => forced,
+            None => optional_str(&input, "action").ok()?.unwrap_or("run"),
+        };
+        if action != "run" {
+            return None;
+        }
+        let command = input.get("command")?.as_str()?;
+        dangerous_command_block(&analyze_command(command))
+    }
+
     async fn execute(
         &self,
         input: serde_json::Value,
@@ -5998,32 +6071,10 @@ impl ToolSpec for BashTool {
 
         // Safety analysis (always run for metadata, but only block when not in YOLO mode)
         let safety = analyze_command(command);
-        if !context.auto_approve {
-            match safety.level {
-                SafetyLevel::Dangerous => {
-                    let reasons = safety.reasons.join("; ");
-                    let suggestions = if safety.suggestions.is_empty() {
-                        String::new()
-                    } else {
-                        format!("\nSuggestions: {}", safety.suggestions.join("; "))
-                    };
-                    return Ok(ToolResult {
-                        content: format!(
-                            "BLOCKED: This command was blocked for safety reasons.\n\nReasons: {reasons}{suggestions}\n\nNote: allow_shell=true exposes shell tools, but it does not disable built-in shell safety validation."
-                        ),
-                        success: false,
-                        metadata: Some(json!({
-                            "safety_level": "dangerous",
-                            "blocked": true,
-                            "reasons": safety.reasons,
-                            "suggestions": safety.suggestions,
-                        })),
-                    });
-                }
-                SafetyLevel::RequiresApproval | SafetyLevel::Safe | SafetyLevel::WorkspaceSafe => {
-                    // Proceed normally
-                }
-            }
+        if !context.auto_approve
+            && let Some(blocked) = dangerous_command_block(&safety)
+        {
+            return Ok(blocked);
         }
 
         // This explicit mode only narrows the caller's posture. No approval or
@@ -6488,7 +6539,7 @@ impl ToolSpec for BashTool {
                     let completion_contract = if context.owner_agent_id.is_some() {
                         "completion stays in task/status and is not injected into the parent model."
                     } else {
-                        "completion is delivered to the model as an internal runtime event and shown in task/status state."
+                        "completion is delivered to the model as an internal runtime event before its next step and shown in task/status state; if the turn ends first, a headless run stops the task unseen."
                     };
                     if backgrounded_foreground {
                         let seconds = result.duration_ms / 1_000;

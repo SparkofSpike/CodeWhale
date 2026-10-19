@@ -856,7 +856,7 @@ async fn load_source(
     context: &ToolContext,
 ) -> Result<(String, String, Option<String>), ToolError> {
     if let Some(path) = rlm_open_source_field(input, "file_path").map(str::trim) {
-        let resolved = context.resolve_path(path)?;
+        let resolved = crate::tools::file::resolve_guarded_read_path(context, path, "rlm_open")?;
         let body = tokio::fs::read_to_string(&resolved).await.map_err(|e| {
             ToolError::execution_failed(format!("rlm_open: read {}: {e}", resolved.display()))
         })?;

@@ -449,10 +449,158 @@ pub fn provider_for_kind(kind: ProviderKind) -> &'static dyn Provider {
     descriptors::builtin_provider_descriptor(kind)
 }
 
+/// Whether a per-config `wire` dialect string names the Anthropic Messages
+/// endpoint. Canonical parse shared by the tui wire-format/capability readers
+/// and the route resolver's `RouteRequest::wire_override`, so one alias list
+/// cannot drift from another.
+#[must_use]
+pub fn wire_dialect_prefers_anthropic(wire: Option<&str>) -> bool {
+    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
+    matches!(
+        normalized.as_str(),
+        "anthropic"
+            | "anthropic-messages"
+            | "messages"
+            | "claude"
+            | "anthropic-compatible"
+            | "anthropic-compat"
+    )
+}
+
+/// Whether a per-config `wire` dialect string names the OpenAI Responses
+/// endpoint. See [`wire_dialect_prefers_anthropic`] for the sharing contract.
+#[must_use]
+pub fn wire_dialect_prefers_responses(wire: Option<&str>) -> bool {
+    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
+    matches!(
+        normalized.as_str(),
+        "responses"
+            | "responses-api"
+            | "openai-responses"
+            | "openai-responses-api"
+            | "response"
+            | "response-api"
+            | "openai-responses-compat"
+            | "responses-compat"
+    )
+}
+
+/// The wire override a per-config `wire` dialect asks for: `Some(Responses)` /
+/// `Some(AnthropicMessages)` when the string names that endpoint, `None` for
+/// `chat` / absent / unrecognized values (the static descriptor policy
+/// applies). The resolver honors the override only for `ProviderKind::Custom`,
+/// and every other consumer gates the same way, so the warning below can only
+/// fire for a custom table — `table` names it in the log, since several
+/// tables can coexist and the typo must be locatable. A non-empty
+/// unrecognized value is most likely a typo of the one string that switches
+/// the endpoint's protocol, so it is logged before degrading to the default
+/// policy — the parse stays total and forward-compatible.
+#[must_use]
+pub fn wire_dialect_override(table: &str, wire: Option<&str>) -> Option<WireFormat> {
+    if wire_dialect_prefers_responses(wire) {
+        Some(WireFormat::Responses)
+    } else if wire_dialect_prefers_anthropic(wire) {
+        Some(WireFormat::AnthropicMessages)
+    } else {
+        if let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) {
+            let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
+            if !matches!(
+                normalized.as_str(),
+                "chat" | "chat-completions" | "openai" | "openai-chat" | "openai-chat-completions"
+            ) {
+                tracing::warn!(
+                    table = %table,
+                    dialect = %raw,
+                    "unrecognized custom-provider wire dialect; using the default Chat Completions policy"
+                );
+            }
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::descriptors::defaults::*;
+
+    #[test]
+    fn wire_dialect_override_parses_the_canonical_alias_sets() {
+        // The exact alias sets are the cross-crate contract: the tui route
+        // layer, the ambient client, the capability reporter, and the route
+        // resolver all resolve dialects through these two lists.
+        for dialect in [
+            "responses",
+            "responses-api",
+            "openai-responses",
+            "openai-responses-api",
+            "response",
+            "response-api",
+            "openai-responses-compat",
+            "responses-compat",
+        ] {
+            assert_eq!(
+                wire_dialect_override("test", Some(dialect)),
+                Some(WireFormat::Responses),
+                "{dialect} must parse as the Responses dialect"
+            );
+        }
+        for dialect in [
+            "anthropic",
+            "anthropic-messages",
+            "messages",
+            "claude",
+            "anthropic-compatible",
+            "anthropic-compat",
+        ] {
+            assert_eq!(
+                wire_dialect_override("test", Some(dialect)),
+                Some(WireFormat::AnthropicMessages),
+                "{dialect} must parse as the Anthropic Messages dialect"
+            );
+        }
+    }
+
+    #[test]
+    fn wire_dialect_override_normalizes_case_whitespace_and_separators() {
+        for dialect in ["OpenAI_Responses", " responses-api ", "ANTHROPIC COMPAT"] {
+            let parsed = wire_dialect_override("test", Some(dialect))
+                .unwrap_or_else(|| panic!("{dialect} must parse"));
+            assert_ne!(
+                parsed,
+                WireFormat::ChatCompletions,
+                "{dialect} must not degrade to the default policy"
+            );
+        }
+    }
+
+    #[test]
+    fn wire_dialect_override_defaults_chat_and_degrades_unknowns() {
+        assert_eq!(wire_dialect_override("test", None), None);
+        assert_eq!(wire_dialect_override("test", Some("")), None);
+        for chat in [
+            "chat",
+            "chat-completions",
+            "openai",
+            "openai-chat",
+            "openai-chat-completions",
+        ] {
+            assert_eq!(
+                wire_dialect_override("test", Some(chat)),
+                None,
+                "an explicit chat dialect keeps the default policy"
+            );
+        }
+        // A typo must not accidentally select a protocol; the static
+        // descriptor policy applies and the warn names the table.
+        assert_eq!(wire_dialect_override("my_table", Some("respones")), None);
+    }
 
     #[test]
     fn credential_help_covers_every_provider_without_guessing_non_key_urls() {

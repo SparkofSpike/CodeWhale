@@ -87,6 +87,17 @@ Rust now:
 - `validate_survival_contract` also refuses a missing checkpoint receipt,
   duplicated prior summaries, dropped `/anchor` text, or a placeholder-only
   checkpoint.
+- Checkpoint recognition in the recompaction family is era-scoped. A history
+  that already carries a provenance-stamped carrier (header block plus the
+  provenance block) recognizes only stamped carriers as checkpoints, so a
+  user turn that pastes a bare legacy summary header stays content: it
+  anchors the round, is retained verbatim, and does not count as a duplicated
+  summary. A history without a stamped carrier (a legacy session, or any
+  session not yet compacted) keeps the loose legacy matching, so a pasted
+  legacy header still reads as a checkpoint at a session's first compaction. The receipt count reads the
+  replacement in its own era, except that a post-provenance original raises
+  the bar to a stamped carrier: the engine stamps every replacement it
+  builds, and the stamp is the only form request rewriting relocates.
 - `compact_messages_safe` never mutates the caller's live history; the host
   commits only after `Ok`.
 

@@ -41,7 +41,6 @@ const OPTIONAL_FILES = [
   "docs-sandbox.ts",
   "docs-subagents.ts",
   "docs-web.ts",
-  "docs-computers.ts",
   "docs-auth.ts",
   "docs-trust.ts",
   "docs-work.ts",

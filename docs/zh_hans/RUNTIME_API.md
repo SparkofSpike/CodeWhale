@@ -774,12 +774,12 @@ codewhale serve --mobile [...] [--insecure]
 攻击者有严格比这个竞争更简单的本地途径。
 Web 请求需要会话 cookie 加上一个限定于源（origin）的请求证明；
 流使用一张新的一次性票据。初始重定向把证明放在 fragment 中，客户端将其移除并
-保存到限定于源的 `sessionStorage`。重新加载或在第二个标签页中打开时，
-当 `Sec-Fetch-Site` 为 `same-origin` 或 `none`（直接导航）时，
-经过认证的 `GET /` 还会把证明嵌入一个 meta 标签。该页面使用 `no-store`、
-禁止被嵌入框架，也不授予任何跨源读取权限。这让新标签页无需复用 bootstrap URL
-即可恢复，包括存储不可用的情况。不支持 Fetch Metadata 的客户端只能复用 fragment
-或它已存储的证明；恢复不会延长服务器会话，也不会替换已过期的 cookie。
+保存到限定于源的 `sessionStorage`；只要浏览器允许会话存储，重新加载该标签页
+仍可继续使用。服务器从不把证明写进页面：会话 cookie 只限定主机而不限定端口，
+另一个回环端口上的监听者可能收到它，因此仅凭 cookie 不能取回证明。通过手动输入
+地址打开的新标签页没有证明；请使用原来的标签页、复制该标签页，或重新启动
+`codewhale web` 获取新的一次性会话。该页面使用 `no-store`、禁止被嵌入框架，
+也不授予任何跨源读取权限。任何操作都不会延长服务器会话，也不会替换已过期的 cookie。
 跨源的 Fetch Metadata 或不匹配的 Origin 会在 web API 请求上被拒绝。显式的
 bearer 与 Runtime 令牌 header 客户端保持其既有行为。暂时性的流票据失败会以
 有上限的退避重试；HTTP 401/403 会停止票据重试，直到打开新的会话。
@@ -1029,6 +1029,8 @@ fork 还可能包含 `backtrack_depth_from_tail` 与 `dropped_turn_id`，而
 }
 ```
 
+`system_prompt` 的修改从下一个回合开始生效：已加载的引擎会被卸载，并用新的提示词根据线程历史重建。与修改 `workspace` 一样，线程有正在运行的回合时会拒绝该修改。
+
 `model_provider` 切换该线程未来回合所用的提供商。它
 接受内置种类（`deepseek`、`xai`、...）或已配置的路由名，与
 `/provider` 一样。`model_provider_id` 指名一个精确的 `[providers.<id>]` 表，
@@ -1049,7 +1051,7 @@ fork 还可能包含 `backtrack_depth_from_tail` 与 `dropped_turn_id`，而
 - `GET /v1/threads/{id}/turns/{turn_id}/artifacts` - 回合产出了什么：类型化引用加上工作区 delta 状态。参见 [回合工件](#回合工件)。
 - `GET /v1/threads/{id}/turns/{turn_id}/artifacts/{artifact_id}?offset=&limit=&revision=` - 从工作区、post-turn 快照或会话工件目录读取一个引用。
 - `POST /v1/threads/{id}/compact`（手动压缩）
-- `POST /v1/threads/{id}/undo` - 以去掉最后 N 个回合的方式 fork 线程（`{"depth": N}`，默认 0 = 仅最后一个回合）；返回 fork 出的线程以及 `original_user_text`，以便 GUI 预填输入框
+- `POST /v1/threads/{id}/undo` - 以去掉最后 N 个回合的方式 fork 线程（`{"depth": N}`，默认 0 = 仅最后一个回合）；返回 fork 出的线程以及 `original_user_text`，以便 GUI 预填输入框。改用 `{"turn_id": "turn_…"}` 时，指明要去掉的用户回合及其之后的所有回合，并优先于 `depth`；Runtime 在线程的恢复保护下解析它，因此其他客户端同时追加的回合不会移动切点。该回合不是此线程的用户回合时返回 `400`
 - `POST /v1/threads/{id}/fork-at-turn` - 在一个具名用户回合处 fork（`{"turn_id": "turn_…"}`，即 `GET /v1/threads/{id}` 报告的那个）。该 fork *保留*那个回合及其之前的每个回合，丢弃其后的回合；因此指名最后一个回合会保留整个对话。回执与 `/undo` 相同（`thread`、`original_user_text`、`original_user_images`），携带*第一个被丢弃*的用户回合的提示词——即接下来被问的是什么，即使中间夹着一个无提示词回合（如一次手动 `/compact`）——这样客户端可以把它放回输入区供编辑。源线程、它的会话文档与工作区都不受影响，也没有文件回滚：fork 是一个兄弟对话，而回退工作区会把随之留下的分支一起回退。客户端应当指名回合，而不是计算 `depth`——它们渲染的转录与这里裁剪的回合列表不是同一个列表（引导、仅图片提示词与注入的交接各自只位于一侧），一个差一的客户端计数会在回答 `201` 的同时 fork 错前缀。当该回合不是该线程的用户回合时返回 `400`。
 - `POST /v1/threads/{id}/patch-undo` - 回滚被丢弃回合改动过的文件，随后做同样的 fork（`{"depth": N}`）；除 fork 出的线程外还返回 `patch_result`（`files_restored`、`summary`、`snapshot_label`）。所有权、信任、准入与中止规则，以及拒绝时的 `error.code` 取值，参见 [工作区恢复端点](#工作区恢复端点)。
 - `POST /v1/threads/{id}/file-revert` - 从线程拥有的一个恢复点中恢复恰好一个文件（`{"path", "snapshot_id", "expected_hash"}`）；永不 fork 对话。参见 [工作区恢复端点](#工作区恢复端点)。

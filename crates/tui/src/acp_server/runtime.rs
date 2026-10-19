@@ -665,6 +665,9 @@ mod tests {
             engine
                 .tx_event
                 .send(Event::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id: None,
                     usage: codewhale_models::Usage::default(),
                     parent_route_usage: codewhale_models::Usage::default(),
                     routed_usage_dropped_records: 0,

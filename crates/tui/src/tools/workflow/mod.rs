@@ -2829,7 +2829,9 @@ struct StructuredPlanChild {
     cwd: Option<String>,
 }
 
-fn structured_plan_to_workflow_spec(plan_value: &Value) -> Result<WorkflowSpec, ToolError> {
+pub(crate) fn structured_plan_to_workflow_spec(
+    plan_value: &Value,
+) -> Result<WorkflowSpec, ToolError> {
     if !plan_value.is_object() {
         return Err(ToolError::invalid_input(
             "Workflow plan must be a JSON object with goal and phases/children (or nodes)",

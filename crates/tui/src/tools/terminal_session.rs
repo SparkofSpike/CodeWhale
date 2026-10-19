@@ -279,8 +279,13 @@ fn pty_lacks_required_sandbox(
 }
 
 #[cfg(unix)]
-fn pty_sandbox_policy(context: &ToolContext) -> crate::sandbox::SandboxPolicy {
-    context.elevated_sandbox_policy.clone().unwrap_or_default()
+fn pty_sandbox_policy(context: &ToolContext) -> Result<crate::sandbox::SandboxPolicy, ToolError> {
+    if context.sandbox_backend.is_some() {
+        return Err(ToolError::not_available(
+            "terminal PTY tools start a local shell, and this session runs commands in an external sandbox; run the command through the shell tool instead",
+        ));
+    }
+    Ok(context.elevated_sandbox_policy.clone().unwrap_or_default())
 }
 
 #[cfg(unix)]
@@ -288,18 +293,18 @@ fn prepare_pty_shell(
     shell: &str,
     workspace: &std::path::Path,
     policy: crate::sandbox::SandboxPolicy,
+    shell_manager: &crate::tools::shell::SharedShellManager,
 ) -> Result<(crate::sandbox::ExecEnv, bool), String> {
-    let spec = crate::sandbox::CommandSpec {
-        program: shell.to_string(),
-        args: vec!["-i".to_string()],
-        cwd: workspace.to_path_buf(),
-        env: std::collections::HashMap::new(),
-        timeout: Duration::from_secs(24 * 60 * 60),
-        sandbox_policy: policy.clone(),
-        justification: Some("persistent PTY shell".to_string()),
-        requested_command: None,
-    };
-    let prepared = crate::sandbox::SandboxManager::new().prepare(&spec);
+    let prepared = shell_manager
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .prepare_runner(
+            shell,
+            vec!["-i".to_string()],
+            workspace,
+            Duration::from_secs(24 * 60 * 60),
+            Some(policy.clone()),
+        );
     if pty_lacks_required_sandbox(&policy, prepared.sandbox_type) {
         return Err(
             "terminal PTY tools cannot run unsandboxed under a narrowed filesystem posture; use Full Access / ExternalSandbox or enable seatbelt/bwrap"
@@ -318,6 +323,7 @@ fn create_session(
     name: &str,
     workspace: &std::path::Path,
     policy: crate::sandbox::SandboxPolicy,
+    shell_manager: &crate::tools::shell::SharedShellManager,
 ) -> Result<SharedSession, String> {
     // Unit tests exercise the persistent-PTY contract, not a developer's
     // interactive shell startup files. Keep their deadlines deterministic and
@@ -347,7 +353,8 @@ fn create_session(
         })
         .map_err(|e| format!("failed to open PTY: {e}"))?;
 
-    let (prepared, sandbox_confined) = prepare_pty_shell(&shell, &workspace, policy.clone())?;
+    let (prepared, sandbox_confined) =
+        prepare_pty_shell(&shell, &workspace, policy.clone(), shell_manager)?;
     let mut command = portable_pty::CommandBuilder::new(&prepared.command[0]);
     for arg in &prepared.command[1..] {
         command.arg(arg);
@@ -432,6 +439,7 @@ pub(crate) fn get_or_create(
     name: &str,
     workspace: &std::path::Path,
     policy: crate::sandbox::SandboxPolicy,
+    shell_manager: &crate::tools::shell::SharedShellManager,
 ) -> Result<SharedSession, String> {
     let key = session_key(name, workspace);
     let mut registry = sessions()
@@ -449,7 +457,7 @@ pub(crate) fn get_or_create(
         }
         return Ok(Arc::clone(session));
     }
-    let session = create_session(name, workspace, policy)?;
+    let session = create_session(name, workspace, policy, shell_manager)?;
     registry.insert(key, Arc::clone(&session));
     Ok(session)
 }
@@ -1051,8 +1059,13 @@ impl ToolSpec for TerminalRunTool {
         {
             let command = required_str(&input, "command")?.to_string();
             let name = session_name(&input, false)?.to_string();
-            let session = get_or_create(&name, &context.workspace, pty_sandbox_policy(context))
-                .map_err(ToolError::execution_failed)?;
+            let session = get_or_create(
+                &name,
+                &context.workspace,
+                pty_sandbox_policy(context)?,
+                &context.shell_manager,
+            )
+            .map_err(ToolError::execution_failed)?;
             let timeout = timeout_secs(&input, "timeout_secs")?;
             return tokio::task::spawn_blocking(move || {
                 {
@@ -1230,7 +1243,8 @@ impl ToolSpec for TerminalResetTool {
             let name = session_name(&input, true)?.to_string();
             let old = find(&name, &context.workspace).map_err(ToolError::execution_failed)?;
             let workspace = context.workspace.clone();
-            let policy = pty_sandbox_policy(context);
+            let policy = pty_sandbox_policy(context)?;
+            let shell_manager = context.shell_manager.clone();
             return tokio::task::spawn_blocking(move || {
                 if let Ok(mut old) = old.lock() { let _ = old.child.kill(); }
                 if let Ok(mut old) = old.lock() {
@@ -1238,7 +1252,7 @@ impl ToolSpec for TerminalResetTool {
                     old.durable.updated_at = chrono::Utc::now().to_rfc3339();
                     let _ = persist_durable(&old.durable_path, &old.durable);
                 }
-                let fresh = create_session(&name, &workspace, policy)
+                let fresh = create_session(&name, &workspace, policy, &shell_manager)
                     .map_err(ToolError::execution_failed)?;
                 sessions().lock().map_err(|_| ToolError::execution_failed("terminal session registry lock poisoned"))?.insert(session_key(&name, &workspace), fresh);
                 Ok(ToolResult { content: format!("Reset terminal session '{name}'. Lost shell state and any running command."), success: true, metadata: Some(json!({"session":name,"reset":true,"lost_state":["cwd","environment","functions","activated environments","running command"]})) })
@@ -1254,6 +1268,10 @@ impl ToolSpec for TerminalResetTool {
 
 #[cfg(all(test, unix))]
 mod tests {
+    fn test_shell_manager() -> crate::tools::shell::SharedShellManager {
+        crate::tools::shell::new_shared_shell_manager(std::path::PathBuf::from("/tmp"))
+    }
+
     use super::*;
 
     /// Dock tests own a workspace so parallel tests cannot share their registry
@@ -1274,6 +1292,7 @@ mod tests {
                 name,
                 self.path(),
                 crate::sandbox::SandboxPolicy::DangerFullAccess,
+                &test_shell_manager(),
             )
             .unwrap()
         }
@@ -1308,6 +1327,7 @@ mod tests {
             name,
             std::path::Path::new("/tmp"),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         let mut session_guard = session.lock().unwrap();
@@ -1317,6 +1337,7 @@ mod tests {
             name,
             std::path::Path::new("/tmp"),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         sessions().lock().unwrap().insert(
@@ -1440,6 +1461,7 @@ mod tests {
             "test-reset",
             std::path::Path::new("/tmp"),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         sessions().lock().unwrap().insert(
@@ -1544,6 +1566,7 @@ mod tests {
             "/bin/sh",
             Path::new("/tmp"),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .expect("full access may start a PTY");
         assert!(!confined);
@@ -1560,12 +1583,14 @@ mod tests {
             "shared-name",
             first_workspace.path(),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         let second = get_or_create(
             "shared-name",
             second_workspace.path(),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         assert!(!Arc::ptr_eq(&first, &second));
@@ -1635,6 +1660,7 @@ mod tests {
             "replaceable",
             workspace.path(),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         let new_id = replacement.lock().unwrap().durable.session_id.clone();
@@ -1679,7 +1705,15 @@ mod tests {
         let shell = workspace.session("posture");
         let id = shell.lock().unwrap().durable.session_id.clone();
         let narrowed = SandboxPolicy::ReadOnly;
-        assert!(get_or_create("posture", workspace.path(), narrowed.clone()).is_err());
+        assert!(
+            get_or_create(
+                "posture",
+                workspace.path(),
+                narrowed.clone(),
+                &test_shell_manager()
+            )
+            .is_err()
+        );
         assert!(write_dock_input(workspace.path(), "posture", &id, b"x", &narrowed).is_err());
 
         // The process creation boundary is tested separately against real
@@ -1703,11 +1737,19 @@ mod tests {
             ),
         ];
         for policy in changed {
-            assert!(get_or_create("posture", workspace.path(), policy.clone()).is_err());
+            assert!(
+                get_or_create(
+                    "posture",
+                    workspace.path(),
+                    policy.clone(),
+                    &test_shell_manager()
+                )
+                .is_err()
+            );
             assert!(write_dock_input(workspace.path(), "posture", &id, b"x", &policy).is_err());
         }
         assert!(Arc::ptr_eq(
-            &get_or_create("posture", workspace.path(), original).unwrap(),
+            &get_or_create("posture", workspace.path(), original, &test_shell_manager()).unwrap(),
             &shell
         ));
         assert_eq!(shell.lock().unwrap().durable.session_id, id);
@@ -1947,6 +1989,7 @@ mod tests {
             &name,
             workspace.path(),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         let first_record = first.lock().unwrap().durable.clone();
@@ -1971,6 +2014,7 @@ mod tests {
             &name,
             workspace.path(),
             crate::sandbox::SandboxPolicy::DangerFullAccess,
+            &test_shell_manager(),
         )
         .unwrap();
         let replacement = replacement.lock().unwrap();

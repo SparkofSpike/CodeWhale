@@ -160,7 +160,6 @@
     "navPrimaryAria": "Primary",
     "navHomeAria": "Codewhale home",
     "installCta": "Install →",
-    "authSignIn": "Sign in",
     "dateLocale": "en-US",
     "menuOpen": "Open menu",
     "menuClose": "Close menu",
@@ -169,7 +168,7 @@
     "themeDark": "dark",
     "themeAria": "Theme: {mode} (click to cycle)",
     "themeTitle": "Theme · auto / light / dark",
-    "footerTagline": "Build apps and automate work with your own models and connected tools.",
+    "footerTagline": "The open-source coding agent for your terminal and the models you choose.",
     "footerProduct": "Product",
     "footerProject": "Project",
     "footerDocs": "Docs",
@@ -195,8 +194,8 @@
   "home": {
     "metaTitle": "Codewhale: an open-source coding agent",
     "metaDescription": "Codewhale is an open-source coding agent for your terminal. Read, edit and test projects with your own hosted or local models.",
-    "heroTitle": "Build apps and automate your work.",
-    "heroIntro": "{brand} is an open-source coding agent that reads files, writes code and runs commands in your terminal. Connect your existing model API or a local model, and choose which actions need approval.",
+    "heroTitle": "The open-source coding agent for any model",
+    "heroIntro": "{brand} reads your project, edits files and runs your tests from your terminal. Connect a hosted or local model, and choose which actions need your approval.",
     "getCodewhale": "Install Codewhale",
     "heroInstallAria": "Install command",
     "exploreProduct": "Explore Codewhale",
@@ -207,7 +206,7 @@
     "currentSource": "Source",
     "sourceCandidate": "Unreleased",
     "publishedRelease": "released",
-    "gainHeading": "What you can do",
+    "gainHeading": "Build and automate from your terminal",
     "gainLede": "Describe what you want to build or automate. Codewhale can edit files, run commands and check the result, with access you control.",
     "gain": [
       [
@@ -229,7 +228,7 @@
     "modelsFacts": [
       [
         "Your API accounts",
-        "Connect providers such as OpenAI, Anthropic, Google or DeepSeek with your own keys."
+        "Connect providers such as DeepSeek, OpenAI, Anthropic or Google with your own keys. The default, deepseek-flash, now runs DeepSeek-V4.1-Flash."
       ],
       [
         "Your gateway",
@@ -238,6 +237,10 @@
       [
         "Your inference",
         "Run local or self-hosted models with Ollama, vLLM or SGLang."
+      ],
+      [
+        "Your ChatGPT plan",
+        "Sign in with codewhale auth chatgpt to use a ChatGPT plan instead of an API key. Experimental."
       ]
     ],
     "modelsLink": "Browse models and providers",
@@ -262,22 +265,16 @@
       ],
       [
         "Hosted web app",
-        "Development preview",
-        "Being rebuilt to match the desktop app. Today you can sign in, then type /rc in a running terminal session to continue it on the web; hosted task execution is still being qualified."
+        "In development",
+        "Being rebuilt to match the desktop app, and not open yet. For a browser view today, run codewhale web on your machine."
       ],
       [
         "Desktop",
         "Development build",
-        "The native app becoming the main Codewhale client: folders, conversations, and model connections in one window. No public download yet."
-      ],
-      [
-        "Cloud computers",
-        "In development",
-        "Hosted computers that run your tasks."
+        "A native app on the same engine. Review and commit changes, follow work across projects, and edit a message to resend it as a new branch. No public download yet."
       ]
     ],
-    "availabilityNote": "The terminal, local browser, and GUI need no Codewhale account. Hosted web and desktop use an account. When you use your own provider key, your provider bills that usage.",
-    "accountLink": "Create an account",
+    "availabilityNote": "The terminal, local browser, and GUI need no Codewhale account. When you use your own provider key, your provider bills that usage.",
     "surfacesHeading": "Work across files and tools",
     "surfaces": [
       [
@@ -309,7 +306,7 @@
     "chinaMirrors": "China mirrors",
     "installGuideLink": "Read the install guide",
     "communityHeading": "Contribute to Codewhale",
-    "communityBody": "Report a bug, improve the docs or contribute code on GitHub. You can also build plugins and share workflows with others.",
+    "communityBody": "{count} people have built Codewhale. Report a bug, improve the docs or contribute code on GitHub.",
     "communityLinksAria": "Community links",
     "contribute": "Contribute on GitHub"
   },
@@ -1037,7 +1034,7 @@
         "title": "Compose tool calls with code mode (experimental)",
         "blocks": [
           {
-            "p": "Code mode lets the model write one short JavaScript program that calls several tools, loops, and filters results, instead of making each call as a separate step. Only the program's final value goes back to the model, which keeps long lookups compact. It is on by default — `execute_tools` is advertised from the first request — and MCP and plugin tools compose inside a program the same way built-in ones do. To turn it off for one session, or in config:"
+            "p": "Code mode lets the model write one short JavaScript program that calls several tools, loops, and filters results, instead of making each call as a separate step. Only the program's final value goes back to the model, which keeps long lookups compact. It is on by default — `execute_tools` is advertised from the first request — and MCP and plugin tools compose inside a program the same way built-in ones do. Turning it off does not remove code mode: `execute_tools` goes back to being deferred, and the model can still find it through `tool_search`. To turn it off for one session, or in config:"
           },
           {
             "code": "codewhale --disable code_mode\n\n# ~/.codewhale/config.toml\n[features]\ncode_mode = false",
@@ -1727,69 +1724,6 @@
     ],
     "sourceNote": "Source document: docs/WEB.md · Update docs-map.ts when changing."
   },
-  "docs-computers": {
-    "metaTitle": "Send a task to the cloud · Codewhale Docs",
-    "metaDescription": "Hand a coding task to a Codewhale cloud agent through your account — quoted first, started only when you agree.",
-    "bodyClassName": "text-ink-soft leading-relaxed",
-    "title": "Send a task to the cloud",
-    "lede": "A cloud agent takes a task off your machine: it works on cloud compute while you keep working locally. Nothing starts until you have seen the quote and agreed.",
-    "sections": [
-      {
-        "id": "status",
-        "title": "Know what is ready",
-        "blocks": [
-          {
-            "note": "Cloud agents are a preview. A task runs through your signed-in Codewhale account, so the quote and the compute consent below apply to every task."
-          }
-        ]
-      },
-      {
-        "id": "before",
-        "title": "Before you start",
-        "blocks": [
-          {
-            "list": [
-              "Sign in to your Codewhale account with `codewhale login`. Dispatch always runs through the signed-in account."
-            ]
-          }
-        ]
-      },
-      {
-        "id": "send",
-        "title": "Quote, consent, then run",
-        "blocks": [
-          {
-            "code": "codewhale dispatch \"fix the flaky login test and open a PR\"",
-            "lang": "Terminal"
-          },
-          {
-            "p": "Codewhale shows the quoted task time for your account and asks you to agree that the repository code and any files you attach run on EU compute. Nothing starts until you agree. For scripts, pass `--yes --confirm-eu-compute` to answer both up front."
-          },
-          {
-            "p": "Use `--seconds` to set the task time, `--agent` to pick an Agent, and `--context-file` or `--file` to attach context."
-          }
-        ]
-      }
-    ],
-    "next": [
-      {
-        "href": "/docs/auth",
-        "label": "Connect a provider",
-        "note": "Sign in to your Codewhale account and manage keys."
-      },
-      {
-        "href": "/docs/review",
-        "label": "Review what changed",
-        "note": "Review the agent's pull request before you merge it."
-      },
-      {
-        "href": "/docs/fleet",
-        "label": "Run a workflow",
-        "note": "Run longer, multi-step work on your own machine instead."
-      }
-    ],
-    "sourceNote": "Source documents: docs/GUIDE.md, docs/CODEWHALE_AGENT.md · Update docs-map.ts when changing."
-  },
   "docs-auth": {
     "metaTitle": "Connect a provider · Codewhale Docs",
     "metaDescription": "Give Codewhale a model: save a provider key, check which key is in use, or run a local model with no key. A Codewhale account is optional.",
@@ -1867,10 +1801,10 @@
       },
       {
         "id": "account",
-        "title": "Sign in to a Codewhale account (optional)",
+        "title": "Codewhale accounts",
         "blocks": [
           {
-            "p": "A provider key and a Codewhale account are different things. The account is for account features only, such as cloud agents and continuing a session from the web app. Installing Codewhale and working locally never need one."
+            "p": "A provider key and a Codewhale account are different things. Codewhale never needs an account, and new accounts are not open. Provider keys stay on your machine with `codewhale auth set`."
           },
           {
             "rows": [
@@ -1885,10 +1819,6 @@
               [
                 "codewhale account logout",
                 "Remove this profile's session."
-              ],
-              [
-                "codewhale account keys list",
-                "List provider keys saved in your account. Values are never shown."
               ]
             ],
             "codeTerms": true

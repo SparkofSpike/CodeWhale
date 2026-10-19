@@ -124,7 +124,8 @@ fn load_input_source(
         )),
         (None, None) => Err(ToolError::missing_field("path or content")),
         (Some(path), None) => {
-            let resolved = context.resolve_path(path)?;
+            let resolved =
+                crate::tools::file::resolve_guarded_read_path(context, path, "validate_data")?;
             let raw_content = if context.features.enabled(crate::features::Feature::DataHost) {
                 use std::io::Read;
                 let mut content = String::new();

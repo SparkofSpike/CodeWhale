@@ -42,11 +42,11 @@ impl CommandMode {
         )
     }
 
-    /// Short UI label used by the `/mode` switch confirmation.
+    /// Short English UI label for the mode.
     #[must_use]
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::Agent => "Act",
+            Self::Agent => "Work",
             Self::Plan => "Plan",
             Self::Operate => "Operate",
         }

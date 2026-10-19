@@ -32,7 +32,7 @@
 //!   overflow, or consume queued sub-agent completions and LSP diagnostics.
 //!   Exactness is conditional and the manifest says which condition failed.
 //! - **Flags come before `--prompt`, which takes the rest of the line.** See
-//!   [`parse_args`] for the grammar and why it is not "any order".
+//!   `parse_args` for the grammar and why it is not "any order".
 //! - **Preview never calls a provider or model.** Auto routing therefore
 //!   reports a typed unavailable state even with `--prompt`: production must
 //!   run the classifier before that route can be known exactly.

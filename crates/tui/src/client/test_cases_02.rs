@@ -249,6 +249,7 @@
                         thinking: "Inspect the saved tool state".to_string(),
                         signature: None,
                         state: None,
+                        redacted_data: None,
                     },
                     ContentBlock::ToolUse {
                         execution_id: None,

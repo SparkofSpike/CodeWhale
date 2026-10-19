@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale：开源编程智能体",
   metaDescription: "Codewhale 是终端里的开源编程智能体。用你选择的托管模型或本地模型读取、修改和测试项目。",
-  heroTitle: "构建应用，让你的工作自动运行。",
-  heroIntro: "{brand} 是终端里的开源编程智能体，可以读取文件、编写代码并运行命令。连接已有的模型 API 或本地模型，并选择哪些操作需要批准。",
+  heroTitle: "适用于任意模型的开源编程智能体",
+  heroIntro: "{brand} 在终端里读取你的项目、编辑文件并运行测试。连接托管模型或本地模型，并选择哪些操作需要你批准。",
   getCodewhale: "安装 Codewhale",
   heroInstallAria: "安装命令",
   exploreProduct: "探索 Codewhale",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "源码",
   sourceCandidate: "未发布",
   publishedRelease: "已发布",
-  gainHeading: "你可以做什么",
+  gainHeading: "在终端里构建与自动化",
   gainLede: "描述你想构建或自动完成的工作。Codewhale 可以编辑文件、运行命令并检查结果，访问权限由你控制。",
   gain: [
     [
@@ -41,7 +41,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "你的 API 账户",
-      "使用自己的密钥连接 OpenAI、Anthropic、Google、DeepSeek 等提供商。"
+      "使用自己的密钥连接 DeepSeek、OpenAI、Anthropic、Google 等提供商。默认模型 deepseek-flash 现已由 DeepSeek-V4.1-Flash 提供。"
     ],
     [
       "你的网关",
@@ -50,6 +50,10 @@ export const home: HomeDict = {
     [
       "你的推理服务",
       "通过 Ollama、vLLM 或 SGLang 运行本地或自托管模型。"
+    ],
+    [
+      "你的 ChatGPT 套餐",
+      "运行 codewhale auth chatgpt 登录，即可用 ChatGPT 套餐代替 API 密钥。实验功能。"
     ]
   ],
   modelsLink: "浏览模型与提供商",
@@ -74,22 +78,16 @@ export const home: HomeDict = {
     ],
     [
       "托管网页应用",
-      "开发预览",
-      "正在重建，以与桌面应用保持一致。目前你可以登录，然后在正在运行的终端会话中输入 /rc，在网页上继续该会话；托管任务执行仍在验证中。"
+      "开发中",
+      "正在重建，以与桌面应用保持一致，暂未开放。如需现在在浏览器中使用，请在本机运行 codewhale web。"
     ],
     [
       "桌面端",
       "开发版本",
-      "正在成为 Codewhale 主要客户端的原生应用：文件夹、对话和模型连接集中在一个窗口中。暂无公开下载。"
-    ],
-    [
-      "云端计算机",
-      "开发中",
-      "为你运行任务的托管计算机。"
+      "基于同一引擎的原生应用。审阅并提交改动、跨项目跟进工作，还能编辑一条消息并作为新分支重新发送。暂无公开下载。"
     ]
   ],
-  availabilityNote: "终端、本地浏览器和 GUI 无需 Codewhale 账户。托管网页和桌面端使用账户。使用你自己的提供商密钥时，相应用量由该提供商计费。",
-  accountLink: "创建账户",
+  availabilityNote: "终端、本地浏览器和 GUI 无需 Codewhale 账户。使用你自己的提供商密钥时，相应用量由该提供商计费。",
   surfacesHeading: "使用文件和工具开展工作",
   surfaces: [
     [
@@ -121,7 +119,7 @@ export const home: HomeDict = {
   chinaMirrors: "中国镜像",
   installGuideLink: "阅读安装指南",
   communityHeading: "为 Codewhale 做贡献",
-  communityBody: "在 GitHub 上报告问题、改进文档或贡献代码。你也可以构建插件，与其他用户分享工作流。",
+  communityBody: "已有 {count} 人参与构建 Codewhale。在 GitHub 上报告问题、改进文档或贡献代码。",
   communityLinksAria: "社区链接",
   contribute: "在 GitHub 上参与贡献",
 };

@@ -120,6 +120,14 @@ impl CommandSessionControlContext for FakeControl {
             None => Err("unexpected clear_window_title on empty fake".to_string()),
         }
     }
+    fn composer_color(&self) -> Option<String> {
+        self.call("composer_color", None);
+        None
+    }
+    fn set_composer_color(&mut self, color: Option<String>) -> Result<(), String> {
+        self.call("set_composer_color", color.as_deref());
+        Err("unexpected set_composer_color on empty fake".to_string())
+    }
     fn remote_status(&self) -> String {
         self.call("remote_status", None);
         self.remote_status

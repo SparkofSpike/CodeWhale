@@ -2495,12 +2495,13 @@ fn push_provider_model_rows(
             model_ids.push(declaration.id.clone());
         }
     }
+    let readiness_scope =
+        crate::provider_readiness::RouteReadinessScope::for_route(config, admitted);
     for id in model_ids {
         if id == "auto" {
             continue;
         }
-        let readiness =
-            crate::provider_readiness::resolve_for_model(config, admitted, &id, provider_health);
+        let readiness = readiness_scope.resolve(config, &id, provider_health);
         let selectable = readiness.can_attempt();
         let readiness_label = readiness.label();
         let roster_entry = if provider == ProviderKind::OpenaiCodex {
@@ -2685,7 +2686,7 @@ fn push_auto_model_row(rows: &mut Vec<ModelPickerRow>, app: &App, config: &Confi
 }
 
 fn auto_picker_hint(app: &App, config: &Config) -> String {
-    let inventory = match crate::model_inventory::ModelInventory::from_config(config) {
+    let inventory = match crate::model_inventory::ModelInventory::auto_router_only(config) {
         Ok(inventory) => inventory,
         Err(reason) => {
             return format!("{} · {reason}", app.tr(MessageId::ModelPickerAutoLocalHint));

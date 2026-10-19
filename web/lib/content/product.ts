@@ -3,12 +3,12 @@
  * page behind the primary nav's first link.
  *
  * TRUTH CONTRACT: availability is stated per surface as it is today. The
- * terminal, browser, hosted web, desktop, and cloud rows mirror the homepage's
+ * terminal, browser, hosted web, and desktop rows mirror the homepage's
  * availability chapter and docs/public-surface-facts.json; the GUI row states
  * the community graphical frontend — a separate project from this repository's
  * own VS Code extension — exactly as README.md links it.
- * Nothing here claims cloud execution; the web app is described as account
- * sign-in plus a development preview; desktop is a development build.
+ * Nothing here claims cloud execution; the hosted web app is not open;
+ * desktop is a development build.
  * Counts (providers, tools, sandbox backends) come from the facts layer at
  * render time, never typed here.
  */
@@ -73,8 +73,8 @@ export const PRODUCT_COPY = {
 
   availabilityHeading: { en: "Available now and in development", zh: "已可使用和正在开发的版本" },
   availabilityLede: {
-    en: "The terminal, local browser client, and community CodeWhale GUI are available now and need no Codewhale account. The desktop and hosted web apps are in development, share the same session model, and use an account; your model connection stays your choice.",
-    zh: "终端、本地浏览器客户端与社区维护的 CodeWhale GUI 现已可用，无需 Codewhale 账户。桌面和托管网页应用正在开发，共用同一会话模型，需要使用账户；模型连接仍由你选择。",
+    en: "The terminal, local browser client, and community CodeWhale GUI are available now and need no Codewhale account. The desktop and hosted web apps are in development and share the same session model; your model connection stays your choice.",
+    zh: "终端、本地浏览器客户端与社区维护的 CodeWhale GUI 现已可用，无需 Codewhale 账户。桌面和托管网页应用正在开发，共用同一会话模型；模型连接仍由你选择。",
   },
   availability: [
     {
@@ -109,30 +109,20 @@ export const PRODUCT_COPY = {
     },
     {
       surface: { en: "Hosted web app", zh: "托管网页应用" },
-      status: { en: "Development preview", zh: "开发预览" },
+      status: { en: "In development", zh: "开发中" },
       detail: {
-        en: "Being rebuilt to match the desktop app. Today you can sign in, then type /rc in a running terminal session to continue it on the web; hosted task execution is still being qualified.",
-        zh: "正在重建，以与桌面应用保持一致。目前你可以登录，然后在正在运行的终端会话中输入 /rc，在网页上继续该会话；托管任务执行仍在验证中。",
-      },
-      href: "/signin",
-      linkLabel: { en: "Sign in", zh: "登录" },
-    },
-    {
-      surface: { en: "Desktop", zh: "桌面端" },
-      status: { en: "Development build", zh: "开发版本" },
-      detail: {
-        en: "The native app becoming the main Codewhale client: folders, conversations, and model connections in one window. No public download yet.",
-        zh: "正在成为 Codewhale 主要客户端的原生应用：文件夹、对话和模型连接集中在一个窗口中。暂无公开下载。",
+        en: "Being rebuilt to match the desktop app, and not open yet. For a browser view today, run codewhale web on your machine.",
+        zh: "正在重建，以与桌面应用保持一致，暂未开放。如需现在在浏览器中使用，请在本机运行 codewhale web。",
       },
       href: null,
       linkLabel: null,
     },
     {
-      surface: { en: "Cloud computers", zh: "云端计算机" },
-      status: { en: "In development", zh: "开发中" },
+      surface: { en: "Desktop", zh: "桌面端" },
+      status: { en: "Development build", zh: "开发版本" },
       detail: {
-        en: "Hosted computers that run your tasks.",
-        zh: "为你运行任务的托管计算机。",
+        en: "A native app on the same engine. Review and commit changes, follow work across projects, and edit a message to resend it as a new branch. No public download yet.",
+        zh: "基于同一引擎的原生应用。审阅并提交改动、跨项目跟进工作，还能编辑一条消息并作为新分支重新发送。暂无公开下载。",
       },
       href: null,
       linkLabel: null,

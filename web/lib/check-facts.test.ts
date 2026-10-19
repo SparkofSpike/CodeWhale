@@ -45,6 +45,7 @@ interface RepoFacts {
   defaultModel: string | null;
   nodeEngines: string | null;
   toolCount: number | null;
+  contributorCount: number;
   license: string | null;
   latestPublishedRelease: PublishedReleaseFact | null;
 }
@@ -62,6 +63,7 @@ function diffFacts(
     "defaultModel",
     "nodeEngines",
     "toolCount",
+    "contributorCount",
     "license",
     "latestPublishedRelease",
   ];
@@ -106,6 +108,7 @@ function freshFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
     defaultModel: "deepseek-v4-pro",
     nodeEngines: ">=18",
     toolCount: 78,
+    contributorCount: 390,
     license: "MIT",
     latestPublishedRelease: {
       tag: "v0.8.63",
@@ -173,14 +176,15 @@ describe("diffFacts (check-facts parity)", () => {
     const committed = freshFacts({
       version: "0.8.62",
       toolCount: 70,
+      contributorCount: 389,
     });
     const fresh = freshFacts({
       version: "0.8.64",
       toolCount: 78,
     });
     const diffs = diffFacts(committed, fresh);
-    expect(diffs).toHaveLength(2);
-    expect(diffs.map((d) => d.field).sort()).toEqual(["toolCount", "version"]);
+    expect(diffs).toHaveLength(3);
+    expect(diffs.map((d) => d.field).sort()).toEqual(["contributorCount", "toolCount", "version"]);
   });
 
   it("ignores generatedAt and exact-build provenance changes", () => {

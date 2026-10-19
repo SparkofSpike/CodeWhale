@@ -392,6 +392,10 @@ impl ModalView for UserInputView {
         ModalKind::UserInput
     }
 
+    fn input_context_id(&self) -> usize {
+        self.question_index
+    }
+
     fn user_input_request_id(&self) -> Option<&str> {
         Some(&self.tool_id)
     }

@@ -7699,6 +7699,9 @@ mod tests {
 
     fn turn_complete_event() -> EngineEvent {
         EngineEvent::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: codewhale_models::Usage::default(),
             parent_route_usage: codewhale_models::Usage::default(),
             routed_usage_dropped_records: 0,
@@ -8263,6 +8266,9 @@ mod tests {
             ..codewhale_models::Usage::default()
         };
         controller.observe_engine_event(&EngineEvent::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: usage.clone(),
             parent_route_usage: usage.clone(),
             routed_usage_dropped_records: 0,

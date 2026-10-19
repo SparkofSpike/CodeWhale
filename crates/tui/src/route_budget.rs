@@ -2,10 +2,16 @@ use codewhale_config::route::RouteLimits;
 
 use crate::config::{ProviderKind, provider_capability};
 use crate::context_budget::ContextBudget;
+use crate::reasoning_preference::ReasoningEffort;
 use codewhale_models::{DEFAULT_COMPACTION_TOKEN_THRESHOLD, context_window_for_model};
 
 /// Safe ordinary API request cap across provider routes.
 const API_MAX_OUTPUT_TOKENS: u32 = 65_536;
+
+/// Automatic request cap on a first-party DeepSeek route at max reasoning
+/// effort, where DeepSeek documents 128K instead of the 64K thinking-mode
+/// default (allowed range 1..=393216).
+const DEEPSEEK_MAX_EFFORT_MAX_OUTPUT_TOKENS: u32 = 131_072;
 
 /// Preserve only route limits that came from a concrete offering.
 #[must_use]
@@ -28,9 +34,27 @@ pub(crate) fn effective_max_output_tokens_for_turn(
     model: &str,
     route_limits: Option<RouteLimits>,
     allowance: Option<std::num::NonZeroU32>,
+    reasoning_effort: Option<&str>,
 ) -> u32 {
-    let ceiling = effective_max_output_tokens_for_route(provider, model, route_limits);
+    let ceiling = effective_max_output_tokens_for_route_with_cap(
+        provider,
+        model,
+        route_limits,
+        automatic_max_output_tokens(provider, reasoning_effort),
+    );
     allowance.map_or(ceiling, |allowance| ceiling.min(allowance.get()))
+}
+
+fn automatic_max_output_tokens(provider: ProviderKind, reasoning_effort: Option<&str>) -> u32 {
+    let max_effort = reasoning_effort.is_some_and(|raw| {
+        ReasoningEffort::parse_strict(raw)
+            .is_ok_and(|effort| matches!(effort, ReasoningEffort::Max | ReasoningEffort::Ultra))
+    });
+    if provider == ProviderKind::Deepseek && max_effort {
+        DEEPSEEK_MAX_EFFORT_MAX_OUTPUT_TOKENS
+    } else {
+        API_MAX_OUTPUT_TOKENS
+    }
 }
 
 /// Context window for a resolved runtime route.
@@ -151,8 +175,13 @@ fn explicit_max_output_tokens_override() -> Option<u32> {
 }
 
 /// Effective `max_tokens` for a model before provider/route caps are applied.
+#[cfg(test)]
 #[must_use]
 pub(crate) fn effective_max_output_tokens(model: &str) -> u32 {
+    effective_max_output_tokens_with_cap(model, API_MAX_OUTPUT_TOKENS)
+}
+
+fn effective_max_output_tokens_with_cap(model: &str, automatic_cap: u32) -> u32 {
     if let Some(tokens) = explicit_max_output_tokens_override() {
         return tokens;
     }
@@ -163,25 +192,24 @@ pub(crate) fn effective_max_output_tokens(model: &str) -> u32 {
     // 262K/327K self-hosted route for almost its whole context as output before
     // it had counted a single input token (#5516/#5518). Keep documented
     // ceilings through the normal compatibility intersection, but automatic
-    // requests start at the ordinary 64K cap unless the operator explicitly
-    // overrides it. A maximum describes what a provider may allow, not what
-    // every response should reserve by default.
+    // requests start at the ordinary cap — 64K, or DeepSeek's documented 128K
+    // at max effort — unless the operator explicitly overrides it. A maximum
+    // describes what a provider may allow, not what every response should
+    // reserve by default.
     //
     // Provenance for the ceiling (deepseek-v4-flash/pro: 384_000 output):
     // - models_dev.bundled.json documents limit.output = 384000.
     // - The DS4 provider contract corroborates 384K
     //   (crates/config/src/model_reference.rs pins max_output 384_000 / "384K").
-    // - Official DeepSeek API docs confirm the model ids (deepseek-v4-flash ->
-    //   V4-Flash-0731, deepseek-v4-pro -> V4-Pro-0813) but do not publish the
-    //   output ceiling in a machine-readable form; that number remains a
-    //   catalogue-sourced value to re-verify against official docs when they
-    //   publish one (#5373).
+    // - Official DeepSeek API docs publish the output allowance: 64K by
+    //   default in thinking mode, 128K at `reasoning_effort: max`, in the
+    //   range 1..=393216 (#5373).
     if let Some(documented) = codewhale_models::max_output_tokens_for_model(model) {
-        return documented.min(API_MAX_OUTPUT_TOKENS);
+        return documented.min(automatic_cap);
     }
 
     let window = context_window_for_model(model).unwrap_or(128_000);
-    (window / 2).min(API_MAX_OUTPUT_TOKENS)
+    (window / 2).min(automatic_cap)
 }
 
 /// Automatic allowance when an exact remote model has no output metadata.
@@ -305,6 +333,20 @@ pub(crate) fn effective_max_output_tokens_for_route(
     model: &str,
     route_limits: Option<RouteLimits>,
 ) -> u32 {
+    effective_max_output_tokens_for_route_with_cap(
+        provider,
+        model,
+        route_limits,
+        API_MAX_OUTPUT_TOKENS,
+    )
+}
+
+fn effective_max_output_tokens_for_route_with_cap(
+    provider: ProviderKind,
+    model: &str,
+    route_limits: Option<RouteLimits>,
+    automatic_cap: u32,
+) -> u32 {
     let window = route_context_window_tokens(provider, model, route_limits);
     let compatibility_source = output_ceiling_source(provider, model);
     let compatibility_cap = compatibility_source.clamp_tokens();
@@ -319,7 +361,7 @@ pub(crate) fn effective_max_output_tokens_for_route(
     // model-only request larger than half of whatever window is in force also
     // yields to the window-relative reservation.
     // Explicit requests and documented ceilings retain their existing rules.
-    let model_only_cap = effective_max_output_tokens(model);
+    let model_only_cap = effective_max_output_tokens_with_cap(model, automatic_cap);
     let window_known = route_limits
         .and_then(|limits| limits.context_tokens)
         .is_some_and(|tokens| (1..=u64::from(u32::MAX)).contains(&tokens));

@@ -114,12 +114,12 @@
     "is_error": false
   },
   "/system": {
-    "message": "System Prompt (ACT mode):\n─────────────────────────────\n(no system prompt)",
+    "message": "System Prompt (WORK mode):\n─────────────────────────────\n(no system prompt)",
     "action": null,
     "is_error": false
   },
   "/xitong": {
-    "message": "System Prompt (ACT mode):\n─────────────────────────────\n(no system prompt)",
+    "message": "System Prompt (WORK mode):\n─────────────────────────────\n(no system prompt)",
     "action": null,
     "is_error": false
   },
@@ -136,12 +136,12 @@
     "is_error": true
   },
   "/system:text": {
-    "message": "System Prompt (ACT mode):\n─────────────────────────────\nExample policy",
+    "message": "System Prompt (WORK mode):\n─────────────────────────────\nExample policy",
     "action": null,
     "is_error": false
   },
   "/system:utf8_boundary": {
-    "message": "System Prompt (ACT mode):\n─────────────────────────────\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...\n\n(truncated, 504 chars total)",
+    "message": "System Prompt (WORK mode):\n─────────────────────────────\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...\n\n(truncated, 504 chars total)",
     "action": null,
     "is_error": false
   },
@@ -166,7 +166,7 @@
     "is_error": false
   },
   "system_blocks": {
-    "message": "System Prompt (ACT mode):\n─────────────────────────────\nFirst block\n\n---\n\nSecond block",
+    "message": "System Prompt (WORK mode):\n─────────────────────────────\nFirst block\n\n---\n\nSecond block",
     "action": null,
     "is_error": false
   }

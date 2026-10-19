@@ -1,4 +1,4 @@
-<!-- source: README.md sha256:75bb6a506af5 -->
+<!-- source: README.md sha256:eefdc9e645b6 -->
 <div align="center">
 
 <picture>
@@ -6,10 +6,13 @@
   <img src="brand/wordmark.svg" alt="Codewhale" width="320">
 </picture>
 
-**L’agent de codi obert que funciona amb qualsevol model.**
+**Un agent de programació de codi obert per al teu terminal que funciona amb qualsevol model.**
 
-Codewhale llegeix el teu projecte, edita fitxers, executa ordres i comprova la seva
-pròpia feina — al teu terminal, amb un model allotjat o local que tu tries.
+Dona-li una tasca a Codewhale i llegirà el repositori, editarà fitxers i
+executarà ordres fins que la tasca estigui feta o necessiti alguna resposta teva.
+Funciona amb més de 40 proveïdors integrats, DeepSeek V4.1 Flash per defecte, i amb models
+que s’executen a la teva pròpia màquina. `/receipts` llista els fitxers que ha
+canviat, les ordres que ha executat i les crides web i MCP que ha fet.
 
 [![CI](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml/badge.svg)](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/codewhale-cli?label=crates.io)](https://crates.io/crates/codewhale-cli)
@@ -23,7 +26,7 @@ pròpia feina — al teu terminal, amb un model allotjat o local que tu tries.
 
 <img src="web/public/codewhale-tui-0102-demo.png" alt="Una sessió de terminal de Codewhale" width="760">
 
-<sub>Captura real del terminal de Codewhale en una sessió de demostració local configurada.</sub>
+<sub>Una compilació de desenvolupament de la 0.10.2 amb un model de prova amb guió, en Full Access dins d’un espai de treball d’un sol ús. L’edició, tres proves i una revisió d’un subagent es van executar de debò.</sub>
 
 </div>
 
@@ -35,123 +38,215 @@ macOS i Linux:
 curl -fsSL https://codewhale.net/install.sh | sh
 ```
 
-L’instal·lador descarrega binaris amb suma de verificació a `~/.local/bin`. Si
-després `codewhale` respon "command not found", executa l’única línia de PATH que
-mostra l’instal·lador, o consulta [Afegir-lo al PATH](docs/INSTALL.md#put-it-on-your-path).
-Actualitza quan vulguis amb `codewhale update`.
+L’instal·lador desa `codewhale` i el seu àlies curt `codew` a `~/.local/bin`,
+després de comprovar-ne la suma de verificació. Si després el teu shell diu
+`command not found`, executa la línia de PATH que mostra l’instal·lador
+([detalls](docs/INSTALL.md#put-it-on-your-path)). `codewhale update`
+l’actualitza. Aquestes ordres instal·len la darrera versió. Aquesta pàgina
+segueix `main`, de manera que una funcionalitat marcada amb una versió arriba en
+aquella versió; el [registre de canvis](CHANGELOG.md) llista què afegeix cada
+versió.
 
 <details>
-<summary><b>Windows, npm, Cargo i altres vies</b></summary>
+<summary><b>Windows, npm, Cargo i altres maneres d’instal·lar-lo</b></summary>
 
 ```bash
 winget install HunterBown.CodeWhale  # Windows x64 (or Scoop, or the installer from GitHub Releases)
 npm install -g codewhale            # wraps the same release binaries
-cargo install codewhale-cli --locked  # build from crates.io
+cargo install codewhale-cli --locked  # crates.io; can trail GitHub Releases
 ```
 
-Docker, Nix, Homebrew a Linux, Android/Termux, les descàrregues manuals amb
-verificació de la suma de control i el mirall opcional de CNB s’expliquen a la
-[guia d’instal·lació](docs/INSTALL.md). Tria una sola via: diverses
-instal·lacions a la mateixa màquina acaben disputant-se el `PATH`.
+Hi ha binaris precompilats per a Linux, macOS i Windows en x64 i arm64. Nix,
+Homebrew a Linux, Android/Termux (versió preliminar) i les descàrregues manuals
+s’expliquen a la [guia d’instal·lació](docs/INSTALL.md), i els contenidors a
+[Docker](docs/DOCKER.md). Fes servir un sol mètode d’instal·lació per màquina;
+si no, acabaràs amb dues còpies al `PATH` i s’executarà la que hi aparegui
+primer.
 
 </details>
 
 ## Inici ràpid
 
-**Les claus API dels teus proveïdors, en un sol lloc.** [Crea un compte de Codewhale](https://app.codewhale.net/register)
-o executa `codewhale login` per iniciar la sessió. Desa i actualitza les claus API al teu compte
-i fes-les servir a través de la ruta de models de Codewhale als dispositius on hagis iniciat la sessió.
-[Configura les claus del compte](docs/CONFIGURATION.md#account-provider-keys).
-Iniciar la sessió no puja les claus locals existents; pots continuar fent-ne un ús local sense compte.
-
-1. **Obre el teu projecte.** Executa `codewhale` a la carpeta on vols treballar.
-2. **Connecta un model.** Executa `/provider` (o prem `F3`) per afegir una clau
-   allotjada o triar un entorn local. Si Ollama ja s’està executant amb un model
-   de xat, Codewhale hi canvia per si sol. Fes servir `/model` per canviar de model.
-3. **Dona-li una tasca concreta.**
+1. Fes un commit o un stash de la teva feina i després executa `codewhale` des
+   de l’arrel d’un repositori git. Per defecte, hi aplica les edicions de
+   fitxers sense preguntar i et mostra el diff.
+2. Executa `/provider` (o prem `F3`), tria un proveïdor, enganxa’n la clau API
+   i escull un model. DeepSeek és el proveïdor per defecte. Si no tens cap
+   clau, tria un entorn local. Si no hi ha cap proveïdor configurat i Ollama ja
+   serveix un model de xat, Codewhale el fa servir automàticament; a partir de
+   la 0.10.2 te l’ofereix quan envies el primer missatge.
+3. Escriu una tasca:
 
 ```text
 Fix the failing tests and explain what changed.
 ```
 
-La mateixa tasca es pot executar sense interfície des d’un script o una tasca de CI:
+Les ordres de només lectura s’executen directament. Per a qualsevol altra ordre
+de shell, Codewhale pregunta primer: `y` l’executa una vegada, `a` permet ordres
+com aquesta durant la resta de la conversa, `n` la rebutja. `/undo` desfà la
+teva última petició i els canvis que va fer als fitxers (a la 0.10.1, executa
+primer `/trust on`). `/help` llista les ordres i les tecles.
+
+Per a scripts i CI, `codewhale exec` executa una sola tasca sense la interfície.
+Amb `--auto` edita fitxers i executa ordres de shell sense preguntar, així que
+fes-lo servir en un contenidor o en una còpia de treball d’un sol ús:
 
 ```bash
 codewhale exec --auto "fix the failing tests and explain what changed"
 ```
 
-Executa `/help` per veure les ordres i les dreceres de teclat.
+## Modes i permisos
 
-## Maneres d’executar-lo
+Una instal·lació nova comença en mode Work amb el permís Ask.
 
-Tots els clients fan servir el mateix Runtime local de Codewhale, de manera que
-les sessions, les eines i els permisos es comporten igual a tot arreu.
+| | Es canvia amb | Opcions |
+| --- | --- | --- |
+| Mode | `Tab` (amb l’entrada buida) o `/mode` | **Plan** llegeix i cerca però no canvia res. **Work** edita fitxers i executa ordres. **Operate** té el mateix accés que Work, tracta la teva petició com un objectiu i continua fins que l’objectiu està verificat o necessita alguna resposta teva. |
+| Permís | `Shift+Tab` | **Ask** aplica les edicions de fitxers al teu repositori sense preguntar i pregunta abans de les ordres de shell que no són de només lectura. **Auto-Review** deixa que unes regles i un model revisor aprovin les crides rutinàries i rebutja les d’alt risc; canvia a Ask per aprovar-les tu mateix. **Full Access** no pregunta mai i desactiva el sandbox de Codewhale; les regles del repositori i la política gestionada continuen aplicant-se. |
 
-| Ordre | Què fa |
-| --- | --- |
-| `codewhale` | La interfície interactiva de terminal |
-| `codewhale exec "…"` | Un torn sense interfície des d’un script o CI; `--auto` permet les eines de fitxers i de shell, `--output-format stream-json` emet JSON en streaming |
-| `codewhale web` | El [client de navegador local](docs/WEB.md) inclòs, a `127.0.0.1` |
-| `codewhale review --pr N` | Una [revisió de pull request](docs/GITHUB_ACTION.md) merament orientativa; publicar-la és opcional |
-| Runtime API | Una [API HTTP local](docs/RUNTIME_API.md) per a fils, esdeveniments i aprovacions |
-
-S’està desenvolupant una aplicació d’escriptori nativa (GPUI) com a client del
-producte amb sessió iniciada; consulta la
-[pàgina del producte](https://codewhale.net/en/product) per veure’n la disponibilitat. L’[extensió de VS Code](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode),
-mantinguda per la comunitat, es connecta al mateix Runtime des d’una barra lateral
-([codi font](https://github.com/HengQuWorld/CodeWhale-VSCode)).
+Consulta la [guia de modes i permisos](docs/MODES.md) per als detalls.
 
 ## Què fa
 
-- **Qualsevol model, sense dependència d’un proveïdor.** Més de 40 rutes de
-  proveïdors integrades — Anthropic, DeepSeek, Google, Mistral, Moonshot,
-  OpenAI, OpenRouter, xAI i més — a més de qualsevol endpoint compatible amb
-  OpenAI i models locals mitjançant Ollama, vLLM o SGLang. [Proveïdors](docs/PROVIDERS.md)
-- **Tu mantens el control.** El mode Plan explora sense canviar res; Work i
-  Operate fan canvis. Les postures d’aprovació decideixen quan una crida a una
-  eina necessita el teu vistiplau, `/undo` i `/restore` recuperen els canvis de
-  l’espai de treball, i `/receipts` enumera cada fitxer, ordre i aprovació d’una
-  sessió. [Modes](docs/MODES.md) · [Rebuts](docs/RECEIPTS.md)
-- **Pensat per a feines llargues.** Defineix un `/goal` durador, delega feina
-  acotada a [subagents](docs/SUBAGENTS.md), executa [equips d’agents](docs/FLEET.md)
-  supervisats amb una comprovació prèvia de la despesa, o automatitza’ls com a
-  [fluxos de treball](docs/WORKFLOW_AUTHORING.md) versionats al repositori.
-- **Amplia el que ja fas servir.** Connecta [servidors MCP](docs/MCP.md),
-  instal·la [skills](docs/SKILLS.md) i [plugins](docs/PLUGINS.md), executa
-  [hooks](docs/HOOKS.md) en esdeveniments de sessió i d’eines, i carrega els
-  [plugins de Claude Code](docs/CLAUDE_PLUGIN_COMPAT.md) existents.
-- **Computer Use.** Un plugin inclòs afegeix eines per observar i operar altres
-  aplicacions. Revisa l’accés que sol·licita i habilita’l abans de fer-lo servir.
-  [Guia](crates/tui/plugins/computer-use/README.md)
+### Properament a la 0.10.2
 
-## Modes i permisos
+Aquestes funcionalitats ja estan integrades a `main`, però encara no formen part
+de cap versió publicada;
+[compila `main`](docs/INSTALL.md#test-and-contribute-to-current-source) per
+provar-les ara.
 
-| | Es tria amb | Opcions |
-| --- | --- | --- |
-| **Mode** — el que fa l’agent | `Tab` o `/mode` | Plan (explorar, sense canvis) · Work (editar i executar) · Operate (portar un objectiu endavant amb passos planificats i verificats) |
-| **Postura** — quan pregunta abans | `Shift+Tab` | Ask · Auto-Review · Full Access |
+- `/pet on` converteix el teu terminal en una balena animada que mostra què fa
+  l’agent, mentre el quadre de missatges continua actiu. Les seves 980
+  partícules escriuen el pas actual en anglès, xinès o japonès.
+- `/workbar terminal` mostra els shells que executa l’agent mentre s’executen.
+  Escriu en un d’ells, o prem `Ctrl+N` per obrir un shell propi (macOS i
+  Linux).
+- `/undo` desfà tota la teva última petició d’un sol cop, inclosos tots els
+  fitxers que va canviar, i `/diff` funciona en carpetes sense Git.
+- Quan un pla acaba amb passos pendents, Codewhale et pregunta si vols començar
+  Work amb Ask o Auto-Review, o continuar planificant.
+- `/color` dona a cada xat el seu propi color al quadre de missatges, desat amb
+  la sessió.
+- `web_search` pot fer servir la nova Search API de DeepSeek: defineix
+  `[search] provider = "deepseek"` amb una clau de DeepSeek.
+- Fora de Full Access, un `curl` o `wget` que pujaria una credencial no
+  s’executa mai sense la teva aprovació, i es rebutja qualsevol ordre que amagui
+  Unicode invisible. `write` ja no substitueix un fitxer que l’agent no ha
+  llegit, ni un que ha canviat després que el llegís.
 
-Full Access continua respectant els límits estrictes de les polítiques. La
-[guia de modes i permisos](docs/MODES.md) explica cada opció.
+### Models
 
-## Seguretat
+Hi ha més de 40 proveïdors integrats, entre els quals Anthropic, OpenAI,
+DeepSeek, Google, Mistral, Moonshot, OpenRouter i xAI. Funciona qualsevol
+endpoint compatible amb OpenAI, i també els models locals mitjançant Ollama,
+vLLM o SGLang. El model per defecte és `deepseek-flash` de DeepSeek, que
+DeepSeek va passar a DeepSeek-V4.1-Flash-1017 el 2026-10-17; la 0.10.1
+l’executa sense cap actualització
+([detalls](docs/PROVIDERS.md#deepseek-v41-flash)).
 
-Codewhale s’executa al teu equip amb l’accés que li concedeixis. Les postures
-d’aprovació i les regles del repositori limiten el que l’agent pot fer, i les
-ordres s’executen dins d’un sandbox del sistema operatiu on és compatible
-(Seatbelt a macOS; bubblewrap a Linux quan està instal·lat i funciona). `/preview-request` mostra la
-sol·licitud exacta, amb les dades sensibles ocultades, abans d’enviar res. Els
-preus de models desconeguts continuen sent desconeguts en lloc de presentar-se
-com a gratuïts.
+`/model` canvia de model entre torns, i `/model auto` en tria un per a cada torn
+(`/router` configura com ho fa). `/turn inspect` mostra quin model ha fet servir
+un torn, quant ha costat i quant ha trigat. `codewhale auth chatgpt` et permet
+fer servir un pla de ChatGPT en lloc d’una clau API (experimental). Consulta
+[Proveïdors](docs/PROVIDERS.md).
 
-Consulta l’[ordre d’autorització](docs/AUTHORIZATION_ORDER.md), el
-[sandboxing](docs/SANDBOX.md) i la [telemetria](docs/TELEMETRY.md): els
-comptadors d’ús estan activats per defecte i `codewhale config set telemetry false`
-els desactiva.
+### Rebuts i desfer
+
+`/receipts`, o `codewhale receipts --last` després de sortir, llista els fitxers
+canviats, les ordres executades, les crides web i MCP, els agents iniciats, les
+aprovacions i qui les va donar, i els errors. `/undo` desfà la teva última
+petició; a la 0.10.1 necessita `/trust on` per als fitxers i retrocedeix una
+crida d’eina cada vegada. `/restore` torna tot l’espai de treball a una
+instantània anterior; com que això sobreescriu les edicions posteriors,
+necessita `/trust on` o Full Access. Consulta [Rebuts](docs/RECEIPTS.md).
+
+### Feines més llargues
+
+`/goal` defineix un objectiu que es manté entre torns. Codewhale pot repartir la
+feina entre [subagents](docs/SUBAGENTS.md), executar una [flota](docs/FLEET.md)
+d’agents o seguir un [flux de treball](docs/WORKFLOW_AUTHORING.md) versionat al
+repositori.
+
+### Si véns d’un altre agent
+
+Codewhale llegeix `AGENTS.md` pel seu compte. Els fitxers d’instruccions escrits
+per a altres eines, com ara `CLAUDE.md`, `.cursorrules` o
+`.github/copilot-instructions.md`, només es carreguen si ho actives amb
+`project_instruction_imports = ["claude"]` (o `"cursor"`, `"cline"`,
+`"windsurf"`, `"copilot"`, `"all"`) a la configuració; consulta
+[config.example.toml](config.example.toml). Codewhale avisa quan en troba un que
+no ha carregat.
+
+`/import-claude` prepara una importació de la teva configuració i dels servidors
+MCP de Claude Code perquè la revisis. `/plugin install` accepta plugins de
+Claude Code que continguin skills, ordres, perfils d’agent i servidors MCP, i
+rebutja els plugins que necessiten hooks o servidors LSP
+([detalls](docs/CLAUDE_PLUGIN_COMPAT.md)).
+
+### Extensions
+
+Connecta [servidors MCP](docs/MCP.md), afegeix [skills](docs/SKILLS.md) i
+[plugins](docs/PLUGINS.md), i executa [hooks](docs/HOOKS.md) en esdeveniments de
+sessió i d’eines. Code mode (experimental, activat per defecte) permet que el
+model escrigui un sol programa `execute_tools` que crida diverses eines de MCP i
+de plugins; cada crida continua subjecta a les teves regles d’aprovació i
+conserva el seu rebut. El plugin Computer Use inclòs (experimental, només
+macOS) pot observar i operar altres aplicacions. Roman desactivat fins que en revises
+l’accés i l’actives ([guia](crates/tui/plugins/computer-use/README.md)).
+
+## Maneres d’executar-lo
+
+| Ordre | Què fa |
+| --- | --- |
+| `codewhale` | L’aplicació interactiva de terminal |
+| `codewhale exec "…"` | Una tasca sense la interfície. Per si sol respon sense fer servir eines; `--auto` li permet editar fitxers i executar ordres, i `--output-format stream-json` emet els esdeveniments en streaming com a JSON |
+| `codewhale web` | Una interfície web local a `127.0.0.1` ([guia](docs/WEB.md)) |
+| `codewhale review --pr N` | Una revisió orientativa d’un pull request de GitHub. No publica res tret que hi afegeixis `--post`; la [GitHub Action](docs/GITHUB_ACTION.md) executa la mateixa revisió a CI |
+| `codewhale app-server --http` | La [Runtime API](docs/RUNTIME_API.md), una API HTTP local per a fils, esdeveniments, aprovacions i els canvis de fitxers de cada torn |
+| `codewhale serve --acp` | L’Agent Client Protocol sobre stdio, per a editors com ara Zed |
+
+L’aplicació de terminal, `exec`, `web` i la Runtime API comparteixen un mateix
+motor ([arquitectura](docs/ARCHITECTURE.md)). Una
+[extensió de VS Code](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
+mantinguda per la comunitat s’hi connecta des de la barra lateral
+([codi font](https://github.com/HengQuWorld/CodeWhale-VSCode)).
+Hi ha en desenvolupament una aplicació d’escriptori nativa basada en la Runtime
+API; encara no té cap descàrrega pública.
+
+## Cost i comptes
+
+Codewhale és gratuït i té llicència MIT. Amb la teva pròpia clau API pagues
+directament al proveïdor; els models locals no necessiten clau. La barra
+inferior i `/cost` mostren quant ha costat una sessió quan se’n coneix el preu,
+i un preu desconegut es mostra com a desconegut, mai com a gratuït.
+
+No necessites cap compte. Les claus que afegeixes amb `/provider` es queden a la
+teva màquina.
+
+## Seguretat i privadesa
+
+En Ask i Auto-Review, les ordres s’executen dins d’un sandbox del sistema
+operatiu allà on el sistema en té: Seatbelt a macOS, i bubblewrap a Linux quan
+està instal·lat. Windows encara no té sandbox del sistema operatiu, i Full
+Access desactiva el sandbox. Dins del sandbox, les ordres de shell no poden
+llegir magatzems de credencials com ara `~/.ssh`, `~/.aws` i els fitxers `.env`;
+a partir de la 0.10.2, la mateixa regla s’aplica a les sessions de terminal i a
+més eines de fitxers. `/preview-request` mostra una previsualització de la
+propera petició, amb les dades sensibles ocultades, sense enviar-la.
+
+La telemetria està activada per defecte. Envia recomptes agregats (versió i
+plataforma, durada i resultat de la sessió, quins proveïdors integrats has fet
+servir, recomptes de funcionalitats i d’errors) amb un identificador
+d’instal·lació aleatori que canvia cada 90 dies, i mai converses, codi, prompts,
+noms de models, noms de fitxers o de repositoris, ni credencials. `codewhale config set telemetry false` la desactiva. En iniciar-se,
+Codewhale també comprova a GitHub si hi ha una versió nova; defineix
+`CODEWHALE_NO_UPDATE_CHECK=1` per ometre-ho. Més informació a
+[ordre d’autorització](docs/AUTHORIZATION_ORDER.md),
+[sandboxing](docs/SANDBOX.md) i [telemetria](docs/TELEMETRY.md).
 
 ## Documentació
 
-| Comença aquí | Aprofundeix | 
+| Comença aquí | Referència |
 | --- | --- |
 | [Instal·lació](docs/INSTALL.md) | [Configuració](docs/CONFIGURATION.md) |
 | [Proveïdors i models locals](docs/PROVIDERS.md) | [Arquitectura](docs/ARCHITECTURE.md) |
@@ -161,25 +256,23 @@ els desactiva.
 
 ## Comunitat
 
-Els informes d’errors, les idees de funcionalitats i els pull requests són
-benvinguts, tant si fa mesos que fas servir Codewhale com si el proves per
-primera vegada. Si falta un proveïdor o un flux de treball resulta incòmode,
+Si falta un proveïdor o un flux de treball és incòmode,
 [obre un issue](https://github.com/codewhale-hq/CodeWhale/issues/new/choose) o
-[envia un pull request](CONTRIBUTING.md). Les primeres contribucions són
-benvingudes, i qui contribueix conserva el crèdit pel treball que s’hi integra.
-L’[estructura del repositori](CONTRIBUTING.md#project-structure) és un bon punt
-de partida.
+[envia un pull request](CONTRIBUTING.md). Qui contribueix conserva el crèdit pel
+treball que s’hi integra, i l’[estructura del repositori](CONTRIBUTING.md#project-structure)
+mostra on és cada cosa.
 
-Uneix-te al [Discord](https://discord.gg/37gfS3ksug), o afegeix Hunter a WeChat
-(`hunterbown`) i demana entrar al grup Whale Brothers.
+Xateja al [Discord](https://discord.gg/37gfS3ksug), o afegeix el mantenidor,
+Hunter, a WeChat (`hunterbown`) i demana entrar al grup Whale Brothers.
 
 ## Història i llicència
 
-Codewhale va començar com a `deepseek-tui` i encara llegeix la configuració i les
-sessions d’aquest projecte. Ara és neutral respecte dels proveïdors, es manté de
-manera independent i no està afiliat a cap proveïdor de models. Gràcies a
-[tots els col·laboradors](docs/CONTRIBUTORS.md) i a les comunitats de codi obert
-que han ajudat que creixi.
+Codewhale va començar com a `deepseek-tui` i encara llegeix la configuració i
+les sessions d’aquell projecte. Es manté de manera independent i no està afiliat
+a DeepSeek ni a cap altre proveïdor de models. Gràcies a
+[tothom qui hi ha contribuït](docs/CONTRIBUTORS.md).
 
-[MIT](LICENSE). Les parts adaptades d’altres projectes de codi obert es recullen
-als [avisos de tercers](docs/THIRD_PARTY_NOTICES.md).
+[![Codewhale contributors](docs/assets/contributors.png)](docs/CONTRIBUTORS.md#everyone)
+
+[MIT](LICENSE). El codi adaptat d’altres projectes de codi obert es recull als
+[avisos de tercers](docs/THIRD_PARTY_NOTICES.md).

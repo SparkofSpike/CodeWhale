@@ -351,8 +351,8 @@ direct. Multi-step delegation uses a compact Workflow plan with dependencies,
 bounded scopes, and completion evidence passed between steps. Fleet configures
 and manages those same sub-agents and their roles. One bounded, independent
 task can use a direct agent; continued work reuses it through `followup`.
-Heavy work can also run on a cloud computer with `codewhale dispatch "<task>"`,
-which goes through the signed-in account with a quote and EU-compute consent.
+`codewhale dispatch "<task>"` (running work on a Codewhale cloud computer) is
+not available: cloud computers and accounts are paused for new users.
 
 For trusted workspaces where you intentionally want actions to proceed without
 approval prompts, select the Full Access permission posture with `Shift+Tab`.
@@ -388,6 +388,7 @@ Common commands for first-time users:
 | `/workflows` | Open the live Workflow run dashboard: every run this workspace's journal keeps, with phases, children, progress, and host-side cancel |
 | `/config` | Edit runtime and provider settings |
 | `/statusline` | Choose which footer status chips are visible |
+| `/color` | Give this chat's composer box its own color: bare `/color` cycles red, orange, amber, green, cyan, blue, purple and pink, `/color blue` picks one, `/color off` returns to the theme |
 | `/receipts` | List what this session did: files changed, commands run, web and MCP calls, agents, approvals and who gave them, failures |
 | `/compact` | Summarize long context to recover token budget |
 | `/copy` | Copy the last completed assistant response to the clipboard |

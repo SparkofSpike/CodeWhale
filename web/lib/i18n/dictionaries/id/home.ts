@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale: agen pemrograman sumber terbuka",
   metaDescription: "Codewhale adalah agen pemrograman sumber terbuka untuk terminal. Baca, edit dan uji proyek dengan model jarak jauh atau lokal pilihan Anda.",
-  heroTitle: "Buat aplikasi dan otomatisasikan pekerjaanmu.",
-  heroIntro: "{brand} adalah agen pemrograman sumber terbuka yang membaca berkas, menulis kode dan menjalankan perintah di terminal. Hubungkan API model atau model lokal Anda dan pilih tindakan yang memerlukan persetujuan.",
+  heroTitle: "Agen pemrograman sumber terbuka untuk model apa pun",
+  heroIntro: "{brand} membaca proyekmu, mengedit berkas, dan menjalankan pengujianmu dari terminal. Hubungkan model yang dihosting atau model lokal, lalu pilih tindakan yang memerlukan persetujuanmu.",
   getCodewhale: "Instal Codewhale",
   heroInstallAria: "Perintah instalasi",
   exploreProduct: "Jelajahi Codewhale",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "Sumber",
   sourceCandidate: "Belum dirilis",
   publishedRelease: "dirilis",
-  gainHeading: "Yang bisa kamu lakukan",
+  gainHeading: "Bangun dan otomatisasikan dari terminalmu",
   gainLede:
     "Jelaskan apa yang ingin kamu buat atau otomatisasikan. Codewhale dapat mengedit berkas, menjalankan perintah, dan memeriksa hasilnya, dengan akses yang kamu kendalikan.",
   gain: [
@@ -42,7 +42,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "Akun API milikmu",
-      "Hubungkan OpenAI, Anthropic, Google, atau DeepSeek dengan kuncimu sendiri."
+      "Hubungkan penyedia seperti DeepSeek, OpenAI, Anthropic, atau Google dengan kuncimu sendiri. Model bawaan, deepseek-flash, kini menjalankan DeepSeek-V4.1-Flash."
     ],
     [
       "Gateway milikmu",
@@ -51,6 +51,10 @@ export const home: HomeDict = {
     [
       "Inferensi milikmu",
       "Jalankan model lokal atau yang dihosting sendiri dengan Ollama, vLLM, atau SGLang."
+    ],
+    [
+      "Paket ChatGPT milikmu",
+      "Masuk dengan codewhale auth chatgpt untuk memakai paket ChatGPT sebagai pengganti kunci API. Eksperimental."
     ]
   ],
   modelsLink: "Lihat model dan penyedia",
@@ -77,23 +81,17 @@ export const home: HomeDict = {
     ],
     [
       "Aplikasi web hosted",
-      "Pratinjau pengembangan",
-      "Sedang dibangun ulang agar sesuai dengan aplikasi desktop. Saat ini Anda dapat masuk, lalu mengetik /rc di sesi terminal yang sedang berjalan untuk melanjutkannya di web; eksekusi tugas hosted masih dalam kualifikasi."
+      "Dalam pengembangan",
+      "Sedang dibangun ulang agar sesuai dengan aplikasi desktop dan belum dibuka. Untuk menggunakannya di peramban sekarang, jalankan codewhale web di komputermu."
     ],
     [
       "Desktop",
       "Build pengembangan",
-      "Aplikasi native yang sedang menjadi klien utama Codewhale: folder, percakapan, dan koneksi model dalam satu jendela. Belum ada unduhan publik."
-    ],
-    [
-      "Komputer cloud",
-      "Dalam pengembangan",
-      "Komputer yang dihosting yang menjalankan tugas Anda."
+      "Aplikasi native dengan mesin yang sama. Tinjau dan commit perubahan, ikuti pekerjaan lintas proyek, dan edit pesan untuk mengirimkannya kembali sebagai cabang baru. Belum ada unduhan publik."
     ]
   ],
   availabilityNote:
-    "Terminal, peramban lokal, dan GUI tidak memerlukan akun Codewhale. Web hosted dan aplikasi desktop menggunakan akun. Jika Anda memakai kunci penyedia milik Anda sendiri, penyedia tersebut menagih penggunaan itu.",
-  accountLink: "Buat akun",
+    "Terminal, peramban lokal, dan GUI tidak memerlukan akun Codewhale. Jika Anda memakai kunci penyedia milik Anda sendiri, penyedia tersebut menagih penggunaan itu.",
   surfacesHeading: "Bekerja dengan berkas dan alat",
   surfaces: [
     [
@@ -126,7 +124,7 @@ export const home: HomeDict = {
   installGuideLink: "Baca panduan instalasi",
   communityHeading: "Berkontribusi pada Codewhale",
   communityBody:
-    "Laporkan bug, perbaiki dokumentasi, atau sumbangkan kode di GitHub. Kamu juga bisa membuat plugin dan berbagi alur kerja dengan pengguna lain.",
+    "{count} orang telah ikut membangun Codewhale. Laporkan bug, perbaiki dokumentasi, atau sumbangkan kode di GitHub.",
   communityLinksAria: "Tautan komunitas",
   contribute: "Berkontribusi di GitHub",
 };

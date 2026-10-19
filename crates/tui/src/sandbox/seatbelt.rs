@@ -263,6 +263,8 @@ fn generate_policy(
     // last-match-wins, so these rules override every broad read allowance
     // above — including the full-disk `(allow file-read*)` — for the listed
     // subpaths. Metadata reads are denied too so the paths do not enumerate.
+    // A read deny does not stop connect(2) to a socket under the path, so with
+    // network on, unix-socket connects under each path are denied as well.
     if !denied_read_subpaths.is_empty() {
         full_policy.push_str("\n\n; Opt-in read deny-list (user-configured)\n");
         for path in denied_read_subpaths {
@@ -271,6 +273,11 @@ fn generate_policy(
                 .replace('\\', "\\\\")
                 .replace('"', "\\\"");
             full_policy.push_str(&format!("(deny file-read* (subpath \"{escaped}\"))\n"));
+            if policy.has_network_access() {
+                full_policy.push_str(&format!(
+                    "(deny network-outbound (remote unix-socket (subpath \"{escaped}\")))\n"
+                ));
+            }
         }
     }
 

@@ -327,6 +327,7 @@ mod tests {
             started_at: Some(Instant::now()),
             duration_ms: None,
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::Assistant,
             description: None,
             interaction: None,

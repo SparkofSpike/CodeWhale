@@ -4,9 +4,8 @@
  * codewhale.net is not the signed-in CWC app. `/signin`, `/signup`, and
  * `/auth/callback` used to locale-prefix into `/en/...` and 404. This module
  * is the one mapping: callback hops to the CWC app immediately (query
- * preserved); sign-in / create-account are locale-aware public pages that
- * send the person to app.codewhale.net without implying a local CLI account
- * is required.
+ * preserved); sign-in is a locale-aware public page and create-account
+ * redirects there. The terminal needs no account.
  */
 import { APP_URL } from "./i18n/links";
 import { pathLocale } from "./i18n/path";
@@ -48,7 +47,7 @@ export function publicAuthKind(pathname: string): PublicAuthKind | null {
 }
 
 /**
- * Fold `/login` onto `/signin` and `/register` onto `/signup`, keeping the
+ * Fold `/login`, `/register`, and `/create-account` onto `/signin`, keeping the
  * locale prefix when one is already present. Bare aliases still go through
  * the locale-prefix branch after this rewrite so `/login` becomes `/en/signin`
  * rather than a 404.
@@ -57,7 +56,7 @@ export function canonicalPublicAuthPath(pathname: string): string | null {
   const remainder = publicAuthRemainder(pathname);
   const canonical =
     SIGN_IN_ALIASES.has(remainder) ? "signin"
-    : SIGN_UP_ALIASES.has(remainder) ? "signup"
+    : SIGN_UP_ALIASES.has(remainder) ? "signin"
     : null;
   if (!canonical) return null;
   const locale = pathLocale(pathname);
@@ -66,12 +65,10 @@ export function canonicalPublicAuthPath(pathname: string): string | null {
 
 /** CWC app destination. Chinese public pages keep the `/zh/` app entry. */
 export function publicAuthAppDestination(
-  kind: Exclude<PublicAuthKind, "callback">,
   locale: string | null,
 ): string {
   const localized = locale === "zh" ? "/zh" : "";
-  const path = kind === "sign-in" ? "/login" : "/signup";
-  return `${APP_URL}${localized}${path}`;
+  return `${APP_URL}${localized}/login`;
 }
 
 /** OAuth/email callbacks belong on the CWC app, never a localized 404. */

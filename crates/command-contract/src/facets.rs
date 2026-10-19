@@ -1475,8 +1475,8 @@ pub trait CommandSessionLifecycleContext {
 // FEAT-024: session control slice (D2-D7).
 //
 // One independently optional session-control authority covering exactly the
-// host work the six control commands (`/relay`, `/rename`, `/resume`, `/rc`,
-// `/remote-env`, `/title`) consume. `CommandSessionContext` and
+// host work the seven control commands (`/relay`, `/rename`, `/resume`, `/rc`,
+// `/remote-env`, `/title`, `/color`) consume. `CommandSessionContext` and
 // `CommandSessionLifecycleContext` are deliberately not widened: control
 // authority exists only on this facet, and every delegate is an atomic host
 // operation or a semantic projection so handlers keep byte-identical
@@ -1665,7 +1665,7 @@ pub struct HostedWorkTarget {
 /// Control authority for the session command slice (FEAT-024 D2/D5).
 ///
 /// Operation-granular synchronous delegates over the exact minimum host work
-/// the six control commands consume. Delegates reproduce the baseline
+/// the seven control commands consume. Delegates reproduce the baseline
 /// check/mutation order (transition gate before resume I/O, save before
 /// publication, single-attempt browser launch) and return portable receipts/
 /// projections or the exact host-error text the baseline surfaces. No
@@ -1723,6 +1723,10 @@ pub trait CommandSessionControlContext {
     /// `/title off|clear|none`: clear the session window title with the same
     /// baseline persistence/redraw semantics.
     fn clear_window_title(&mut self) -> Result<(), String>;
+
+    fn composer_color(&self) -> Option<String>;
+
+    fn set_composer_color(&mut self, color: Option<String>) -> Result<(), String>;
 
     /// `/rc status`: current remote-control status line.
     fn remote_status(&self) -> String;

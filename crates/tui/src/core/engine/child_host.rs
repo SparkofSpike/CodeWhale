@@ -283,9 +283,19 @@ impl Engine {
             SendMessageOutcome::Finished { status, error } => (status, error),
             SendMessageOutcome::NotStarted { error } => (TurnOutcomeStatus::Failed, error),
         };
-        let text = self
+        let own_start = self
             .session
             .messages
+            .iter()
+            .rposition(|message| {
+                message.role == codewhale_models::Role::System
+                    && message.content.iter().any(|block| {
+                        matches!(block, ContentBlock::Text { text, .. }
+                            if text.starts_with(crate::tools::subagent::SUBAGENT_CONTEXT_OPEN))
+                    })
+            })
+            .map_or(0, |index| index + 1);
+        let text = self.session.messages[own_start..]
             .iter()
             .rev()
             .find(|message| {

@@ -56,12 +56,6 @@ export interface ChromeDict {
   installCta: string;
 
   /**
-   * The header's one identity door to the Codewhale app (app.codewhale.net).
-   * Account creation is offered on the sign-in page, not beside it.
-   */
-  authSignIn: string;
-
-  /**
    * BCP 47 tag used for the masthead weekday via `toLocaleDateString` — not
    * rendered copy, but per-locale, so it belongs beside it. Without this the
    * masthead date renders in English for every non-Chinese locale.
@@ -198,7 +192,6 @@ export interface HomeDict {
   availabilityLede: string;
   availability: [string, string, string, string?][];
   availabilityNote: string;
-  accountLink: string;
 
   surfacesHeading: string;
   /** Five [name, description] surfaces. */
@@ -419,8 +412,6 @@ export interface DocsPageDict {
 }
 
 export type DocsReviewDict = DocsPageDict;
-
-export type DocsComputersDict = DocsPageDict;
 
 export type DocsAuthDict = DocsPageDict;
 

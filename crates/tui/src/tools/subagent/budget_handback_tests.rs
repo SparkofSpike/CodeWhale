@@ -1129,6 +1129,7 @@ fn fallback_partial_text_digests_thinking_and_tool_calls_without_text() {
             thinking: "checking whether the ring slot write precedes the read".to_string(),
             signature: None,
             state: None,
+            redacted_data: None,
         }]),
         assistant_message(vec![tool_use("Read", json!({"path": "ring.rs"}))]),
         assistant_message(vec![tool_use(

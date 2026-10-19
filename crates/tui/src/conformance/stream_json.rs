@@ -69,6 +69,9 @@ fn block_start_json(block: &ContentBlockStart) -> Value {
         ContentBlockStart::Thinking { thinking } => {
             json!({ "type": "thinking", "thinking": thinking })
         }
+        ContentBlockStart::RedactedThinking { data } => {
+            json!({ "type": "redacted_thinking", "data": data })
+        }
         ContentBlockStart::ToolUse {
             id,
             name,

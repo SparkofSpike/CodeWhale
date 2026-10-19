@@ -77,6 +77,7 @@ fn assistant_thinking(thinking: &str, text: &str) -> Message {
                 thinking: thinking.to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
             ContentBlock::Text {
                 text: text.to_string(),

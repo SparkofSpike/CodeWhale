@@ -4,7 +4,7 @@
 - Session: session-
 - Provider: deepseek
 - Model: deepseek-v4-pro
-- Mode: Act
+- Mode: Work
 - Workspace: f025-golden-workspace
 - Messages: 3
 

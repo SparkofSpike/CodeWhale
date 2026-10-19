@@ -19,6 +19,7 @@ use codewhale_models::{
     OpaqueReasoningState, StreamEvent, Tool, Usage,
 };
 
+use super::chat::REASONING_REPLAY_PLACEHOLDER;
 use super::prepared::WireDialect;
 use super::role_placement::{RolePlacement, role_placement};
 use super::wire::{extract_sse_data_value, next_sse_line, push_sse_event_data};
@@ -706,7 +707,15 @@ impl CodewhaleClient {
                             thinking,
                             signature: None,
                             state: None,
+                            redacted_data: None,
                         },
+                        // Redacted thinking does not occur on Responses
+                        // routes (encrypted reasoning rides the reasoning
+                        // item's `encrypted_content` instead); keep the
+                        // match total without inventing a block shape.
+                        ContentBlockStart::RedactedThinking { .. } => {
+                            continue;
+                        }
                         ContentBlockStart::ToolUse {
                             id,
                             name,
@@ -874,6 +883,7 @@ pub(super) fn convert_messages_to_responses_input(
                 }
             }
             RolePlacement::Assistant | RolePlacement::InterruptedAssistant => {
+                let mut reasoning_emitted = false;
                 for block in &msg.content {
                     match block {
                         ContentBlock::Text { text, .. } => {
@@ -898,6 +908,16 @@ pub(super) fn convert_messages_to_responses_input(
                         ContentBlock::ToolUse {
                             id, name, input, ..
                         } => {
+                            if is_deepseek && !reasoning_emitted {
+                                items.push(json!({
+                                    "type": "reasoning",
+                                    "content": [{
+                                        "type": "reasoning_text",
+                                        "text": REASONING_REPLAY_PLACEHOLDER,
+                                    }],
+                                }));
+                                reasoning_emitted = true;
+                            }
                             let (call_id, _item_id) = parse_tool_use_id(id);
                             let mut item = json!({
                                 "type": "function_call",
@@ -931,6 +951,7 @@ pub(super) fn convert_messages_to_responses_input(
                                         item["id"] = json!(id);
                                     }
                                     items.push(item);
+                                    reasoning_emitted = true;
                                 }
                             } else if is_deepseek {
                                 items.push(json!({
@@ -940,6 +961,7 @@ pub(super) fn convert_messages_to_responses_input(
                                         "text": thinking,
                                     }],
                                 }));
+                                reasoning_emitted = true;
                             }
                         }
                         _ => {}

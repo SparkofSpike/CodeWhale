@@ -1117,6 +1117,7 @@ mod tests {
                     signature: None,
                     state: None,
                     thinking: "let me think...".to_string(),
+                    redacted_data: None,
                 },
                 ContentBlock::Text {
                     text: "done".to_string(),

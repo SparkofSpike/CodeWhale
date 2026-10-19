@@ -821,13 +821,15 @@ impl codewhale_app_server::RuntimeOwnerFrontend for CapturedRuntimeFrontend {
             // the global signal registration or stop shared schedulers/managers.
             let shutdown = RuntimeServerShutdown::default();
             state.shutdown = shutdown.clone();
-            let app =
+            let app = with_loopback_host_guard(
                 build_router(state).merge(codewhale_app_server::runtime_compatibility_router(
                     compatibility,
                     &options.cors_origins,
                     resolved.token.clone(),
                     Some(workspace),
-                ));
+                )),
+                resolved.token.is_none(),
+            );
             let ready = RuntimeFrontendReady {
                 endpoint,
                 auth_required: resolved.token.is_some(),
@@ -2090,6 +2092,7 @@ pub async fn run_http_server(
         runtime_token.clone(),
         Some(listener_workspace),
     ));
+    let app = with_loopback_host_guard(app, runtime_token.is_none());
     let owned_stdio = matches!(
         options.control_frontend.as_ref(),
         Some(
@@ -2486,6 +2489,41 @@ fn validate_runtime_listener_security(options: &RuntimeApiOptions) -> Result<()>
         );
     }
     Ok(())
+}
+
+fn with_loopback_host_guard(app: Router, unauthenticated: bool) -> Router {
+    if unauthenticated {
+        app.layer(middleware::from_fn(require_loopback_host_header))
+    } else {
+        app
+    }
+}
+
+async fn require_loopback_host_header(request: Request, next: middleware::Next) -> Response {
+    let loopback = request
+        .headers()
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .is_none_or(host_header_is_loopback);
+    if loopback {
+        return next.run(request).await;
+    }
+    (
+        StatusCode::MISDIRECTED_REQUEST,
+        "This unauthenticated Runtime only answers requests addressed to 127.0.0.1, ::1 or localhost.",
+    )
+        .into_response()
+}
+
+fn host_header_is_loopback(value: &str) -> bool {
+    let host = match value.strip_prefix('[') {
+        Some(rest) => rest.split_once(']').map_or(rest, |(host, _)| host),
+        None => value.rsplit_once(':').map_or(value, |(host, _)| host),
+    };
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 fn is_loopback_bind_host(host: &str) -> bool {
@@ -7689,6 +7727,9 @@ struct UndoTurnRequest {
     /// How many turns back to undo (default 0 = last turn only).
     #[serde(default)]
     depth: Option<usize>,
+    /// The user turn to undo, with every turn after it. Wins over `depth`.
+    #[serde(default)]
+    turn_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -7707,12 +7748,25 @@ async fn undo_thread_turn(
     Path(id): Path<String>,
     Json(req): Json<UndoTurnRequest>,
 ) -> Result<(StatusCode, Json<UndoTurnResponse>), ApiError> {
-    let depth = req.depth.unwrap_or(0);
-    let (forked_thread, original_user_text, original_user_images, _) = state
-        .runtime_threads
-        .fork_at_user_message_in_sessions_dir(&id, depth, &state.sessions_dir)
-        .await
-        .map_err(map_thread_err)?;
+    let (forked_thread, original_user_text, original_user_images, _) = match req.turn_id {
+        Some(turn_id) => {
+            state
+                .runtime_threads
+                .fork_dropping_user_turn_in_sessions_dir(&id, &turn_id, &state.sessions_dir)
+                .await
+        }
+        None => {
+            state
+                .runtime_threads
+                .fork_at_user_message_in_sessions_dir(
+                    &id,
+                    req.depth.unwrap_or(0),
+                    &state.sessions_dir,
+                )
+                .await
+        }
+    }
+    .map_err(map_thread_err)?;
     Ok((
         StatusCode::CREATED,
         Json(UndoTurnResponse {
@@ -8646,18 +8700,42 @@ async fn retry_thread_turn(
     Json(req): Json<RetryTurnRequest>,
 ) -> Result<(StatusCode, Json<RetryTurnResponse>), ApiError> {
     let depth = req.depth.unwrap_or(0);
-    let (forked_thread, original_user_text, original_user_images, max_output_tokens) = state
+    let (reservation, _) = state
         .runtime_threads
-        .fork_at_user_message_in_sessions_dir(&id, depth, &state.sessions_dir)
+        .thread_restore_guard(&id)
         .await
         .map_err(map_thread_err)?;
-
-    let retry_prompt = req.prompt.or(original_user_text).unwrap_or_default();
-    if retry_prompt.trim().is_empty() {
-        return Err(ApiError::bad_request(
-            "No user message to retry — the dropped turn had no user text",
-        ));
-    }
+    let runtime = state.runtime_threads.clone();
+    let sessions_dir = state.sessions_dir.clone();
+    let prompt = req.prompt;
+    let (forked_thread, retry_prompt, original_user_images, max_output_tokens) =
+        tokio::spawn(async move {
+            let _reservation = reservation;
+            let prepared = runtime
+                .prepare_fork_at_user_message_in_sessions_dir(&id, depth, &sessions_dir)
+                .await
+                .map_err(map_thread_err)?;
+            let retry_prompt = prompt
+                .or_else(|| prepared.original_user_text().map(str::to_string))
+                .unwrap_or_default();
+            if retry_prompt.trim().is_empty() {
+                return Err(ApiError::bad_request(
+                    "No user message to retry — the dropped turn had no user text",
+                ));
+            }
+            let (forked_thread, _, original_user_images, max_output_tokens) = runtime
+                .publish_prepared_fork(prepared)
+                .await
+                .map_err(map_thread_err)?;
+            Ok((
+                forked_thread,
+                retry_prompt,
+                original_user_images,
+                max_output_tokens,
+            ))
+        })
+        .await
+        .map_err(|e| ApiError::internal(format!("Retry fork task failed: {e}")))??;
 
     let turn = state
         .runtime_threads
@@ -9088,11 +9166,6 @@ async fn upsert_thread_goal(
     } else {
         StatusCode::OK
     };
-    // Emit a replayable goal-updated event so SSE subscribers can react.
-    let _ = state
-        .runtime_threads
-        .emit_goal_updated_event(&id, goal.clone())
-        .await;
     // Inject the goal into a cached engine (if any) and dispatch the kickoff
     // turn while the thread is idle. Errors are advisory: the goal record is
     // already durable and a subsequent turn still carries it.
@@ -9121,7 +9194,6 @@ async fn delete_thread_goal(
     if !deleted {
         return Err(ApiError::not_found(format!("thread '{id}' has no goal")));
     }
-    let _ = state.runtime_threads.emit_goal_cleared_event(&id).await;
     state
         .runtime_threads
         .sync_engine_goal_status(&id)
@@ -9170,10 +9242,6 @@ async fn complete_thread_goal(
             message: format!("goal for thread '{id}' changed concurrently; retry"),
             code: None,
         })?;
-    let _ = state
-        .runtime_threads
-        .emit_goal_updated_event(&id, updated.clone())
-        .await;
     state
         .runtime_threads
         .sync_engine_goal_status(&id)
@@ -9223,10 +9291,6 @@ async fn block_thread_goal(
             message: format!("goal for thread '{id}' changed concurrently; retry"),
             code: None,
         })?;
-    let _ = state
-        .runtime_threads
-        .emit_goal_updated_event(&id, updated.clone())
-        .await;
     state
         .runtime_threads
         .sync_engine_goal_status(&id)
@@ -9905,10 +9969,10 @@ fn take_compat_turn_event(
         return None;
     }
     *last_seq = event.seq;
-    Some((
-        map_compat_stream_event(event),
-        event.event == "turn.completed",
-    ))
+    let terminal = event.event == "turn.completed"
+        || (event.event == crate::runtime_threads::RUNTIME_STORE_FAILURE_EVENT
+            && event.payload.get("terminal").and_then(Value::as_bool) == Some(true));
+    Some((map_compat_stream_event(event), terminal))
 }
 
 fn runtime_event_payload(event: crate::runtime_threads::RuntimeEventRecord) -> serde_json::Value {

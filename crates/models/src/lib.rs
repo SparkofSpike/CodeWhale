@@ -473,6 +473,17 @@ pub fn auto_compact_default_for_model(model: &str) -> bool {
 
 // === Streaming Structures ===
 
+/// Decode the `redacted_thinking` start-event payload, tolerating the
+/// missing-key shape (`#[serde(default)]`) and an explicit `"data": null`
+/// from nonconforming gateways. Both decode to the empty payload that the
+/// capture site warns about, instead of failing the whole SSE event.
+fn deserialize_redacted_data<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -520,6 +531,23 @@ pub enum ContentBlockStart {
     Text { text: String },
     #[serde(rename = "thinking")]
     Thinking { thinking: String },
+    /// Anthropic `redacted_thinking`: the provider withheld the whole block
+    /// for safety and replaced it with an encrypted payload that arrives
+    /// complete on the start event (no deltas). It must be captured and
+    /// replayed byte-exact — the API decrypts it to restore the turn's
+    /// reasoning, and dropping it makes the next tool-loop request fail with
+    /// "Expected `thinking` or `redacted_thinking`, but found `tool_use`".
+    #[serde(rename = "redacted_thinking")]
+    RedactedThinking {
+        /// Tolerant of both a missing and an explicit-null `data`
+        /// (`deserialize_redacted_data` + default): a contract-violating
+        /// start event still decodes (empty payload + capture warn) instead
+        /// of failing the whole event and silently losing the turn. Note
+        /// that `#[serde(default)]` alone only covers the missing key — an
+        /// explicit `"data": null` would still fail `String` decoding.
+        #[serde(default, deserialize_with = "deserialize_redacted_data")]
+        data: String,
+    },
     #[serde(rename = "tool_use")]
     ToolUse {
         id: String,
@@ -574,6 +602,43 @@ pub struct MessageDelta {
 mod tests {
     use super::*;
     use std::any::TypeId;
+
+    #[test]
+    fn redacted_thinking_stream_start_decodes_with_its_payload() {
+        // A safeguard-triggered redacted block arrives complete on the start
+        // event. Before the variant existed this line failed the whole SSE
+        // event decode and lost the turn.
+        let block: ContentBlockStart = serde_json::from_value(serde_json::json!({
+            "type": "redacted_thinking",
+            "data": "ENC_REDACTED_PAYLOAD",
+        }))
+        .expect("redacted_thinking must decode");
+        match block {
+            ContentBlockStart::RedactedThinking { data } => {
+                assert_eq!(data, "ENC_REDACTED_PAYLOAD");
+            }
+            other => panic!("expected RedactedThinking, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn redacted_thinking_start_tolerates_an_explicit_null_payload() {
+        // `#[serde(default)]` covers a missing key only; a nonconforming
+        // gateway sending `"data": null` must still decode to the empty
+        // payload (capture warn downstream) instead of failing the whole
+        // SSE event and silently losing the turn's redacted block.
+        let block: ContentBlockStart = serde_json::from_value(serde_json::json!({
+            "type": "redacted_thinking",
+            "data": null,
+        }))
+        .expect("an explicit null payload must not fail the event decode");
+        match block {
+            ContentBlockStart::RedactedThinking { data } => {
+                assert_eq!(data, "");
+            }
+            other => panic!("expected RedactedThinking, got {other:?}"),
+        }
+    }
 
     /// #6032: `model_supports_reasoning` consults the catalog before its
     /// hand-maintained pile, so a literal arm that duplicates a catalog row is

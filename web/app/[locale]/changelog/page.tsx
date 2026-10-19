@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/surface-state";
 import { CHANGELOG, type ChangelogRelease } from "@/lib/changelog.generated";
 import { changelogAnchor } from "@/scripts/changelog-lib.mjs";
 import { getFacts } from "@/lib/facts";
+import { compareVersions } from "@/lib/features";
 import { fill, getChangelog, getChrome } from "@/lib/i18n/dictionaries";
 import { REPO_RELEASES_URL, REPO_URL } from "@/lib/i18n/links";
 import { buildPageMetadata } from "@/lib/page-meta";
@@ -118,6 +119,7 @@ export default async function ChangelogPage({ params }: { params: Promise<{ loca
                 key={release.version}
                 release={release}
                 locale={locale}
+                candidate={!release.unreleased && published !== null && (compareVersions(release.version, published.version) ?? 0) > 0}
                 publishedUrl={
                   published && published.version === release.version ? published.url : null
                 }
@@ -141,10 +143,12 @@ export default async function ChangelogPage({ params }: { params: Promise<{ loca
 function Release({
   release,
   locale,
+  candidate,
   publishedUrl,
 }: {
   release: ChangelogRelease;
   locale: string;
+  candidate: boolean;
   publishedUrl: string | null;
 }) {
   const t = getChangelog(locale);
@@ -170,7 +174,7 @@ function Release({
               {ext(t.releasePageLink)}
             </a>
           )}
-          {release.compareUrl && (
+          {release.compareUrl && !release.unreleased && !candidate && (
             <a href={release.compareUrl} target="_blank" rel="noreferrer">
               {ext(t.compareLink)}
             </a>
@@ -180,7 +184,7 @@ function Release({
           </a>
         </div>
       </div>
-      {release.unreleased && <p className="changelog-unreleased-note">{t.unreleasedNote}</p>}
+      {(release.unreleased || candidate) && <p className="changelog-unreleased-note">{t.unreleasedNote}</p>}
       <div className="changelog-sections">
         {release.sections.map((section, i) => (
           <section key={`${section.heading}-${i}`}>

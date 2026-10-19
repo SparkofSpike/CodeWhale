@@ -1932,6 +1932,7 @@ mod tests {
         let mut rig = Rig::new(
             config,
             vec![
+                canned::tool_call_turn("law-read", "read", r#"{"path":"AGENTS.md"}"#),
                 canned::tool_call_turn(
                     "law-write",
                     "write",
@@ -1949,10 +1950,10 @@ mod tests {
             "new-self-authored-law"
         );
         let requests = rig.mock.captured_requests();
-        assert_eq!(requests.len(), 2);
+        assert_eq!(requests.len(), 3);
         assert_eq!(
             serde_json::to_vec(&requests[0].system)?,
-            serde_json::to_vec(&requests[1].system)?
+            serde_json::to_vec(&requests[2].system)?
         );
         let prompt = crate::prompts::system_prompt_flat_text(requests[0].system.as_ref().unwrap());
         assert!(prompt.contains(crate::prompts::text::BASE_PROMPT.trim()));

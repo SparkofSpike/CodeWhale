@@ -1,7 +1,7 @@
 command: /system
 is_error: false
 message:
-System Prompt (ACT mode):
+System Prompt (WORK mode):
 ─────────────────────────────
 First block
 

@@ -152,7 +152,7 @@ pub(super) async fn remote_connect(
         .timeout(PROBE_TIMEOUT)
         .build()
         .map_err(|error| ApiError::internal(format!("probe client unavailable: {error}")))?;
-    let response = match client.get(&probe_url).send().await {
+    let mut response = match client.get(&probe_url).send().await {
         Ok(response) => response,
         Err(error) => {
             return Ok(Json(json!({
@@ -164,8 +164,16 @@ pub(super) async fn remote_connect(
         }
     };
     let status = response.status();
-    let bytes = response.bytes().await.unwrap_or_default();
-    if bytes.len() > PROBE_MAX_BYTES {
+    let mut bytes = Vec::new();
+    let mut too_large = false;
+    while let Ok(Some(chunk)) = response.chunk().await {
+        if bytes.len() + chunk.len() > PROBE_MAX_BYTES {
+            too_large = true;
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if too_large {
         return Ok(Json(json!({
             "ok": false,
             "endpoint": origin,

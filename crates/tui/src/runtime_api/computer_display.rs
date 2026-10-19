@@ -244,6 +244,7 @@ impl ComputerState {
     }
 
     fn emit(&self, kind: &str, data: Value) {
+        let mut events = self.inner.events.lock();
         let seq = self.inner.next_seq.fetch_add(1, Ordering::Relaxed);
         let event = ComputerEvent {
             seq,
@@ -252,7 +253,6 @@ impl ComputerState {
             data,
         };
         tracing::info!(target: "codewhale::computer", seq, kind, "computer event");
-        let mut events = self.inner.events.lock();
         if events.len() >= EVENT_LOG_CAP {
             events.pop_front();
         }

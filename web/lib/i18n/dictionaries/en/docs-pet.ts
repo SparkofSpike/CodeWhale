@@ -18,6 +18,7 @@ export const docsPet: DocsPetDict = {
       id: "turn-on",
       title: "Turn it on",
       blocks: [
+        { note: "Pet mode has been in Codewhale since 0.9.13. Coming in 0.10.2: the animated whale with the message box always available, /pet style, /pet language, and the views you cycle with Ctrl+]. Build main to try them now." },
         {
           code: "/pet on        # pet mode becomes the main view\n/pet off       # back to the standard view\n/pet status    # on or off, and the companion's identity",
           lang: "Codewhale",

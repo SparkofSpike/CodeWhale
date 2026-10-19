@@ -428,6 +428,9 @@ impl ToolSpec for ApplyPatchTool {
             .await?;
             normalize_pending_rust(&mut pending).await;
             let pending = apply_pending_writes_blocking(pending).await?;
+            for entry in pending.iter().filter(|p| p.content.is_some()) {
+                context.note_file_read(&entry.path);
+            }
             // Resolve absolute paths for LSP diagnostics query.
             let abs_paths: Vec<PathBuf> = pending.iter().map(|p| p.path.clone()).collect();
             let diag_block = lsp_diagnostics_for_paths(context, &abs_paths).await;
@@ -484,6 +487,9 @@ impl ToolSpec for ApplyPatchTool {
         stats.header_path_mismatch = preflight.summary.header_path_mismatch.clone();
         normalize_pending_rust(&mut pending).await;
         let pending = apply_pending_writes_blocking(pending).await?;
+        for entry in pending.iter().filter(|p| p.content.is_some()) {
+            context.note_file_read(&entry.path);
+        }
         // Resolve absolute paths for LSP diagnostics query.
         let abs_paths: Vec<PathBuf> = pending
             .iter()
@@ -1251,6 +1257,9 @@ fn build_pending_writes_from_replace(
             .ok_or_else(|| ToolError::missing_field(format!("{source_field}[].content")))?;
 
         let resolved = context.resolve_path(path)?;
+        if resolved.exists() {
+            context.require_fresh_read_before_write(&resolved, path)?;
+        }
         let original = if resolved.exists() {
             Some(read_file_content(&resolved)?)
         } else {
@@ -2407,6 +2416,7 @@ diff --git a/same.txt b/same.txt
         let ctx = ToolContext::new(tmp.path().to_path_buf());
 
         fs::write(tmp.path().join("one.txt"), "old\n").expect("write");
+        ctx.note_file_read(&ctx.resolve_path("one.txt").expect("resolve"));
 
         let tool = ApplyPatchTool;
         let result = tool
@@ -2463,6 +2473,7 @@ diff --git a/same.txt b/same.txt
         let tmp = tempdir().expect("tempdir");
         let ctx = ToolContext::new(tmp.path().to_path_buf());
         fs::write(tmp.path().join("legacy.txt"), "old\n").expect("write");
+        ctx.note_file_read(&ctx.resolve_path("legacy.txt").expect("resolve"));
 
         let result = ApplyPatchTool
             .execute(
@@ -2537,6 +2548,7 @@ diff --git a/same.txt b/same.txt
         let ctx = ToolContext::new(tmp.path().to_path_buf());
 
         fs::write(tmp.path().join("one.txt"), "old\n").expect("write");
+        ctx.note_file_read(&ctx.resolve_path("one.txt").expect("resolve"));
         fs::write(tmp.path().join("blocked"), "not a dir\n").expect("write blocker");
 
         let tool = ApplyPatchTool;

@@ -134,6 +134,12 @@ struct StreamOutcome {
     current_thinking: String,
     current_thinking_signature: Option<String>,
     current_thinking_state: Option<codewhale_models::OpaqueReasoningState>,
+    /// Thinking blocks already terminated by a `content_block_stop`, in wire
+    /// order. Adaptive/interleaved thinking emits several per assistant turn;
+    /// Anthropic requires the whole sequence replayed unmodified, so finished
+    /// blocks are parked here instead of being overwritten by the next one.
+    /// Redacted thinking blocks park here the moment they arrive.
+    completed_thinking: Vec<ContentBlock>,
     tool_uses: Vec<ToolUseState>,
     usage: Usage,
     usage_reported: bool,
@@ -174,6 +180,34 @@ pub(super) fn preview_request_error_user_message(
     error: &anyhow::Error,
 ) -> String {
     format!("{error:#}")
+}
+
+/// Park a finished thinking block (deltas + signature + optional Responses
+/// continuity state) into the turn's ordered completed list.
+///
+/// A block survives only if the provider actually emitted reasoning: readable
+/// text (minus the wire-only "(reasoning omitted)" placeholder) or an
+/// encrypted Responses state — the same guard the persistence site applies to
+/// the still-open block, so parking cannot mint a block the old single-slot
+/// persistence would have dropped.
+fn flush_thinking_block(
+    thinking: &mut String,
+    signature: &mut Option<String>,
+    state: &mut Option<codewhale_models::OpaqueReasoningState>,
+    completed: &mut Vec<ContentBlock>,
+) {
+    let placeholder_only = crate::client::is_reasoning_replay_placeholder(thinking);
+    if (!thinking.is_empty() && !placeholder_only) || state.is_some() {
+        completed.push(ContentBlock::Thinking {
+            thinking: std::mem::take(thinking),
+            signature: std::mem::take(signature),
+            state: state.take(),
+            redacted_data: None,
+        });
+    }
+    thinking.clear();
+    *signature = None;
+    *state = None;
 }
 
 /// Preserve text before either execution branch publishes it to the UI or history.
@@ -1152,9 +1186,6 @@ impl Engine {
             .unwrap_or_default();
         completions
             .into_iter()
-            // Child-owned output stays in task/status for explicit child
-            // waits. Only unowned jobs belong in the parent model stream.
-            .filter(|completion| completion.event.owner_agent_id.is_none())
             .map(|mut completion| {
                 let tool_call_id =
                     format!("background-shell-completion-{}", completion.event.task_id);
@@ -1175,6 +1206,33 @@ impl Engine {
                 completion.event
             })
             .collect()
+    }
+
+    /// Hand finished background shell jobs to the model as one runtime
+    /// message. Called at turn start, after each tool batch and when the turn
+    /// is finishing; returns whether anything was delivered.
+    ///
+    /// Known limitation: a job still running when the model ends its turn
+    /// reaches it only through the idle wake, on hosts that keep the Engine
+    /// alive; headless exec shuts down and stops it unseen. ACP turns, child
+    /// engines and RLM hosts never receive runtime shell completions; the RLM
+    /// and child hosts share the parent's shell manager and session id, so a
+    /// drain there would take the parent's completions. ACP and child turns
+    /// use `task_shell_wait` instead.
+    pub(super) async fn deliver_shell_completions(&mut self, timing: &str) -> bool {
+        if self.child_host.is_some() || self.rlm_host.is_some() {
+            return false;
+        }
+        let completions = self.drain_shell_completion_events();
+        if completions.is_empty() {
+            return false;
+        }
+        self.add_session_message(shell_completion_runtime_message(&completions))
+            .await;
+        if let Some(status) = shell_completion_status_text(&completions, timing) {
+            let _ = self.send_event(Event::status(status)).await;
+        }
+        true
     }
 
     /// Keep workers alive while their tracked background shell work is still
@@ -1925,6 +1983,7 @@ impl Engine {
                 match run_tool_call_before_hooks_for_context(
                     hook_context.as_ref(),
                     self.config.hook_executor.as_ref(),
+                    &self.cancel_token,
                     self.extension_host.as_ref().filter(|_| {
                         self.config
                             .features
@@ -2105,6 +2164,7 @@ impl Engine {
             // ORs `approval_required`.
             if hook_requires_approval && !self.session.auto_approve {
                 approval_required = true;
+                approval_force_prompt = true;
             }
 
             if blocked_error.is_none() {
@@ -3112,11 +3172,29 @@ impl Engine {
                         requested_sandbox_escalation(&tool_name, &tool_input, batch_sandbox_policy)
                             .expect("sandbox escalation was validated while planning")
                             .map(|(policy, _)| policy);
+                    let refusal_before_approval = if plan.approval_required {
+                        tool_registry
+                            .and_then(|registry| registry.get(&tool_name))
+                            .zip(batch_tool_context.as_ref())
+                            .and_then(|(spec, context)| {
+                                spec.refusal_before_approval(&tool_input, context)
+                            })
+                    } else {
+                        None
+                    };
                     let (result_override, context_override, approval_stamp): (
                         Option<Result<ToolResult, ToolError>>,
                         Option<crate::tools::ToolContext>,
                         Option<ToolApprovalStamp>,
-                    ) = if plan.approval_required {
+                    ) = if let Some(refusal) = refusal_before_approval {
+                        nested_gate_env.tool_call_budget.refund();
+                        emit_tool_audit(json!({
+                            "event": "tool.refused_before_approval",
+                            "tool_id": tool_id.clone(),
+                            "tool_name": tool_name.clone(),
+                        }));
+                        (Some(Ok(refusal)), None, None)
+                    } else if plan.approval_required {
                         emit_tool_audit(json!({
                             "event": "tool.approval_required",
                             "tool_id": tool_id.clone(),
@@ -4365,7 +4443,14 @@ impl Engine {
         // thinking block; must be replayed verbatim in tool loops.
         let mut current_thinking_signature: Option<String> = None;
         let mut current_thinking_state: Option<codewhale_models::OpaqueReasoningState> = None;
+        // Thinking blocks the stream already terminated (stop event seen or a
+        // new block started), in wire order: adaptive/interleaved thinking
+        // emits several per turn, and a redacted block parks here the moment
+        // it arrives. Anthropic replays the whole sequence unmodified, so a
+        // later block must never overwrite an earlier one.
+        let mut completed_thinking: Vec<ContentBlock> = Vec::new();
         let mut tool_uses: Vec<ToolUseState> = Vec::new();
+        let mut settled_usage = Usage::default();
         let mut usage = Usage {
             input_tokens: 0,
             output_tokens: 0,
@@ -4667,6 +4752,14 @@ impl Engine {
                             );
                         match retry_stream_result {
                             Ok(fresh) => {
+                                if usage_has_reported_data(&usage) {
+                                    crate::core::turn::add_usage_to(
+                                        &mut settled_usage,
+                                        &std::mem::take(&mut usage),
+                                    );
+                                } else {
+                                    usage = Usage::default();
+                                }
                                 stream = fresh;
                                 stream_start = Instant::now();
                                 // Roll back the error counter — this one
@@ -4824,15 +4917,23 @@ impl Engine {
                     content_block,
                 } => match content_block {
                     ContentBlockStart::Text { text } => {
-                        current_text_raw = text;
-                        current_text_visible.clear();
+                        if last_text_index.is_some_and(|last| last != index as usize) {
+                            if !current_text_raw.is_empty() {
+                                current_text_raw.push_str("\n\n");
+                            }
+                            if !current_text_visible.trim().is_empty() {
+                                current_text_visible.push_str("\n\n");
+                            }
+                        } else {
+                            current_text_raw.clear();
+                            current_text_visible.clear();
+                        }
+                        current_text_raw.push_str(&text);
                         tool_call_filter = ToolCallDeltaFilterState::default();
-                        let filtered = filter_tool_call_delta_with_state(
-                            &current_text_raw,
-                            &mut tool_call_filter,
-                        );
+                        let filtered =
+                            filter_tool_call_delta_with_state(&text, &mut tool_call_filter);
                         if !fake_wrapper_notice_emitted
-                            && filtered.len() < current_text_raw.len()
+                            && filtered.len() < text.len()
                             && contains_fake_tool_wrapper(&current_text_raw)
                         {
                             let _ = self
@@ -4848,17 +4949,69 @@ impl Engine {
                                 index: index as usize,
                             })
                             .await;
+                        if !filtered.is_empty() {
+                            let _ = self
+                                .send_stream_event(Event::MessageDelta {
+                                    index: index as usize,
+                                    content: filtered,
+                                })
+                                .await;
+                        }
                     }
                     ContentBlockStart::Thinking { thinking } => {
+                        // A previous thinking block that never saw a stop
+                        // event still counts as finished; park it so the new
+                        // block cannot overwrite it.
+                        flush_thinking_block(
+                            &mut current_thinking,
+                            &mut current_thinking_signature,
+                            &mut current_thinking_state,
+                            &mut completed_thinking,
+                        );
                         current_thinking = thinking;
-                        current_thinking_signature = None;
-                        current_thinking_state = None;
                         current_block_kind = Some(ContentBlockKind::Thinking);
                         let _ = self
                             .send_stream_event(Event::ThinkingStarted {
                                 index: index as usize,
                             })
                             .await;
+                    }
+                    ContentBlockStart::RedactedThinking { data } => {
+                        // Anthropic withheld this whole thinking block for
+                        // safety and replaced it with an encrypted payload.
+                        // There are no deltas; the block arrives complete at
+                        // start and must be replayed byte-exact, so park it
+                        // immediately. No UI events: there is no readable
+                        // content to stream.
+                        if data.is_empty() {
+                            // With serde's default this can only come from a
+                            // contract-violating block (missing `data`). It
+                            // still parks so the failure surfaces at replay
+                            // with a diagnosable shape.
+                            crate::logging::warn(
+                                "Captured a redacted thinking block with an empty payload; it will replay verbatim and the API may reject the request",
+                            );
+                        }
+                        flush_thinking_block(
+                            &mut current_thinking,
+                            &mut current_thinking_signature,
+                            &mut current_thinking_state,
+                            &mut completed_thinking,
+                        );
+                        completed_thinking.push(ContentBlock::Thinking {
+                            thinking: String::new(),
+                            signature: None,
+                            state: None,
+                            redacted_data: Some(data),
+                        });
+                        // Kind is cleared so the block's stop event needs no
+                        // handling — it was parked above and has no deltas —
+                        // and so a stale kind cannot emit a ThinkingComplete
+                        // for a provider that skips stops.
+                        current_block_kind = None;
+                        crate::logging::info(
+                            "Captured redacted thinking block for verbatim replay",
+                        );
                     }
                     ContentBlockStart::ToolUse {
                         id,
@@ -4999,6 +5152,16 @@ impl Engine {
                                     index: index as usize,
                                 })
                                 .await;
+                            // The block is finished: park it in wire order so
+                            // a following thinking block cannot overwrite it
+                            // (adaptive/interleaved thinking emits several per
+                            // turn; Anthropic replays the whole sequence).
+                            flush_thinking_block(
+                                &mut current_thinking,
+                                &mut current_thinking_signature,
+                                &mut current_thinking_state,
+                                &mut completed_thinking,
+                            );
                         }
                         Some(ContentBlockKind::ToolUse) | None => {}
                     }
@@ -5140,12 +5303,21 @@ impl Engine {
             };
             let _ = self.send_retry_status(message).await;
         }
+        let usage = if usage_has_reported_data(&settled_usage) {
+            if usage_has_reported_data(&usage) {
+                crate::core::turn::add_usage_to(&mut settled_usage, &usage);
+            }
+            settled_usage
+        } else {
+            usage
+        };
         StreamOutcome {
             current_text_raw,
             current_text_visible,
             current_thinking,
             current_thinking_signature,
             current_thinking_state,
+            completed_thinking,
             tool_uses,
             usage,
             usage_reported,
@@ -6258,6 +6430,9 @@ fn stream_event_has_actionable_content(event: &StreamEvent) -> bool {
         StreamEvent::ContentBlockStart { content_block, .. } => match content_block {
             ContentBlockStart::Text { text } => !text.is_empty(),
             ContentBlockStart::Thinking { thinking } => !thinking.is_empty(),
+            // A redacted thinking block is provider-owned encrypted content —
+            // its arrival is actionable reasoning output even without text.
+            ContentBlockStart::RedactedThinking { .. } => true,
             ContentBlockStart::ToolUse { .. } | ContentBlockStart::ServerToolUse { .. } => true,
         },
         StreamEvent::ContentBlockDelta { delta, .. } => match delta {
@@ -6290,6 +6465,9 @@ fn stream_event_content_bytes(event: &StreamEvent) -> usize {
         StreamEvent::ContentBlockStart { content_block, .. } => match content_block {
             ContentBlockStart::Text { text } => text.len(),
             ContentBlockStart::Thinking { thinking } => thinking.len(),
+            // The redacted payload is the block's whole captured body; it
+            // counts like the reasoning bytes it stands in for.
+            ContentBlockStart::RedactedThinking { data } => data.len(),
             ContentBlockStart::ToolUse {
                 id, name, input, ..
             }
@@ -7207,6 +7385,88 @@ mod tests {
         assert!(stream_event_has_actionable_content(
             &canned::tool_use_block_start(0, "call-1", "read_file")
         ));
+        // A redacted thinking block is provider-owned content the moment it
+        // arrives, even though it carries no readable text.
+        assert!(stream_event_has_actionable_content(
+            &StreamEvent::ContentBlockStart {
+                index: 0,
+                content_block: codewhale_models::ContentBlockStart::RedactedThinking {
+                    data: "ENC".to_string(),
+                },
+            }
+        ));
+    }
+
+    #[test]
+    fn flush_parks_finished_thinking_and_drops_placeholder_only_blocks() {
+        // Readable text parks; the slot clears so the next block starts
+        // clean.
+        let mut completed = Vec::new();
+        flush_thinking_block(
+            &mut "readable reasoning".to_string(),
+            &mut Some("sig-1".to_string()),
+            &mut None,
+            &mut completed,
+        );
+        assert_eq!(completed.len(), 1);
+        match &completed[0] {
+            ContentBlock::Thinking {
+                thinking,
+                signature,
+                redacted_data,
+                ..
+            } => {
+                assert_eq!(thinking, "readable reasoning");
+                assert_eq!(signature.as_deref(), Some("sig-1"));
+                assert!(redacted_data.is_none());
+            }
+            other => panic!("expected a thinking block: {other:?}"),
+        }
+
+        // The wire-only "(reasoning omitted)" placeholder never persists —
+        // the same rule the persistence site applies to the open block.
+        completed.clear();
+        flush_thinking_block(
+            &mut "(reasoning omitted)".to_string(),
+            &mut None,
+            &mut None,
+            &mut completed,
+        );
+        assert!(
+            completed.is_empty(),
+            "placeholder-only blocks must not park: {completed:?}"
+        );
+
+        // A block with only Responses continuity state parks even though the
+        // readable text is empty.
+        flush_thinking_block(
+            &mut String::new(),
+            &mut None,
+            &mut Some(codewhale_models::OpaqueReasoningState {
+                provider: "openai-codex".to_string(),
+                api: "openai-responses".to_string(),
+                model: "gpt-5-codex".to_string(),
+                id: None,
+                encrypted_content: "enc".to_string(),
+            }),
+            &mut completed,
+        );
+        assert_eq!(completed.len(), 1, "state-only blocks persist");
+    }
+
+    #[test]
+    fn redacted_block_start_counts_its_payload_as_content_bytes() {
+        // The encrypted payload is the block's whole body: the max-content
+        // cap must see it like reasoning text.
+        assert_eq!(
+            stream_event_content_bytes(&StreamEvent::ContentBlockStart {
+                index: 0,
+                content_block: codewhale_models::ContentBlockStart::RedactedThinking {
+                    data: "ENC".to_string(),
+                },
+            }),
+            3
+        );
     }
 
     /// Regression test for the OpenAI streaming batch tool_calls bug.
@@ -8352,6 +8612,7 @@ mod tests {
 pub(crate) async fn run_tool_call_before_hooks_for_context(
     context: Option<&crate::tools::spec::ToolContext>,
     hooks: Option<&Arc<crate::hooks::HookExecutor>>,
+    cancel: &CancellationToken,
     attachment: Option<&crate::extension_host::HostAttachment>,
     name: &str,
     id: &str,
@@ -8368,9 +8629,14 @@ pub(crate) async fn run_tool_call_before_hooks_for_context(
             "hook caller context is unavailable",
         ));
     }
-    let bound = hooks.map(|hooks| match context {
-        Some(context) => Arc::new(hooks.bind_caller(crate::hooks::HookCaller::from_tool(context))),
-        None => Arc::clone(hooks),
+    let bound = hooks.map(|hooks| {
+        Arc::new(
+            match context {
+                Some(context) => hooks.bind_caller(crate::hooks::HookCaller::from_tool(context)),
+                None => hooks.as_ref().clone(),
+            }
+            .with_cancel(cancel.clone()),
+        )
     });
     run_tool_call_before_hooks(
         bound.as_ref(),

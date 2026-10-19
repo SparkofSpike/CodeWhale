@@ -10,9 +10,9 @@ import { TerminalCapture } from "@/components/terminal-capture";
 import { WhaleLive } from "@/components/whale-live";
 import { getFacts } from "@/lib/facts";
 import { GETTING_STARTED_STEPS } from "@/lib/content/getting-started";
-import { fill, getChrome, getHome, splitToken } from "@/lib/i18n/dictionaries";
+import { RELEASE_HIGHLIGHTS } from "@/lib/content/release-highlights";
+import { fill, getChrome, getHome, pickText, splitToken } from "@/lib/i18n/dictionaries";
 import {
-  APP_SIGNUP_URL,
   DISCORD_URL,
   REPO_ISSUES_URL,
   REPO_RELEASES_URL,
@@ -26,9 +26,8 @@ import { buildSoftwareApplicationJsonLd } from "@/lib/software-application-schem
 // caching. `getFacts()` rejects legacy or older KV snapshots.
 export const revalidate = 300;
 
-// Released · GUI available · development preview · development build · in
-// development.
-const AVAILABILITY_TONES: StatusTone[] = ["ready", "ready", "attention", "idle", "idle"];
+// Released · GUI available · in development · development build.
+const AVAILABILITY_TONES: StatusTone[] = ["ready", "ready", "idle", "idle"];
 
 /**
  * The whale-road homepage: the promise, capabilities and reading
@@ -50,6 +49,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const sourceVersion = facts.version ?? "unknown";
   const publishedRelease = facts.latestPublishedRelease;
   const sourceIsPublished = publishedRelease?.version === sourceVersion;
+  const highlightsPublished = publishedRelease?.version === RELEASE_HIGHLIGHTS.version;
+  const showHighlights = highlightsPublished || sourceVersion === RELEASE_HIGHLIGHTS.version;
 
   // The install URL resolves published artifacts, so its structured version
   // must come from the published-release receipt rather than source-candidate
@@ -128,6 +129,26 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
       {/* PAPER — models, connections, and the getting-started path. */}
       <div className="home-body">
+        {showHighlights && (
+          <Section
+            id="home-release-highlights"
+            layout="split"
+            className="home-section"
+            title={fill(pickText(highlightsPublished ? RELEASE_HIGHLIGHTS.newHeading : RELEASE_HIGHLIGHTS.comingHeading, locale), { version: RELEASE_HIGHLIGHTS.version })}
+            scope={highlightsPublished ? undefined : pickText(RELEASE_HIGHLIGHTS.comingLede, locale)}
+            link={<Link href={`/${locale}/changelog`} className="section-link">{pickText(RELEASE_HIGHLIGHTS.changelogLink, locale)}</Link>}
+          >
+            <dl className="ruled-list">
+              {RELEASE_HIGHLIGHTS.items.map((item) => (
+                <div key={item.title}>
+                  <dt>{item.title}</dt>
+                  <dd>{pickText(item.body, locale)}</dd>
+                </div>
+              ))}
+            </dl>
+          </Section>
+        )}
+
         <Section
           id="home-capabilities"
           layout="split"
@@ -218,12 +239,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           className="home-section"
           title={d.availabilityHeading}
           scope={d.availabilityLede}
-          link={
-            <a href={APP_SIGNUP_URL} className="section-link" data-usage="signup">
-              {d.accountLink}
-              <Icon name="arrow-right" className="icon icon-flip" />
-            </a>
-          }
         >
           <dl className="ruled-list">
             {d.availability.map(([surface, status, detail, href], index) => (
@@ -244,7 +259,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <div className="section-split">
             <div className="section-head-text">
               <h2 className="section-title" id="home-community">{d.communityHeading}</h2>
-              <p className="section-scope">{d.communityBody}</p>
+              <p className="section-scope">{fill(d.communityBody, { count: facts.contributorCount })}</p>
             </div>
             <nav aria-label={d.communityLinksAria}>
               <ul className="dir-list" role="list">

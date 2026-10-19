@@ -82,6 +82,7 @@ function compare(expected, receipt) {
     ["version", expected.version, deployed.version],
     ["providerCount", expected.providerCount, deployed.providerCount],
     ["toolCount", expected.toolCount, deployed.toolCount],
+    ["contributorCount", expected.contributorCount, deployed.contributorCount],
     [
       "latestPublishedRelease.tag",
       expected.latestPublishedRelease?.tag ?? null,
@@ -125,6 +126,7 @@ async function main() {
     version: facts.version,
     providerCount: facts.providers.length,
     toolCount: facts.toolCount,
+    contributorCount: facts.contributorCount,
     latestPublishedRelease: facts.latestPublishedRelease,
   };
   const endpoint = new URL("/api/facts", baseUrl).toString();

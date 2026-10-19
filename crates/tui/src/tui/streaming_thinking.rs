@@ -174,34 +174,14 @@ pub(super) fn animate_pending_translation(app: &mut App, translation_pending: bo
 }
 
 /// Replace a translation placeholder with the finished translated text.
-/// Searches the active cell first, then the finalized history (covers
-/// the case where the translation lands after the thinking block was
-/// already moved into history).
 pub(super) fn replace_pending_translation(
     app: &mut App,
-    placeholder: &str,
+    cell_index: usize,
     translated_text: String,
 ) {
-    if let Some(active) = app.active_cell.as_mut() {
-        for idx in (0..active.entry_count()).rev() {
-            if let Some(HistoryCell::Thinking { content, .. }) = active.entry_mut(idx)
-                && content.starts_with(placeholder)
-            {
-                *content = translated_text;
-                app.bump_active_cell_revision();
-                return;
-            }
-        }
-    }
-
-    for idx in (0..app.history.len()).rev() {
-        if let Some(HistoryCell::Thinking { content, .. }) = app.history.get_mut(idx)
-            && content.starts_with(placeholder)
-        {
-            *content = translated_text;
-            app.bump_history_cell(idx);
-            return;
-        }
+    if let Some(HistoryCell::Thinking { content, .. }) = app.cell_at_virtual_index_mut(cell_index) {
+        *content = translated_text;
+        app.needs_redraw = true;
     }
 }
 

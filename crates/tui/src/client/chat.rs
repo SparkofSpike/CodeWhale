@@ -3778,6 +3778,7 @@ fn parse_chat_message_for_route(
         content_blocks.push(ContentBlock::Thinking {
             signature: None,
             state: None,
+            redacted_data: None,
             thinking: reasoning.to_string(),
         });
     }
@@ -3791,6 +3792,7 @@ fn parse_chat_message_for_route(
             signature: None,
             state: None,
             thinking,
+            redacted_data: None,
         });
     }
     if let Some(text) = mistral_text.filter(|s| !s.trim().is_empty()) {
@@ -4710,6 +4712,7 @@ mod minimax_reasoning_replay_tests {
                         thinking: "Inspect tool state".to_string(),
                         signature: None,
                         state: None,
+                        redacted_data: None,
                     },
                     ContentBlock::Text {
                         text: "Done.".to_string(),
@@ -4810,6 +4813,7 @@ mod minimax_reasoning_replay_tests {
                         thinking: "stale thinking from the prior turn".to_string(),
                         signature: None,
                         state: None,
+                        redacted_data: None,
                     },
                     ContentBlock::Text {
                         text: "I'll read the widget first.".to_string(),
@@ -7343,6 +7347,7 @@ mod mistral_reasoning_tests {
                                 .to_string(),
                             signature: None,
                             state: None,
+                            redacted_data: None,
                         },
                         ContentBlock::Text {
                             text: "I will inspect it now.".to_string(),

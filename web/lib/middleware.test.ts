@@ -95,13 +95,13 @@ describe("public auth aliases (#5767)", () => {
     expect(res.headers.get("location")).toBe("https://codewhale.net/signin");
   });
 
-  it("folds a localized /register onto /signup", () => {
+  it("folds a localized /register onto /signin", () => {
     const res = middleware(request("https://codewhale.net/zh/register", "codewhale.net"));
     expect(res.status).toBe(308);
-    expect(res.headers.get("location")).toBe("https://codewhale.net/zh/signup");
+    expect(res.headers.get("location")).toBe("https://codewhale.net/zh/signin");
   });
 
-  it("locale-prefixes /signin and /signup onto real public pages", () => {
+  it("locale-prefixes /signin and the /signup redirect", () => {
     const signin = middleware(
       request("https://codewhale.net/signin", "codewhale.net", {
         "accept-language": "ja,en;q=0.8",

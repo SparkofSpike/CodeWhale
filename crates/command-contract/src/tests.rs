@@ -2630,6 +2630,14 @@ impl CommandSessionControlContext for FakeControl {
             .clone()
             .unwrap_or_else(|| Err("unexpected clear_window_title() on empty fake".to_string()))
     }
+    fn composer_color(&self) -> Option<String> {
+        None
+    }
+    fn set_composer_color(&mut self, color: Option<String>) -> Result<(), String> {
+        Err(format!(
+            "unexpected set_composer_color({color:?}) on empty fake"
+        ))
+    }
     fn remote_status(&self) -> String {
         self.remote_status
             .clone()

@@ -242,53 +242,16 @@ async fn coalesce_stream_delta(
     }
 }
 
-/// Sentinel delimiters wrapping the compaction summary section persisted in a
-/// thread record's `system_prompt`. The section carries the engine-rendered
-/// summary (which contains the compaction summary marker). On reload,
-/// `SyncSession` migrates that carrier into one ordinary history checkpoint
-/// and strips it from the model's standing system prompt. Delimiters make
-/// replacement idempotent: each completed
-/// compaction swaps the section in place instead of stacking duplicates.
-/// External `PATCH /v1/threads/{id}` callers that rewrite `system_prompt`
-/// should preserve this section verbatim or the summary is lost on reload.
-const COMPACTION_SUMMARY_BEGIN: &str = "<!-- compaction-summary:begin -->";
-const COMPACTION_SUMMARY_END: &str = "<!-- compaction-summary:end -->";
-
-/// Merge a rendered compaction summary into a thread record's system prompt,
-/// replacing any previously persisted summary section.
-fn merge_summary_into_prompt(base: Option<&str>, summary_text: &str) -> String {
-    let stripped = base.map(strip_summary_section).unwrap_or_default();
-    let mut out = stripped.trim_end().to_string();
-    if !out.is_empty() {
-        out.push_str("\n\n");
+/// The system prompt a sync installs. A history that already carries its
+/// compaction checkpoint outranks a legacy summary section persisted in the
+/// thread record's prompt, which would otherwise replace that checkpoint.
+fn synced_system_prompt(prompt: Option<&str>, messages: &[Message]) -> Option<SystemPrompt> {
+    let prompt = prompt.map(|text| SystemPrompt::Text(text.to_string()));
+    if crate::compaction::history_is_post_provenance(messages) {
+        crate::compaction::strip_compaction_summaries(prompt.as_ref())
+    } else {
+        prompt
     }
-    out.push_str(COMPACTION_SUMMARY_BEGIN);
-    out.push('\n');
-    out.push_str(summary_text.trim());
-    out.push('\n');
-    out.push_str(COMPACTION_SUMMARY_END);
-    out
-}
-
-/// Remove a previously persisted compaction summary section, if present.
-fn strip_summary_section(base: &str) -> String {
-    let Some(start) = base.find(COMPACTION_SUMMARY_BEGIN) else {
-        return base.to_string();
-    };
-    let end = base[start..]
-        .find(COMPACTION_SUMMARY_END)
-        .map(|rel| start + rel + COMPACTION_SUMMARY_END.len());
-    let mut out = base[..start].trim_end().to_string();
-    if let Some(end) = end {
-        let tail = base[end..].trim_start();
-        if !tail.is_empty() {
-            if !out.is_empty() {
-                out.push_str("\n\n");
-            }
-            out.push_str(tail);
-        }
-    }
-    out
 }
 
 /// A fresh durable record id: `<prefix>_<32 hex>`. Records live in flat
@@ -994,9 +957,8 @@ fn projected_user_text(message: &Message) -> Option<String> {
     // An engine-owned compaction checkpoint is not a turn's prompt. No turn
     // record can reproduce one — the compaction ran in the engine, between
     // records — so a document that carries it would read as drifted from the
-    // records it was rebuilt from. Every fork of a compacted source inherits
-    // the summary in its system prompt, and the engine installs the checkpoint
-    // into the synced history on the fork's first load, so leaving it in took
+    // records it was rebuilt from. A fork of a compacted source starts from
+    // the settled history that carries the checkpoint, so leaving it in took
     // the cut away from the fork itself: `/undo`, retry and fork-again each
     // refused with "cannot identify an exact saved-history boundary".
     if crate::compaction::is_wire_compaction_checkpoint_message(message) {
@@ -1174,9 +1136,9 @@ fn session_recovery_projection(messages: &[Message]) -> Vec<Value> {
 /// the kept turns hands every reader of that document — the session view,
 /// `restore_thread_messages` — a run of prompts with the agent's
 /// output missing, because nothing is left for it to rebuild the turns from.
-/// The turn store is not rewritten by compaction, so the records can: they are
-/// what the fork rebuilds the kept exchanges from
-/// (`reconstruct_messages_from_turns_with`).
+/// The records can: a compacting turn stores the history its engine settled
+/// on, and the fork rebuilds the kept exchanges from the newest one it keeps
+/// plus the raw turns after it (`RuntimeThreadStore::history_from_records`).
 ///
 /// The compaction names the turn it ran for, so the records answer the
 /// question directly. Any compaction in the thread is enough: the turns before
@@ -2966,6 +2928,7 @@ impl RuntimeThreadStore {
     /// Persist a goal record for a thread. The goal is stored as a JSON file
     /// in the `goals/` subdirectory; it is independent of the TUI state store
     /// and requires only that the runtime thread exists.
+    #[cfg(test)]
     pub fn save_goal(&self, goal: &codewhale_protocol::ThreadGoal) -> Result<()> {
         let _guard = self.goal_mutation.lock();
         self.save_goal_under_lock(goal)
@@ -3032,6 +2995,16 @@ impl RuntimeThreadStore {
         update: impl FnOnce(&mut codewhale_protocol::ThreadGoal),
     ) -> Result<Option<codewhale_protocol::ThreadGoal>> {
         let _guard = self.goal_mutation.lock();
+        self.update_goal_if_revision_under_lock(thread_id, goal_id, expected_status, update)
+    }
+
+    fn update_goal_if_revision_under_lock(
+        &self,
+        thread_id: &str,
+        goal_id: &str,
+        expected_status: Option<codewhale_protocol::ThreadGoalStatus>,
+        update: impl FnOnce(&mut codewhale_protocol::ThreadGoal),
+    ) -> Result<Option<codewhale_protocol::ThreadGoal>> {
         let Some(mut goal) = self.load_goal(thread_id)? else {
             return Ok(None);
         };
@@ -3094,8 +3067,7 @@ impl RuntimeThreadStore {
     }
 
     /// Remove the goal for a thread, returning `true` if one existed.
-    pub fn delete_goal(&self, thread_id: &str) -> Result<bool> {
-        let _guard = self.goal_mutation.lock();
+    fn delete_goal_under_lock(&self, thread_id: &str) -> Result<bool> {
         let path = self.goal_path(thread_id)?;
         if !path.exists() {
             return Ok(false);
@@ -3176,6 +3148,116 @@ impl RuntimeThreadStore {
             self.note_item_in_index(&item.turn_id, &item.id);
         }
         Ok(())
+    }
+
+    /// The engine history a compacting turn settled on, stored once under
+    /// its digest beside the items (listings read only `.json`). Forks share
+    /// it by reference, so it is never removed.
+    fn settled_history_path(&self, digest: &str) -> Result<PathBuf> {
+        Self::record_path(&self.items_dir, digest, "history", "settled history digest")
+    }
+
+    pub(crate) fn save_settled_history(&self, messages: &[Message]) -> Result<Value> {
+        let bytes = serde_json::to_vec(messages)?;
+        let digest = hex_digest(Sha256::digest(&bytes));
+        let path = self.settled_history_path(&digest)?;
+        reject_symlinked_store_file(&path)?;
+        crate::utils::write_atomic(&path, &bytes)
+            .with_context(|| format!("Failed to write settled history {}", path.display()))?;
+        Ok(json!({ "sha256": digest, "messages": messages.len() }))
+    }
+
+    /// The newest settled history among `turns`, and how many of them it
+    /// covers. A reference whose file is missing, altered or unreadable is an
+    /// error: replaying the raw turns instead would silently undo compaction.
+    fn settled_history(
+        &self,
+        turns: &[TurnRecord],
+        items_by_turn: &HashMap<String, Vec<TurnItemRecord>>,
+    ) -> Result<Option<(usize, Vec<Message>)>> {
+        for (index, turn) in turns.iter().enumerate().rev() {
+            let Some((item, reference)) = items_by_turn
+                .get(&turn.id)
+                .into_iter()
+                .flatten()
+                .rev()
+                .filter(|item| item.kind == TurnItemKind::ContextCompaction)
+                .find_map(|item| {
+                    let reference = item.metadata.as_ref()?.get("settled_history")?;
+                    Some((item, reference))
+                })
+            else {
+                continue;
+            };
+            let digest = reference
+                .get("sha256")
+                .and_then(Value::as_str)
+                .filter(|digest| {
+                    digest.len() == 64
+                        && digest
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                })
+                .with_context(|| {
+                    format!(
+                        "Compaction item {} on turn {} names an invalid settled history",
+                        item.id, turn.id
+                    )
+                })?;
+            let expected = reference
+                .get("messages")
+                .and_then(Value::as_u64)
+                .and_then(|count| usize::try_from(count).ok())
+                .with_context(|| {
+                    format!(
+                        "Compaction item {} on turn {} names no settled history length",
+                        item.id, turn.id
+                    )
+                })?;
+            let path = self.settled_history_path(digest)?;
+            reject_symlinked_store_file(&path)?;
+            let bytes = fs::read(&path).with_context(|| {
+                format!(
+                    "Settled history for turn {} is unreadable: {}",
+                    turn.id,
+                    path.display()
+                )
+            })?;
+            anyhow::ensure!(
+                hex_digest(Sha256::digest(&bytes)) == digest,
+                "Settled history {} for turn {} does not match its digest",
+                path.display(),
+                turn.id
+            );
+            let messages: Vec<Message> = serde_json::from_slice(&bytes)
+                .with_context(|| format!("Failed to parse settled history {}", path.display()))?;
+            anyhow::ensure!(
+                messages.len() == expected,
+                "Settled history {} for turn {} holds {} messages, not {expected}",
+                path.display(),
+                turn.id,
+                messages.len()
+            );
+            return Ok(Some((index + 1, messages)));
+        }
+        Ok(None)
+    }
+
+    /// The model-visible history the records hold: the newest settled
+    /// history, then every later turn rebuilt from its items.
+    pub(crate) fn history_from_records(
+        &self,
+        turns: &[TurnRecord],
+        items_by_turn: &HashMap<String, Vec<TurnItemRecord>>,
+    ) -> Result<Vec<Message>> {
+        let (covered, mut messages) = self
+            .settled_history(turns, items_by_turn)?
+            .unwrap_or_default();
+        messages.extend(RuntimeThreadManager::reconstruct_messages_from_turns_with(
+            &turns[covered..],
+            items_by_turn,
+        )?);
+        Ok(messages)
     }
 
     /// Journal for one history seed into an existing thread (#6555), kept
@@ -6207,6 +6289,10 @@ impl PreparedThreadFork {
     pub(crate) fn dropped_turns(&self) -> &[DroppedTurnSnapshots] {
         &self.dropped_turns
     }
+
+    pub(crate) fn original_user_text(&self) -> Option<&str> {
+        self.original_user_text.as_deref()
+    }
 }
 
 /// One turn a fork drops, as a turn-scoped file undo sees it.
@@ -6878,8 +6964,7 @@ impl HeldRuntimeStore {
             }
             let turn_ids: Vec<String> = turns.iter().map(|turn| turn.id.clone()).collect();
             let items = store.list_items_for_turns_map(&turn_ids)?;
-            let messages =
-                RuntimeThreadManager::reconstruct_messages_from_turns_with(&turns, &items)?;
+            let messages = store.history_from_records(&turns, &items)?;
             if messages.is_empty() {
                 continue;
             }
@@ -9197,32 +9282,70 @@ impl RuntimeThreadManager {
         self.event_tx.subscribe()
     }
 
-    /// Emit a durable `thread_goal_updated` event for the given thread.
-    ///
-    /// Called by the Runtime API goal handlers so SSE subscribers receive
-    /// goal lifecycle changes just like engine-driven updates.
+    /// Emit a durable `thread_goal_updated` event while its revision is current.
     pub async fn emit_goal_updated_event(
         &self,
         thread_id: &str,
         goal: codewhale_protocol::ThreadGoal,
-    ) -> Result<RuntimeEventRecord> {
-        let payload = serde_json::json!({
-            "kind": "thread_goal_updated",
-            "goal": serde_json::to_value(&goal)
-                .unwrap_or(serde_json::Value::Null),
-        });
-        self.emit_event(thread_id, None, None, "thread_goal_updated", payload)
-            .await
+    ) -> Result<Option<RuntimeEventRecord>> {
+        let thread_id = thread_id.to_string();
+        self.with_goal_publication(move |manager| {
+            let Some(mut current) = manager.store.load_goal(&thread_id)? else {
+                return Ok(None);
+            };
+            current.tokens_used = current.tokens_used.max(goal.tokens_used);
+            current.time_used_seconds = current.time_used_seconds.max(goal.time_used_seconds);
+            current.continuation_count = current.continuation_count.max(goal.continuation_count);
+            if current != goal {
+                return Ok(None);
+            }
+            manager
+                .emit_goal_event_under_lock(&thread_id, Some(&goal))
+                .map(Some)
+        })
+        .await
     }
 
-    /// Emit a durable `thread_goal_cleared` event for the given thread.
-    pub async fn emit_goal_cleared_event(&self, thread_id: &str) -> Result<RuntimeEventRecord> {
-        let payload = serde_json::json!({
-            "kind": "thread_goal_cleared",
-            "thread_id": thread_id,
-        });
-        self.emit_event(thread_id, None, None, "thread_goal_cleared", payload)
-            .await
+    async fn with_goal_publication<T: Send + 'static>(
+        &self,
+        operation: impl FnOnce(&Self) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let emit_order = self.event_emit.clone().lock_owned().await;
+        let manager = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let _emit_order = emit_order;
+            let _goal_mutation = manager.store.goal_mutation.lock();
+            operation(&manager)
+        })
+        .await
+        .context("goal publication task panicked")?
+    }
+
+    fn emit_goal_event_under_lock(
+        &self,
+        thread_id: &str,
+        goal: Option<&codewhale_protocol::ThreadGoal>,
+    ) -> Result<RuntimeEventRecord> {
+        let (event, payload) = match goal {
+            Some(goal) => (
+                "thread_goal_updated",
+                json!({ "kind": "thread_goal_updated", "goal": goal }),
+            ),
+            None => (
+                "thread_goal_cleared",
+                json!({ "kind": "thread_goal_cleared", "thread_id": thread_id }),
+            ),
+        };
+        let record = self.store.append_event_transaction(
+            thread_id.to_string(),
+            None,
+            None,
+            event.to_string(),
+            payload,
+            EVENT_TRANSACTION_LOCK_TIMEOUT,
+        )?;
+        let _ = self.event_tx.send(record.clone());
+        Ok(record)
     }
 
     /// Return the persistent goal for a thread, or `Ok(None)` if none exists.
@@ -9288,21 +9411,27 @@ impl RuntimeThreadManager {
             .unwrap_or(false)
     }
 
-    /// Persist (create or replace) the goal for a thread.
+    /// Persist (create or replace) and publish the goal for a thread.
     pub async fn save_goal(&self, goal: codewhale_protocol::ThreadGoal) -> Result<()> {
-        let store = self.store.clone();
-        tokio::task::spawn_blocking(move || store.save_goal(&goal))
-            .await
-            .context("goal save task panicked")?
+        self.with_goal_publication(move |manager| {
+            manager.store.save_goal_under_lock(&goal)?;
+            manager.emit_goal_event_under_lock(&goal.thread_id, Some(&goal))?;
+            Ok(())
+        })
+        .await
     }
 
-    /// Remove the goal for a thread. Returns `true` if a goal existed.
+    /// Remove and publish the goal for a thread. Returns `true` if a goal existed.
     pub async fn remove_goal(&self, thread_id: &str) -> Result<bool> {
         let thread_id = thread_id.to_string();
-        let store = self.store.clone();
-        tokio::task::spawn_blocking(move || store.delete_goal(&thread_id))
-            .await
-            .context("goal delete task panicked")?
+        self.with_goal_publication(move |manager| {
+            let deleted = manager.store.delete_goal_under_lock(&thread_id)?;
+            if deleted {
+                manager.emit_goal_event_under_lock(&thread_id, None)?;
+            }
+            Ok(deleted)
+        })
+        .await
     }
 
     /// Transition the goal status through a revision-checked mutation. A
@@ -9320,9 +9449,8 @@ impl RuntimeThreadManager {
     ) -> Result<Option<codewhale_protocol::ThreadGoal>> {
         let thread_id = thread_id.to_string();
         let expected_goal_id = expected_goal_id.to_string();
-        let store = self.store.clone();
-        tokio::task::spawn_blocking(move || {
-            store.update_goal_if_revision(
+        self.with_goal_publication(move |manager| {
+            let updated = manager.store.update_goal_if_revision_under_lock(
                 &thread_id,
                 &expected_goal_id,
                 Some(expected_status),
@@ -9330,10 +9458,13 @@ impl RuntimeThreadManager {
                     goal.status = status;
                     goal.updated_at = chrono::Utc::now().timestamp();
                 },
-            )
+            )?;
+            if let Some(goal) = updated.as_ref() {
+                manager.emit_goal_event_under_lock(&thread_id, Some(goal))?;
+            }
+            Ok(updated)
         })
         .await
-        .context("goal status transition task panicked")?
     }
 
     /// Activate a persisted `Active` goal: make sure the engine carries the
@@ -11600,14 +11731,22 @@ impl RuntimeThreadManager {
             }
 
             let workspace_changed = changes.contains_key("workspace");
-            if workspace_changed
+            let rebuild_engine = workspace_changed || changes.contains_key("system_prompt");
+            if rebuild_engine
                 && active
                     .engines
                     .get(id)
                     .and_then(|state| state.active_turn.as_ref())
                     .is_some()
             {
-                bail!("workspace cannot be changed while the thread has an active turn");
+                bail!(
+                    "{} cannot be changed while the thread has an active turn",
+                    if workspace_changed {
+                        "workspace"
+                    } else {
+                        "system_prompt"
+                    }
+                );
             }
 
             // A posture/mode edit must reach the live engine even while a
@@ -11625,14 +11764,14 @@ impl RuntimeThreadManager {
             } else {
                 thread.updated_at = Utc::now();
                 self.store.save_thread(&thread)?;
-                if workspace_changed {
+                if rebuild_engine {
                     active.lru.retain(|thread_id| thread_id != id);
                     active.engines.remove(id).map(|state| state.engine)
                 } else {
                     None
                 }
             };
-            let posture_engine = if posture_changed && !workspace_changed {
+            let posture_engine = if posture_changed && !rebuild_engine {
                 active.engines.get(id).map(|state| state.engine.clone())
             } else {
                 None
@@ -12012,7 +12151,8 @@ impl RuntimeThreadManager {
     ) -> Result<()> {
         let thread = self.get_thread(thread_id).await?;
         let engine = self.ensure_engine_loaded(&thread).await?;
-        let system_prompt = thread.system_prompt.clone().map(SystemPrompt::Text);
+        let system_prompt =
+            synced_system_prompt(thread.system_prompt.as_deref(), &session.messages);
         let expected = {
             let checkpoint = crate::core::engine::compaction_checkpoint_for_restore(
                 &session.messages,
@@ -12027,8 +12167,8 @@ impl RuntimeThreadManager {
             .send(Op::SyncSession {
                 session_id: Some(thread.id.clone()),
                 messages: session.messages.clone(),
+                system_prompt_override: system_prompt.is_some(),
                 system_prompt,
-                system_prompt_override: thread.system_prompt.is_some(),
                 model: thread.model.clone(),
                 workspace: thread.workspace.clone(),
                 mode: RuntimePolicyProjection::from_persisted(
@@ -12686,7 +12826,8 @@ impl RuntimeThreadManager {
             .await?;
         let fork_prefix = if saved_transcript_is_compacted(&source_turns, &items_by_turn) {
             (
-                Self::reconstruct_messages_from_turns_with(&source_turns, &items_by_turn)?,
+                self.store
+                    .history_from_records(&source_turns, &items_by_turn)?,
                 source_turns.len(),
             )
         } else {
@@ -12880,6 +13021,37 @@ impl RuntimeThreadManager {
         .context(
             "native anchored fork outcome uncertain; inspect retained source and fork records",
         )?
+    }
+
+    pub(crate) async fn fork_dropping_user_turn_in_sessions_dir(
+        &self,
+        id: &str,
+        turn_id: &str,
+        sessions_dir: &Path,
+    ) -> Result<(
+        ThreadRecord,
+        Option<String>,
+        Vec<codewhale_protocol::runtime::RuntimeImageInput>,
+        Option<std::num::NonZeroU32>,
+    )> {
+        let (admission, _) = self.thread_restore_guard(id).await?;
+        let runtime = self.clone();
+        let id = id.to_string();
+        let turn_id = turn_id.to_string();
+        let dir = sessions_dir.to_path_buf();
+        tokio::spawn(async move {
+            let _admission = admission;
+            let turns = runtime.store.list_turns_for_thread(&id)?;
+            let items_by_turn = runtime.prepared_items_for_turns(&turns)?;
+            let (_, _, depth_from_tail) =
+                runtime.fork_cut_for_user_turn(&turns, &items_by_turn, &turn_id)?;
+            let prepared = runtime
+                .prepare_fork_at_user_message_in_sessions_dir(&id, depth_from_tail, &dir)
+                .await?;
+            runtime.publish_prepared_fork(prepared).await
+        })
+        .await
+        .context("native backtrack outcome uncertain; inspect retained source and fork records")?
     }
 
     /// How many turns a named anchor keeps, the first user turn it drops, and
@@ -13228,10 +13400,8 @@ impl RuntimeThreadManager {
             let (prefix, covered_turns) = match retained_messages {
                 Some(retained) => (messages[..retained].to_vec(), kept_turns),
                 None => (
-                    Self::reconstruct_messages_from_turns_with(
-                        &source_turns[..cutoff_turn_idx],
-                        &items_by_turn,
-                    )?,
+                    self.store
+                        .history_from_records(&source_turns[..cutoff_turn_idx], &items_by_turn)?,
                     cutoff_turn_idx,
                 ),
             };
@@ -13295,7 +13465,7 @@ impl RuntimeThreadManager {
         }
         if fork_prefix.is_none() {
             fork_prefix = Some((
-                Self::reconstruct_messages_from_turns_with(
+                self.store.history_from_records(
                     &source_turns[..cutoff_turn_idx],
                     &self.prepared_items_for_turns(&source_turns[..cutoff_turn_idx])?,
                 )?,
@@ -15121,7 +15291,11 @@ impl RuntimeThreadManager {
         let route_limits = known_route_limits(route.candidate.limits());
         let max_output_tokens = req.max_output_tokens.and_then(|requested| {
             std::num::NonZeroU32::new(crate::route_budget::effective_max_output_tokens_for_turn(
-                provider, &model, route_limits, Some(requested),
+                provider,
+                &model,
+                route_limits,
+                Some(requested),
+                reasoning_effort.as_deref(),
             ))
         });
         let settings = crate::settings::Settings::load().unwrap_or_default();
@@ -16219,10 +16393,8 @@ impl RuntimeThreadManager {
                 ));
             }
 
-            let sys_prompt = thread
-                .system_prompt
-                .as_ref()
-                .map(|s| SystemPrompt::Text(s.clone()));
+            let sys_prompt =
+                synced_system_prompt(thread.system_prompt.as_deref(), &session_messages);
             if !session_messages.is_empty() || sys_prompt.is_some() {
                 engine
                     .send(Op::SyncSession {
@@ -16230,9 +16402,9 @@ impl RuntimeThreadManager {
                         // re-sync of the same conversation, never a
                         // conversation boundary.
                         session_id: Some(thread.id.clone()),
+                        system_prompt_override: sys_prompt.is_some(),
                         messages: session_messages,
                         system_prompt: sys_prompt,
-                        system_prompt_override: thread.system_prompt.is_some(),
                         model: route_model.clone(),
                         workspace: thread.workspace.clone(),
                         mode: RuntimePolicyProjection::from_persisted(
@@ -16497,13 +16669,28 @@ impl RuntimeThreadManager {
         create: bool,
     ) -> Result<Option<SharedShellManager>> {
         let thread = self.get_thread(thread_id).await?;
+        let (prefer_bwrap, bwrap_extensions, denied_read_paths) = {
+            let cfg = self.read_config();
+            (
+                cfg.prefers_bwrap(),
+                crate::sandbox::BwrapMountExtensions {
+                    read_only_roots: cfg.bwrap_ro_roots.clone(),
+                    device_roots: cfg.bwrap_dev_roots.clone(),
+                },
+                cfg.effective_sandbox_denied_read_paths(),
+            )
+        };
         let mut active = self.active.lock().await;
         let manager = match active.shell_managers.entry(thread_id.to_string()) {
             std::collections::hash_map::Entry::Occupied(entry) => Some(entry.get().clone()),
             std::collections::hash_map::Entry::Vacant(entry) => create.then(|| {
-                entry
-                    .insert(new_shared_shell_manager(thread.workspace.clone()))
-                    .clone()
+                let manager = new_shared_shell_manager(thread.workspace.clone());
+                if let Ok(mut guard) = manager.lock() {
+                    guard.set_prefer_bwrap(prefer_bwrap);
+                    guard.set_bwrap_extensions(bwrap_extensions);
+                    guard.set_denied_read_subpaths(denied_read_paths);
+                }
+                entry.insert(manager).clone()
             }),
         };
         drop(active);
@@ -16600,7 +16787,7 @@ impl RuntimeThreadManager {
 
     fn restore_thread_messages(&self, thread: &ThreadRecord) -> Result<Vec<Message>> {
         let turns = self.store.list_turns_for_thread(&thread.id)?;
-        let (mut messages, covered) = match self.saved_session_prefix(thread, &turns) {
+        let (mut messages, mut covered) = match self.saved_session_prefix(thread, &turns) {
             Ok(prefix) => prefix.unwrap_or_default(),
             Err(error) => {
                 let Some(stale) = error.downcast_ref::<StaleSessionBinding>() else {
@@ -16613,7 +16800,18 @@ impl RuntimeThreadManager {
                 (Vec::new(), 0)
             }
         };
-        messages.extend(self.reconstruct_messages_from_turns(&turns[covered..])?);
+        let items_by_turn = self.prepared_items_for_turns(&turns[covered..])?;
+        if let Some((settled, history)) = self
+            .store
+            .settled_history(&turns[covered..], &items_by_turn)?
+        {
+            messages = history;
+            covered += settled;
+        }
+        messages.extend(Self::reconstruct_messages_from_turns_with(
+            &turns[covered..],
+            &items_by_turn,
+        )?);
         Ok(messages)
     }
 
@@ -16846,6 +17044,7 @@ impl RuntimeThreadManager {
         Ok((messages, covered))
     }
 
+    #[cfg(test)]
     fn reconstruct_messages_from_turns(&self, turns: &[TurnRecord]) -> Result<Vec<Message>> {
         // One batch read for the whole set. `list_items_for_turn` scans the
         // store's entire items directory to answer for a single turn, so a
@@ -16853,6 +17052,14 @@ impl RuntimeThreadManager {
         // saved-session link — paid one scan per turn.
         let items_by_turn = self.prepared_items_for_turns(turns)?;
         Self::reconstruct_messages_from_turns_with(turns, &items_by_turn)
+    }
+
+    pub(crate) fn history_from_records(
+        &self,
+        turns: &[TurnRecord],
+        items_by_turn: &HashMap<String, Vec<TurnItemRecord>>,
+    ) -> Result<Vec<Message>> {
+        self.store.history_from_records(turns, items_by_turn)
     }
 
     pub(crate) fn reconstruct_messages_from_turns_with(
@@ -16964,6 +17171,7 @@ impl RuntimeThreadManager {
                                 thinking,
                                 signature: None,
                                 state: None,
+                                redacted_data: None,
                             });
                         }
                     }
@@ -17187,6 +17395,8 @@ impl RuntimeThreadManager {
         let mut current_reasoning_item: Option<TurnItemRecord> = None;
         let mut tool_items: HashMap<String, String> = HashMap::new();
         let mut compaction_items: HashMap<String, String> = HashMap::new();
+        let mut completed_compaction_item: Option<String> = None;
+        let mut terminal_received = false;
         let mut turn_usage: Option<Usage> = None;
         let mut turn_effective_route_usage: Option<Usage> = None;
         let mut turn_routed_usage_dropped_records = 0_u64;
@@ -18002,36 +18212,11 @@ impl RuntimeThreadManager {
                     message,
                     messages_before,
                     messages_after,
-                    summary_prompt,
+                    summary_prompt: _,
                     post_input_tokens: _,
                 } => {
-                    // Persist the summary in the legacy thread-record carrier
-                    // so reloads survive LRU eviction/restart. SyncSession
-                    // migrates it into one ordinary history checkpoint and
-                    // strips the carrier from the standing system prompt.
-                    if let Some(summary) =
-                        summary_prompt.as_deref().filter(|s| !s.trim().is_empty())
-                    {
-                        let persist_summary = (|| -> Result<()> {
-                            let _thread_mutation = self.store.thread_mutation.lock();
-                            let mut thread = self.store.load_thread(&thread_id)?;
-                            let merged =
-                                merge_summary_into_prompt(thread.system_prompt.as_deref(), summary);
-                            if thread.system_prompt.as_deref() != Some(merged.as_str()) {
-                                thread.system_prompt = Some(merged);
-                                thread.updated_at = Utc::now();
-                                self.store.save_thread(&thread)?;
-                            }
-                            Ok(())
-                        })();
-                        if let Err(e) = persist_summary {
-                            tracing::warn!(
-                                thread_id = %thread_id,
-                                "Failed to persist compaction summary to thread record: {e}"
-                            );
-                        }
-                    }
                     if let Some(item_id) = compaction_items.remove(&id) {
+                        completed_compaction_item = Some(item_id.clone());
                         let mut item = self.store.load_item(&item_id)?;
                         item.status = TurnItemLifecycleStatus::Completed;
                         item.summary = summarize_text(&message, SUMMARY_LIMIT);
@@ -18877,6 +19062,7 @@ impl RuntimeThreadManager {
                     duration_ms,
                     first_token_ms,
                     request_ms,
+                    finish_reason: _,
                 } => {
                     self.emit_event(
                         &thread_id,
@@ -18995,6 +19181,7 @@ impl RuntimeThreadManager {
                     if let Some(err) = error {
                         turn_error = Some(err);
                     }
+                    terminal_received = true;
                     break;
                 }
                 EngineEvent::GoalUpdated { snapshot } => {
@@ -19151,6 +19338,31 @@ impl RuntimeThreadManager {
 
         self.settle_dynamic_tools_for_terminal_turn(&thread_id, &turn_id)
             .await?;
+
+        if terminal_received
+            && !self.cancel_token.is_cancelled()
+            && let Some(item_id) = completed_compaction_item.as_deref()
+        {
+            let mut messages = engine.get_session_snapshot().await?.messages;
+            for message in &mut messages {
+                crate::core::engine::redact_tool_result_blocks(message, |text| {
+                    crate::client::redact_model_bound_text(text, &receipt_secrets)
+                });
+            }
+            let store = self.store.clone();
+            let reference =
+                tokio::task::spawn_blocking(move || store.save_settled_history(&messages))
+                    .await
+                    .context("settled history write task failed")??;
+            let mut item = self.store.load_item(item_id)?;
+            let mut metadata = item.metadata.take().unwrap_or_else(|| json!({}));
+            let Some(fields) = metadata.as_object_mut() else {
+                bail!("Compaction item {item_id} has non-object metadata");
+            };
+            fields.insert("settled_history".to_string(), reference);
+            item.metadata = Some(metadata);
+            self.store.save_item(&item)?;
+        }
 
         // Publish the terminal projection as one snapshot boundary. The
         // duplicate scan is offloaded while this guard is held, so public

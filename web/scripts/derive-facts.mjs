@@ -90,6 +90,7 @@ export interface RepoFacts {
   defaultModel: string | null;
   nodeEngines: string | null;
   toolCount: number | null;
+  contributorCount: number;
   license: string | null;
   latestPublishedRelease: PublishedReleaseFact | null;
 }
@@ -105,5 +106,5 @@ console.log(
   `[derive-facts] version=${out.version} crates=${out.crates.length} ` +
     `providers=${out.providers.length} models=${out.models.length} sandboxes=${out.sandboxBackends.length} ` +
     `default-model=${out.defaultModel} node=${out.nodeEngines} ` +
-    `tools=${out.toolCount} license=${out.license}`,
+    `tools=${out.toolCount} contributors=${out.contributorCount} license=${out.license}`,
 );

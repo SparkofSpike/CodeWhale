@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale: agente de programación de código abierto",
   metaDescription: "Codewhale es un agente de programación de código abierto para tu terminal. Lee, edita y prueba proyectos con tus modelos alojados o locales.",
-  heroTitle: "Crea aplicaciones y automatiza tu trabajo.",
-  heroIntro: "{brand} es un agente de programación de código abierto que lee archivos, escribe código y ejecuta comandos en tu terminal. Conecta tu API de modelos o un modelo local y elige qué acciones necesitan aprobación.",
+  heroTitle: "El agente de programación de código abierto para cualquier modelo",
+  heroIntro: "{brand} lee tu proyecto, edita archivos y ejecuta tus pruebas desde la terminal. Conecta un modelo alojado o local y elige qué acciones necesitan tu aprobación.",
   getCodewhale: "Instalar Codewhale",
   heroInstallAria: "Comando de instalación",
   exploreProduct: "Explora Codewhale",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "Fuente",
   sourceCandidate: "Sin publicar",
   publishedRelease: "publicado",
-  gainHeading: "Qué puedes hacer",
+  gainHeading: "Crea y automatiza desde tu terminal",
   gainLede:
     "Describe lo que quieres crear o automatizar. Codewhale puede editar archivos, ejecutar comandos y comprobar el resultado, con un acceso que tú controlas.",
   gain: [
@@ -42,7 +42,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "Tus cuentas de API",
-      "Conecta proveedores como OpenAI, Anthropic, Google o DeepSeek con tus propias claves."
+      "Conecta proveedores como DeepSeek, OpenAI, Anthropic o Google con tus propias claves. El modelo predeterminado, deepseek-flash, ahora ejecuta DeepSeek-V4.1-Flash."
     ],
     [
       "Tu pasarela",
@@ -51,6 +51,10 @@ export const home: HomeDict = {
     [
       "Tu inferencia",
       "Ejecuta modelos locales o autoalojados con Ollama, vLLM o SGLang."
+    ],
+    [
+      "Tu plan de ChatGPT",
+      "Inicia sesión con codewhale auth chatgpt para usar un plan de ChatGPT en lugar de una clave de API. Experimental."
     ]
   ],
   modelsLink: "Ver modelos y proveedores",
@@ -77,23 +81,17 @@ export const home: HomeDict = {
     ],
     [
       "Aplicación web alojada",
-      "Vista previa de desarrollo",
-      "Se está reconstruyendo para igualar la aplicación de escritorio. Hoy puedes iniciar sesión y luego escribir /rc en una sesión de terminal en ejecución para continuarla en la web; la ejecución de tareas alojadas aún se está validando."
+      "En desarrollo",
+      "Se está reconstruyendo para igualar la aplicación de escritorio y aún no está abierta. Para usarla en el navegador hoy, ejecuta codewhale web en tu equipo."
     ],
     [
       "Escritorio",
       "Build de desarrollo",
-      "La aplicación nativa que se está convirtiendo en el cliente principal de Codewhale: carpetas, conversaciones y conexiones de modelos en una sola ventana. Aún no hay descarga pública."
-    ],
-    [
-      "Computadoras en la nube",
-      "En desarrollo",
-      "Computadoras alojadas que ejecutan tus tareas."
+      "Una aplicación nativa con el mismo motor. Revisa y confirma cambios, sigue el trabajo entre proyectos y edita un mensaje para volver a enviarlo como una nueva rama. Aún no hay descarga pública."
     ]
   ],
   availabilityNote:
-    "La terminal, el navegador local y la GUI no necesitan una cuenta de Codewhale. La web alojada y la aplicación de escritorio usan una cuenta. Si usas tu propia clave de proveedor, ese proveedor te factura el uso.",
-  accountLink: "Crear una cuenta",
+    "La terminal, el navegador local y la GUI no necesitan una cuenta de Codewhale. Si usas tu propia clave de proveedor, ese proveedor te factura el uso.",
   surfacesHeading: "Trabaja con archivos y herramientas",
   surfaces: [
     [
@@ -126,7 +124,7 @@ export const home: HomeDict = {
   installGuideLink: "Leer la guía de instalación",
   communityHeading: "Contribuye a Codewhale",
   communityBody:
-    "Informa de un error, mejora la documentación o contribuye con código en GitHub. También puedes crear plugins y compartir flujos de trabajo con otros usuarios.",
+    "{count} personas han contribuido a crear Codewhale. Informa de un error, mejora la documentación o contribuye con código en GitHub.",
   communityLinksAria: "Enlaces de la comunidad",
   contribute: "Contribuye en GitHub",
 };

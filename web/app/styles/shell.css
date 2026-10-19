@@ -85,7 +85,7 @@
   .wordmark { background: CanvasText; }
 }
 
-/* The one primary action in the header, and the one identity door. */
+/* The one primary action in the header. */
 .paper-install-cta {
   align-items: center;
   justify-content: center;
@@ -104,21 +104,8 @@
   box-shadow: var(--glow-focus);
 }
 
-.paper-auth-signin {
-  align-items: center;
-  justify-content: center;
-  min-height: 2.25rem;
-  padding-inline: var(--space-3);
-  color: var(--text);
-  font-size: var(--text-ui);
-  font-weight: 500;
-  border-radius: var(--radius-control);
-  transition: background-color var(--dur-state) var(--ease-out);
-}
-.paper-auth-signin:hover { background: var(--hover); }
-
 /* Actions sit 2px apart, as related rail controls in the GPUI client; the
-   text door and primary action take a group gap before them. */
+   primary action takes a group gap before it. */
 .site-nav-actions {
   display: flex;
   flex-shrink: 0;
@@ -126,7 +113,6 @@
   gap: 2px;
 }
 .site-nav-actions > * { flex-shrink: 0; }
-.site-nav-actions > .paper-auth-signin { margin-inline-start: 0.5rem; }
 .site-nav-actions > .paper-install-cta { margin-inline-start: 0.25rem; }
 
 /* Quiet icon controls: a 40px target around a 20px glyph. Muted at rest,

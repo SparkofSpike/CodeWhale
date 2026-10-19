@@ -96,8 +96,8 @@ export function middleware(req: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(callback, 307));
   }
 
-  // `/login` and `/register` are aliases for the public sign-in / create-account
-  // pages. Fold them before locale detection so `/login` becomes `/en/signin`
+  // `/login` and `/register` are aliases for the public sign-in page.
+  // Fold them before locale detection so `/login` becomes `/en/signin`
   // instead of `/en/login` (which has no page).
   const canonicalAuth = canonicalPublicAuthPath(pathname);
   if (canonicalAuth && canonicalAuth !== pathname) {

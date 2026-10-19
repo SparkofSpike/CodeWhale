@@ -917,6 +917,29 @@ enum EngineHostSetup {
     Rlm(rlm_host::RlmHostSetup),
 }
 
+/// Rewrite the text of every tool result in `message`, including text
+/// content blocks, with `redact`.
+pub(crate) fn redact_tool_result_blocks(message: &mut Message, redact: impl Fn(&str) -> String) {
+    for block in &mut message.content {
+        let ContentBlock::ToolResult {
+            content,
+            content_blocks,
+            ..
+        } = block
+        else {
+            continue;
+        };
+        *content = redact(content);
+        for value in content_blocks.iter_mut().flatten() {
+            if value.get("type").and_then(serde_json::Value::as_str) == Some("text")
+                && let Some(serde_json::Value::String(text)) = value.get_mut("text")
+            {
+                *text = redact(text);
+            }
+        }
+    }
+}
+
 pub(crate) fn compaction_checkpoint_for_restore(
     messages: &[codewhale_models::Message],
     system_prompt: Option<codewhale_models::SystemPrompt>,
@@ -2363,7 +2386,10 @@ impl Engine {
             });
         let sandbox_enforcement = if sandbox_backend.is_some() {
             crate::sandbox::policy::SandboxEnforcement::ExternalBackend
-        } else if crate::sandbox::get_platform_sandbox_with_bwrap_preference(config.prefer_bwrap)
+        } else if shell_manager
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .configured_sandbox_type()
             .is_some()
         {
             crate::sandbox::policy::SandboxEnforcement::LocalOs
@@ -2719,6 +2745,11 @@ impl Engine {
         let pending_post_turn = self.reserve_post_turn_snapshot();
         let status = terminal_turn_status_at_settlement(status, self.cancel_token.is_cancelled());
         terminal_permit.send(Event::TurnComplete {
+            // The composer shell turn started above; it never carries a host
+            // submission envelope or compaction id.
+            turn_id: Some(turn_id.clone()),
+            submission_id: None,
+            compaction_id: None,
             usage: Usage::default(),
             parent_route_usage: Usage::default(),
             routed_usage_dropped_records: 0,
@@ -4311,15 +4342,18 @@ impl Engine {
                         let route = match self.current_runtime_route() {
                             Ok(route) => route,
                             Err(err) => {
-                                self.reject_edit_last_turn(ErrorEnvelope::new(
-                                    ErrorCategory::Authentication,
-                                    ErrorSeverity::Critical,
-                                    false,
-                                    "edit_last_turn_invalid_route",
-                                    format!(
-                                        "Cannot edit the last turn because its provider route is no longer valid: {err}"
+                                self.reject_edit_last_turn(
+                                    submission_id.clone(),
+                                    ErrorEnvelope::new(
+                                        ErrorCategory::Authentication,
+                                        ErrorSeverity::Critical,
+                                        false,
+                                        "edit_last_turn_invalid_route",
+                                        format!(
+                                            "Cannot edit the last turn because its provider route is no longer valid: {err}"
+                                        ),
                                     ),
-                                ))
+                                )
                                 .await;
                                 continue;
                             }
@@ -4336,24 +4370,30 @@ impl Engine {
                         ) {
                             crate::runtime_handoff::EditLastTurnTarget::Editable(idx) => idx,
                             crate::runtime_handoff::EditLastTurnTarget::Unsupported => {
-                                self.reject_edit_last_turn(ErrorEnvelope::new(
-                                    ErrorCategory::InvalidInput,
-                                    ErrorSeverity::Error,
-                                    false,
-                                    "edit_last_turn_unsupported_user_content",
-                                    "Cannot edit the last turn because the latest user message has no editable text content.",
-                                ))
+                                self.reject_edit_last_turn(
+                                    submission_id.clone(),
+                                    ErrorEnvelope::new(
+                                        ErrorCategory::InvalidInput,
+                                        ErrorSeverity::Error,
+                                        false,
+                                        "edit_last_turn_unsupported_user_content",
+                                        "Cannot edit the last turn because the latest user message has no editable text content.",
+                                    ),
+                                )
                                 .await;
                                 continue;
                             }
                             crate::runtime_handoff::EditLastTurnTarget::Missing => {
-                                self.reject_edit_last_turn(ErrorEnvelope::new(
-                                    ErrorCategory::State,
-                                    ErrorSeverity::Error,
-                                    false,
-                                    "edit_last_turn_no_user_prompt",
-                                    "Cannot edit the last turn because the session history has no user message to replace.",
-                                ))
+                                self.reject_edit_last_turn(
+                                    submission_id.clone(),
+                                    ErrorEnvelope::new(
+                                        ErrorCategory::State,
+                                        ErrorSeverity::Error,
+                                        false,
+                                        "edit_last_turn_no_user_prompt",
+                                        "Cannot edit the last turn because the session history has no user message to replace.",
+                                    ),
+                                )
                                 .await;
                                 continue;
                             }
@@ -4644,24 +4684,7 @@ impl Engine {
     /// written to disk live. Honors the confirmed `[redaction] model_bound`
     /// opt-out the same way the request boundary does.
     fn redact_tool_results_for_transcript(&self, message: &mut Message) {
-        for block in &mut message.content {
-            let ContentBlock::ToolResult {
-                content,
-                content_blocks,
-                ..
-            } = block
-            else {
-                continue;
-            };
-            *content = self.redact_tool_output_for_transcript(content);
-            for value in content_blocks.iter_mut().flatten() {
-                if value.get("type").and_then(serde_json::Value::as_str) == Some("text")
-                    && let Some(serde_json::Value::String(text)) = value.get_mut("text")
-                {
-                    *text = self.redact_tool_output_for_transcript(text);
-                }
-            }
-        }
+        redact_tool_result_blocks(message, |text| self.redact_tool_output_for_transcript(text));
     }
 
     fn redact_tool_output_for_transcript(&self, text: &str) -> String {
@@ -5244,23 +5267,46 @@ impl Engine {
         }
     }
 
-    /// Reject an edit operation before model dispatch while still completing
-    /// the submitted host lifecycle. `Event::Error` is advisory to embedded
-    /// hosts; `TurnComplete(Failed)` is the authoritative terminal signal that
-    /// releases their busy state and closes the admitted operation.
-    async fn reject_edit_last_turn(&mut self, envelope: ErrorEnvelope) {
+    /// Reject a submitted operation before model dispatch while still
+    /// completing the submitted host lifecycle. `Event::Error` is advisory to
+    /// embedded hosts; `TurnComplete(Failed)` is the authoritative terminal
+    /// signal that releases their busy state and closes the admitted
+    /// operation. The terminal carries the rejected operation's
+    /// `submission_id` and no `turn_id`: nothing started, so no turn may be
+    /// claimed — and no earlier turn may be inherited either.
+    async fn reject_unstarted_submission(
+        &mut self,
+        submission_id: Option<String>,
+        envelope: ErrorEnvelope,
+    ) {
         let message = envelope.message.clone();
         let _ = self.send_event(Event::error(envelope)).await;
         let _ = self
             .send_event(Event::TurnComplete {
+                turn_id: None,
+                submission_id,
+                compaction_id: None,
                 usage: Usage::default(),
                 parent_route_usage: Usage::default(),
                 routed_usage_dropped_records: 0,
                 status: TurnOutcomeStatus::Failed,
-                error: Some(message.clone()),
+                error: Some(message),
                 tool_catalog: None,
                 base_url: None,
             })
+            .await;
+    }
+
+    /// Editing an existing conversation preserves its established goal-failure
+    /// reconciliation. Other callers only emit the rejected operation's
+    /// receipt.
+    async fn reject_edit_last_turn(
+        &mut self,
+        submission_id: Option<String>,
+        envelope: ErrorEnvelope,
+    ) {
+        let message = envelope.message.clone();
+        self.reject_unstarted_submission(submission_id, envelope)
             .await;
         let outcome = SendMessageOutcome::NotStarted {
             error: Some(message),
@@ -5891,6 +5937,10 @@ impl Engine {
                 // (plan-mode role override above is intentionally before this).
                 rt.worker_profile.denied_tools =
                     self.config.disallowed_tools.clone().unwrap_or_default();
+                if let Some(allowed) = allowed_tools.as_ref() {
+                    rt.worker_profile.tools =
+                        crate::worker_profile::ToolScope::Explicit(allowed.clone());
+                }
                 if let Some(context) = fork_context_for_runtime.clone() {
                     rt = rt.with_fork_context(context);
                 }
@@ -6320,16 +6370,30 @@ impl Engine {
                 initial_usage_owner.as_deref(),
                 &initial_routed_usage,
             );
-            let _ = self
-                .send_event(Event::error(ErrorEnvelope::fatal_auth(format!(
-                    "Cannot start the turn because its provider route is not ready: {err}"
-                ))))
-                .await;
             self.sync_unstarted_goal_for_terminal_projection(
                 goal_objective.as_deref(),
                 goal_token_budget,
                 goal_status,
             );
+            // The turn never started, so the terminal names only the rejected
+            // host submission — no `turn_id`, and no inherited turn either.
+            let message =
+                format!("Cannot start the turn because its provider route is not ready: {err}");
+            let _ = self
+                .send_event(Event::error(ErrorEnvelope::fatal_auth(message.clone())))
+                .await;
+            terminal_permit.send(Event::TurnComplete {
+                turn_id: None,
+                submission_id,
+                compaction_id: None,
+                usage: Usage::default(),
+                parent_route_usage: Usage::default(),
+                routed_usage_dropped_records: 0,
+                status: TurnOutcomeStatus::Failed,
+                error: Some(message),
+                tool_catalog: None,
+                base_url: None,
+            });
             let outcome = SendMessageOutcome::NotStarted { error: Some(err) };
             self.reconcile_non_completed_goal_turn(&outcome).await;
             return outcome;
@@ -6338,22 +6402,7 @@ impl Engine {
         // Deliver completions that arrived after the previous turn before the
         // next user request is sent. This keeps background shell work
         // model-visible without requiring an explicit wait/poll tool call.
-        let shell_completions = if self.is_acp_turn() {
-            Vec::new()
-        } else {
-            self.drain_shell_completion_events()
-        };
-        if !shell_completions.is_empty() {
-            self.add_session_message(crate::runtime_handoff::shell_completion_runtime_message(
-                &shell_completions,
-            ))
-            .await;
-            if let Some(status) =
-                crate::core::engine::turn_loop::shell_completion_status_text(&shell_completions, "")
-            {
-                let _ = self.send_event(Event::status(status)).await;
-            }
-        }
+        self.deliver_shell_completions("").await;
 
         // A person writing to a goal that only the runtime stopped (a failed
         // or timed-out continuation) is continuing the work: resume it as a
@@ -6520,8 +6569,11 @@ impl Engine {
             turn_id: turn.id.clone(),
             created_at: turn_started_at,
             route: Some(turn_route),
-            // Bind submit-window actions to the turn admitted by this permit.
-            submission_id,
+            // Echo the host's correlation token (`None` when this turn was
+            // self-started without one) so the host can bind its submit-window
+            // actions to the turn that actually started. The terminal
+            // `TurnComplete` echoes the same token again.
+            submission_id: submission_id.clone(),
         });
 
         // Auto's classifier completed before this parent turn was admitted.
@@ -6622,6 +6674,11 @@ impl Engine {
             );
             let error = (status == TurnOutcomeStatus::Failed).then_some(message.clone());
             terminal_permit.send(Event::TurnComplete {
+                // `TurnStarted` already named this turn; the failed terminal
+                // echoes it and the submission that started it.
+                turn_id: Some(turn.id.clone()),
+                submission_id: submission_id.clone(),
+                compaction_id: None,
                 usage: turn.usage.clone(),
                 parent_route_usage: turn.parent_route_usage.clone(),
                 routed_usage_dropped_records: turn.routed_usage_dropped_records,
@@ -7006,6 +7063,11 @@ impl Engine {
         // name was read as user-visible delivery on Interrupted turns that
         // rendered nothing.)
         let completion_sender = terminal_permit.send(Event::TurnComplete {
+            // The authoritative terminal names the turn that actually ran and
+            // the host submission that started it (`None` for self-starts).
+            turn_id: Some(turn.id.clone()),
+            submission_id,
+            compaction_id: None,
             usage: turn.usage,
             parent_route_usage: turn.parent_route_usage,
             routed_usage_dropped_records: turn.routed_usage_dropped_records,
@@ -7148,6 +7210,11 @@ impl Engine {
                 .await;
             let _ = self
                 .send_event(Event::TurnComplete {
+                    // Purge carries none of the turn, submission or compaction
+                    // identities: it never starts a model turn.
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id: None,
                     usage: zero_usage,
                     parent_route_usage: Usage::default(),
                     routed_usage_dropped_records: 0,
@@ -7207,6 +7274,11 @@ impl Engine {
 
         let _ = self
             .send_event(Event::TurnComplete {
+                // Purge carries none of the turn, submission or compaction
+                // identities: it never starts a model turn.
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: zero_usage,
                 parent_route_usage: Usage::default(),
                 routed_usage_dropped_records: 0,
@@ -7357,6 +7429,9 @@ impl Engine {
             rt.worker_profile = WorkerRuntimeProfile::for_role(FleetRole::Planner);
         }
         rt.worker_profile.denied_tools = self.config.disallowed_tools.clone().unwrap_or_default();
+        if let Some(allowed) = self.config.allowed_tools.as_ref() {
+            rt.worker_profile.tools = crate::worker_profile::ToolScope::Explicit(allowed.clone());
+        }
         Some(rt)
     }
 

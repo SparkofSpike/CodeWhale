@@ -41,21 +41,39 @@ static BUNDLED_SNAPSHOT: std::sync::OnceLock<SharedSnapshot> = std::sync::OnceLo
 #[derive(Debug, Default)]
 struct SharedSnapshot {
     offerings: Vec<Arc<CatalogOffering>>,
+    /// `catalog_partition_key(provider) -> rows`, built once with the
+    /// snapshot.
+    ///
+    /// Callers ask for one provider's rows per model row; scanning every
+    /// offering in the process for each ask computed a `trim().to_string()`
+    /// partition key per offering.
+    by_provider: BTreeMap<String, Vec<Arc<CatalogOffering>>>,
 }
 
 impl SharedSnapshot {
     fn from_owned(snapshot: CatalogSnapshot) -> Self {
+        Self::new(snapshot.offerings.into_iter().map(Arc::new).collect())
+    }
+
+    fn new(offerings: Vec<Arc<CatalogOffering>>) -> Self {
+        let mut by_provider: BTreeMap<String, Vec<Arc<CatalogOffering>>> = BTreeMap::new();
+        for row in &offerings {
+            by_provider
+                .entry(catalog_partition_key(&row.provider))
+                .or_default()
+                .push(Arc::clone(row));
+        }
         Self {
-            offerings: snapshot.offerings.into_iter().map(Arc::new).collect(),
+            offerings,
+            by_provider,
         }
     }
 
     fn offerings_for_provider(&self, provider: &str) -> Vec<&CatalogOffering> {
-        self.offerings
-            .iter()
-            .map(Arc::as_ref)
-            .filter(|row| row.provider == provider)
-            .collect()
+        self.by_provider
+            .get(provider)
+            .map(|rows| rows.iter().map(Arc::as_ref).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -226,7 +244,7 @@ fn apply_provider_model_cutlines_shared(rows: Vec<Arc<CatalogOffering>>) -> Shar
             Some(offering)
         })
         .collect();
-    SharedSnapshot { offerings }
+    SharedSnapshot::new(offerings)
 }
 
 /// `ProviderKind::parse` scans every provider and alias list per call; the
@@ -647,7 +665,53 @@ fn apply_cloud_facts_for_provider(
     }
 }
 
+static SOURCE_ROWS_CACHE: RwLock<BTreeMap<String, SourceRowsCacheEntry>> =
+    RwLock::new(BTreeMap::new());
+
+/// Most provider partitions [`SOURCE_ROWS_CACHE`] holds. A partition is one
+/// provider's bundled + Models.dev rows, so this bounds resident memory to a
+/// few providers at a time without tracking recency.
+const MAX_SOURCE_ROWS_CACHE_ENTRIES: usize = 32;
+
+type SourceRowsCacheEntry = (
+    (u64, u64, bool),
+    Arc<BTreeMap<(String, String), CatalogOffering>>,
+);
+
+/// One provider's bundled + Models.dev rows, memoized per live generation.
+///
+/// `live_generation` must be sampled **before** the caller reads
+/// `LIVE_SNAPSHOT`: tagging a snapshot read with a newer generation would let a
+/// concurrent refresh leave stale rows cached under the current generation.
 fn source_rows_for_provider(
+    provider: &str,
+    live_generation: u64,
+    models_dev: Option<&SharedSnapshot>,
+    cloud: Option<&codewhale_config::cloud_facts::overlay::OverlaySnapshot>,
+) -> Arc<BTreeMap<(String, String), CatalogOffering>> {
+    let generation = (
+        live_generation,
+        cloud.map_or(u64::MAX, |cloud| cloud.generation),
+        models_dev.is_some(),
+    );
+    if let Ok(cache) = SOURCE_ROWS_CACHE.read()
+        && let Some((cached_generation, cached)) = cache.get(provider)
+        && *cached_generation == generation
+    {
+        return Arc::clone(cached);
+    }
+    let rows = Arc::new(build_source_rows_for_provider(provider, models_dev, cloud));
+    if let Ok(mut cache) = SOURCE_ROWS_CACHE.write() {
+        cache.retain(|_, (cached_generation, _)| *cached_generation == generation);
+        if cache.len() >= MAX_SOURCE_ROWS_CACHE_ENTRIES && !cache.contains_key(provider) {
+            cache.pop_first();
+        }
+        cache.insert(provider.to_string(), (generation, Arc::clone(&rows)));
+    }
+    rows
+}
+
+fn build_source_rows_for_provider(
     provider: &str,
     models_dev: Option<&SharedSnapshot>,
     cloud: Option<&codewhale_config::cloud_facts::overlay::OverlaySnapshot>,
@@ -907,16 +971,21 @@ pub(crate) fn runtime_catalog_resolver_for_identity(
                 Vec::new()
             };
             let lower = if !matches!(provider, ProviderKind::Custom | ProviderKind::OpenaiCodex) {
-                source_rows_for_provider(catalog_id.as_ref(), live.models_dev.as_ref(), route_cloud)
+                source_rows_for_provider(
+                    catalog_id.as_ref(),
+                    generation,
+                    live.models_dev.as_ref(),
+                    route_cloud,
+                )
             } else {
-                BTreeMap::new()
+                Arc::new(BTreeMap::new())
             };
             (exact_matches, rows, lower)
         } else {
             let lower = if !matches!(provider, ProviderKind::Custom | ProviderKind::OpenaiCodex) {
-                source_rows_for_provider(catalog_id.as_ref(), None, route_cloud)
+                source_rows_for_provider(catalog_id.as_ref(), generation, None, route_cloud)
             } else {
-                BTreeMap::new()
+                Arc::new(BTreeMap::new())
             };
             (false, Vec::new(), lower)
         };
@@ -938,7 +1007,11 @@ pub(crate) fn runtime_catalog_resolver_for_identity(
         );
     if !endpoint_catalog_authoritative {
         source_rows.retain(|(row_provider, _), _| row_provider != catalog_id.as_ref());
-        source_rows.extend(lower_rows.clone());
+        source_rows.extend(
+            lower_rows
+                .iter()
+                .map(|(key, row)| (key.clone(), row.clone())),
+        );
     }
     let mut route_offerings: BTreeMap<(String, String), ProviderModelOffering> = source_rows
         .values()
@@ -1072,13 +1145,7 @@ fn offerings_for_provider_identity<'a>(
     snapshot: &'a SharedSnapshot,
     provider_id: &str,
 ) -> Vec<&'a CatalogOffering> {
-    let provider_key = catalog_partition_key(provider_id);
-    snapshot
-        .offerings
-        .iter()
-        .map(Arc::as_ref)
-        .filter(|row| catalog_partition_key(&row.provider) == provider_key)
-        .collect()
+    snapshot.offerings_for_provider(&catalog_partition_key(provider_id))
 }
 
 fn exact_custom_offerings(provider_identity: &str) -> Vec<CatalogOffering> {
@@ -1150,7 +1217,7 @@ pub fn live_per_provider_models(provider: ProviderKind) -> Vec<String> {
 /// Precedence: live Models.dev rows (when published) override bundled offline
 /// rows on `(provider, wire_model_id)`; if the merged catalog still has no rows
 /// for the provider, fall back to
-/// [`crate::config::model_completion_names_for_provider`] so CodeWhale-only /
+/// `crate::config::model_completion_names_for_provider` so CodeWhale-only /
 /// local providers (and gateways not yet in the offline seed) keep defaults.
 #[must_use]
 pub fn all_catalog_models_for_provider(provider: ProviderKind) -> Vec<String> {
@@ -1234,6 +1301,17 @@ pub fn catalog_offering_for_model_identity(
     .cloned()
 }
 
+/// What one exact-route lookup found in the provider's own catalog entry.
+enum RouteCatalogLookup {
+    /// The roster lists this id; the row is the route's own metadata.
+    Listed(Box<CatalogOffering>),
+    /// A successful fetch answered and does not list this id, so nothing else
+    /// may supply facts for it.
+    NotListed,
+    /// No usable roster for this route (absent, or never fetched).
+    NoRoster,
+}
+
 /// Metadata from the exact route, without borrowing another endpoint's live facts.
 pub(crate) fn catalog_offering_for_route(
     provider: ProviderKind,
@@ -1241,42 +1319,65 @@ pub(crate) fn catalog_offering_for_route(
     base_url: &str,
     model: &str,
 ) -> Option<CatalogOffering> {
-    if let Ok(Some(entry)) =
-        crate::provider_catalog_live::cached_entry_for_route(provider, identity, base_url)
-        && entry.fetched_at > 0
-    {
-        if let Some(mut row) = entry
-            .offerings
-            .into_iter()
-            .find(|row| row.wire_model_id == model)
-        {
+    // Only the matched row is cloned, and the cache lock is released here
+    // instead of spanning the lower-layer completion below.
+    let lookup = crate::provider_catalog_live::with_cached_entry_for_route(
+        provider,
+        identity,
+        base_url,
+        |entry| {
+            if entry.fetched_at == 0 {
+                return RouteCatalogLookup::NoRoster;
+            }
+            match entry
+                .offerings
+                .iter()
+                .find(|row| row.wire_model_id == model)
+            {
+                Some(row) => RouteCatalogLookup::Listed(Box::new(row.clone())),
+                None => RouteCatalogLookup::NotListed,
+            }
+        },
+    );
+    match lookup {
+        Ok(Some(RouteCatalogLookup::Listed(mut row))) => {
             if !matches!(provider, ProviderKind::Custom | ProviderKind::OpenaiCodex) {
                 let cloud = codewhale_config::cloud_facts::overlay::snapshot();
                 let route_cloud =
                     cloud_facts_apply_to_route(provider, identity, base_url).then_some(&cloud);
                 let catalog_id = catalog_provider_id_for_identity(provider, Some(identity));
-                let mut lower_rows = if let Ok(live) = LIVE_SNAPSHOT.read() {
+                let live_generation = LIVE_GENERATION.load(Ordering::SeqCst);
+                let lower_rows = if let Ok(live) = LIVE_SNAPSHOT.read() {
                     source_rows_for_provider(
                         catalog_id.as_ref(),
+                        live_generation,
                         live.models_dev.as_ref(),
                         route_cloud,
                     )
                 } else {
-                    source_rows_for_provider(catalog_id.as_ref(), None, route_cloud)
+                    source_rows_for_provider(
+                        catalog_id.as_ref(),
+                        live_generation,
+                        None,
+                        route_cloud,
+                    )
                 };
-                if let Some(lower) = lower_rows.remove(&(row.provider.clone(), model.to_string())) {
-                    row.complete_from(&lower, Some(base_url));
+                if let Some(lower) = lower_rows.get(&(row.provider.clone(), model.to_string())) {
+                    row.complete_from(lower, Some(base_url));
                 }
             }
-            return Some(row);
+            return Some(*row);
         }
-        // The roster answered and does not list this id. Only an explicitly
-        // attested unlisted row may still name it here: falling through to the
-        // bundled/Models.dev merge would hand back facts for a model the roster
-        // has retired.
-        return cloud_unlisted_offerings_for_route(provider, identity, base_url)
-            .into_values()
-            .find(|row| row.wire_model_id == model);
+        // A successful fetch that does not list this id is authoritative about
+        // its absence. Only an explicitly attested unlisted row may still name
+        // it here: falling through to the bundled/Models.dev merge would hand
+        // back facts for a model the roster has retired.
+        Ok(Some(RouteCatalogLookup::NotListed)) => {
+            return cloud_unlisted_offerings_for_route(provider, identity, base_url)
+                .into_values()
+                .find(|row| row.wire_model_id == model);
+        }
+        Ok(Some(RouteCatalogLookup::NoRoster)) | Ok(None) | Err(_) => {}
     }
     if codewhale_config::provider_preserves_custom_base_url_model(provider, base_url) {
         return None;
@@ -1476,10 +1577,12 @@ pub(crate) fn catalog_models_for_route(
     }
     // Do not borrow a live partition published for another endpoint.
     let catalog_id = catalog_provider_id(provider);
+    let live_generation = LIVE_GENERATION.load(Ordering::SeqCst);
     let live = LIVE_SNAPSHOT.read().ok();
     let cloud = codewhale_config::cloud_facts::overlay::snapshot();
     let rows = source_rows_for_provider(
         catalog_id,
+        live_generation,
         live.as_ref().and_then(|live| live.models_dev.as_ref()),
         cloud_facts_apply_to_route(provider, identity, base_url).then_some(&cloud),
     );
@@ -4394,6 +4497,7 @@ mod tests {
                 saved_provider_model: None,
                 base_url_override: None,
                 limit_overrides: Vec::new(),
+                wire_override: None,
             })
         };
 

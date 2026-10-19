@@ -202,11 +202,38 @@ impl ModelInventory {
         config: &Config,
         health: &crate::provider_readiness::ProviderReadinessSnapshot,
     ) -> Result<Self, String> {
+        Self::from_config_scoped(config, health, true)
+    }
+
+    /// The Auto-router decision alone, without the per-model candidate
+    /// inventory.
+    ///
+    /// Wording one line of `/model`'s `auto` hint needs four router facts.
+    /// The router block below never reads `candidates`, so the same code
+    /// answers both callers; only the loop is skipped.
+    pub(crate) fn auto_router_only(config: &Config) -> Result<Self, String> {
+        Self::from_config_scoped(
+            config,
+            &crate::provider_readiness::ProviderReadinessSnapshot::default(),
+            false,
+        )
+    }
+
+    fn from_config_scoped(
+        config: &Config,
+        health: &crate::provider_readiness::ProviderReadinessSnapshot,
+        include_candidates: bool,
+    ) -> Result<Self, String> {
         let active_identity = config.active_provider_identity()?;
         let active_provider = active_identity.provider;
         let mut candidates = Vec::new();
+        let identities = if include_candidates {
+            config.provider_identities()
+        } else {
+            Vec::new()
+        };
 
-        for identity in config.provider_identities() {
+        for identity in identities {
             let provider = identity.provider;
             let Some(auth_source) = auth_source_for_provider(config, &identity) else {
                 continue;

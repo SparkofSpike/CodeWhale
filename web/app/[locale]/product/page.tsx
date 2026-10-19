@@ -26,9 +26,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 // states follow the row, not a translated word.
 const GAIN_ICONS: IconName[] = ["layers", "users", "shield"];
 // Terminal released · local browser ships with it · CodeWhale GUI
-// available · hosted web preview · desktop development build · cloud
-// computers in development.
-const AVAILABILITY_TONES: StatusTone[] = ["ready", "ready", "ready", "attention", "idle", "idle"];
+// available · hosted web in development · desktop development build.
+const AVAILABILITY_TONES: StatusTone[] = ["ready", "ready", "ready", "idle", "idle"];
 
 /**
  * /product — what Codewhale is and what a person gains, with availability

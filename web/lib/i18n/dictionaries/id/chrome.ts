@@ -31,8 +31,6 @@ export const chrome: ChromeDict = {
 
   installCta: "Instal →",
 
-  authSignIn: "Masuk",
-
   dateLocale: "id-ID",
 
   menuOpen: "Buka menu",
@@ -45,7 +43,7 @@ export const chrome: ChromeDict = {
   themeTitle: "Tema · otomatis / terang / gelap",
 
   footerTagline:
-    "Buat aplikasi dan otomatisasikan pekerjaan dengan modelmu sendiri dan alat terhubung.",
+    "Agen pemrograman sumber terbuka untuk terminalmu dan model pilihanmu.",
   footerProduct: "Produk",
   footerProject: "Proyek",
   footerDocs: "Dokumentasi",

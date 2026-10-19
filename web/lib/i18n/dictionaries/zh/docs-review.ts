@@ -36,7 +36,7 @@ export const docsReview: DocsReviewDict = {
         { p: "每次修改文件，都会以 diff 的形式出现在对话记录里。想一次看全，运行：" },
         { code: "/diff", lang: "Codewhale" },
         {
-          p: "`/diff` 会显示本次会话开始以来的全部改动。你自己的 git 历史不受影响，`git diff` 和 `git status` 照常可用。",
+          p: "`/diff` 会显示本次会话开始以来的全部改动。从 0.10.2 起，它会与本次会话的第一个还原点比较，因此在不是 git 仓库的文件夹里也能使用，并在分页器中打开。你自己的 git 历史不受影响，`git diff` 和 `git status` 照常可用。",
         },
       ],
     },
@@ -57,7 +57,7 @@ export const docsReview: DocsReviewDict = {
           p: "恢复会改动文件，所以需要工作区已被信任（`/trust on`）或处于 Full Access；查看快照列表则不受限制。你也可以直接说“撤销你刚才的修改”，Codewhale 可以回滚它自己的那个回合。",
         },
         {
-          p: "`/undo` 是另一回事：它只是从对话中删掉最后一次问答。想恢复文件，请用 `/restore`。",
+          p: "`/undo` 撤回你上一次的请求。在 0.10.1 中，恢复文件需要先运行 `/trust on`，并且每次只回退一次工具调用。从 0.10.2 起，它在任何权限模式下都会恢复该请求改动的每个文件，并从对话中删除该请求及其回复。`/restore` 会把整个工作区回滚到更早的快照。",
         },
         {
           note: "快照保留 7 天。超过 2 GB 的工作区不做快照，Codewhale 会提示你一次；如果仍想要快照，可以在配置中调大 `[snapshots] max_workspace_gb`。如果没有安装 git 或磁盘已满，回合照常运行，只是不做快照。",

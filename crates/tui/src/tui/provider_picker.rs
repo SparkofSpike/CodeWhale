@@ -797,8 +797,19 @@ impl ProviderDashboardRow {
                 )
                 .is_some()
             });
+        // The receipt's protocol label must match the wire a turn would
+        // mint: a custom table row passes its own `wire` dialect exactly as
+        // resolve_runtime_route does.
+        let wire_override = (provider == ProviderKind::Custom)
+            .then(|| {
+                codewhale_config::provider::wire_dialect_override(
+                    identity.key.as_str(),
+                    config.provider_wire_dialect(&identity),
+                )
+            })
+            .flatten();
         let route = if let Some(model) = declared_default {
-            crate::route_runtime::resolve_declared_model_candidate(
+            crate::route_runtime::resolve_declared_model_candidate_with_wire_override(
                 provider,
                 &provider_id,
                 model,
@@ -806,12 +817,13 @@ impl ProviderDashboardRow {
                 config.context_window_for_provider_config(&identity),
                 config.model_context_windows_for(&identity),
                 config.custom_models.as_deref().unwrap_or_default(),
+                wire_override,
             )
         } else {
             // Browsing a provider is a snapshot projection, not execution
             // admission. Actual local requests still require an explicit tag
             // or a fresh endpoint-owned roster in resolve_runtime_route.
-            crate::route_runtime::resolve_route_candidate_with_context_metadata(
+            crate::route_runtime::resolve_route_candidate_with_context_metadata_and_wire_override(
                 provider,
                 configured_model
                     .as_deref()
@@ -821,6 +833,7 @@ impl ProviderDashboardRow {
                 config.context_window_for_provider_config(&identity),
                 config.model_context_windows_for(&identity),
                 None,
+                wire_override,
             )
         };
         let (

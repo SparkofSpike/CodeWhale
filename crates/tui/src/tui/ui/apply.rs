@@ -3232,6 +3232,7 @@ pub(crate) fn observe_human_request_settlement(app: &mut App, event: &EngineEven
 }
 
 pub(crate) fn note_human_decision_delivered(app: &mut App, tool_id: &str) {
+    crate::tui::tool_routing::start_exec_card(app, tool_id);
     if (app.is_loading || matches!(app.runtime_turn_status.as_deref(), Some("in_progress")))
         && !app.suppress_stream_events_until_turn_complete
         && !crate::tui::pending_requests::is_foreign_child_request(app, tool_id)
@@ -4623,6 +4624,7 @@ pub(crate) fn apply_loaded_session_with_goal(
     app.session_artifacts = session.artifacts;
     app.session_turn_outcomes = session.turn_outcomes;
     app.window_title = session.window_title;
+    app.composer_color = session.composer_color;
     app.workspace_context = None;
     app.workspace_is_linked_worktree = false;
     app.workspace_context_refreshed_at = None;

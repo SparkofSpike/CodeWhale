@@ -6,6 +6,7 @@ use codewhale_command_contract::metadata::{CommandInfo, RegisterCommand};
 use codewhale_command_contract::outcome::SessionCommandResult as CommandResult;
 
 pub(in crate::commands) mod branch;
+pub(in crate::commands) mod color;
 pub(in crate::commands) mod compact;
 pub(in crate::commands) mod export;
 pub(in crate::commands) mod fork;
@@ -75,10 +76,11 @@ impl RegisterCommand<CommandResult> for StructcopyRegistration {
 }
 
 /// Complete group inventory, used by the host and independent compilation proof.
-pub fn portable_handlers() -> [(&'static CommandInfo, CommandHandler<CommandResult>); 17] {
+pub fn portable_handlers() -> [(&'static CommandInfo, CommandHandler<CommandResult>); 18] {
     [
         (rename::RenameCmd::info(), rename::RenameCmd::handler()),
         (title::TitleCmd::info(), title::TitleCmd::handler()),
+        (color::ColorCmd::info(), color::ColorCmd::handler()),
         (save::SaveCmd::info(), save::SaveCmd::handler()),
         (fork::ForkCmd::info(), fork::ForkCmd::handler()),
         (new::NewCmd::info(), new::NewCmd::handler()),

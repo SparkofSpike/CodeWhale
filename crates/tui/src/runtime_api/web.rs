@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use axum::Json;
 use axum::body::Body;
 use axum::extract::{ConnectInfo, Path, Request, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use uuid::Uuid;
 
@@ -249,35 +249,15 @@ pub(super) async fn refresh_stream_ticket(
     response
 }
 
-pub(super) async fn web_page(State(state): State<RuntimeApiState>, headers: HeaderMap) -> Response {
-    let Some(web) = state.web.as_ref() else {
+pub(super) async fn web_page(State(state): State<RuntimeApiState>) -> Response {
+    if state.web.is_none() {
         return not_found();
-    };
-    web_page_response(web, &headers)
+    }
+    web_page_response()
 }
 
-fn web_page_response(web: &RuntimeWebState, headers: &HeaderMap) -> Response {
-    let mut html = WEB_HTML.to_owned();
-    // Recover the origin-scoped proof for reloads and independent tabs. A
-    // cookie alone is insufficient: require same-origin or direct navigation
-    // Fetch Metadata. Older clients without it still use the bootstrap proof.
-    // Proofs are generated hex strings, so no HTML escaping is needed here.
-    if headers
-        .get("sec-fetch-site")
-        .is_some_and(|site| site == "same-origin" || site == "none")
-        && web.matches_session_cookie(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()))
-        && let Some(proof) = web
-            .request_proof
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .as_deref()
-    {
-        html = html.replace(
-            "name=\"codewhale-web-request\" content=\"\"",
-            &format!("name=\"codewhale-web-request\" content=\"{proof}\""),
-        );
-    }
-    secured_asset("text/html; charset=utf-8", html)
+fn web_page_response() -> Response {
+    secured_asset("text/html; charset=utf-8", WEB_HTML.to_owned())
 }
 
 pub(super) async fn web_styles(State(state): State<RuntimeApiState>) -> Response {
@@ -390,57 +370,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn runtime_surface_review_web_page_recovers_proof_for_reload_and_second_tab() {
+    async fn runtime_surface_review_web_page_never_carries_the_request_proof() {
         let (web, nonce) = RuntimeWebState::new();
         let (token, proof) = web.consume(&nonce, "127.0.0.1".parse().unwrap()).unwrap();
-        let cookie = web_session_cookie(&token);
-        for site in [
-            None,
-            Some("same-origin"),
-            Some("none"),
-            Some("same-site"),
-            Some("cross-site"),
-        ] {
-            for valid_cookie in [false, true] {
-                for expired in [false, true] {
-                    let mut session = web.clone();
-                    if expired {
-                        session.session_expires_at = Instant::now();
-                    }
-                    let mut headers = HeaderMap::new();
-                    if valid_cookie {
-                        headers.insert(header::COOKIE, cookie.parse().unwrap());
-                    }
-                    if let Some(site) = site {
-                        headers.insert("sec-fetch-site", site.parse().unwrap());
-                    }
-                    let response = web_page_response(&session, &headers);
-                    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
-                    assert!(
-                        response.headers()[header::CONTENT_SECURITY_POLICY]
-                            .to_str()
-                            .unwrap()
-                            .contains("frame-ancestors 'none'")
-                    );
-                    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-                        .await
-                        .unwrap();
-                    let html = std::str::from_utf8(&body).unwrap();
-                    let recovered = html.contains(&format!(
-                        "name=\"codewhale-web-request\" content=\"{proof}\""
-                    ));
-                    assert_eq!(
-                        recovered,
-                        valid_cookie && !expired && matches!(site, Some("same-origin" | "none")),
-                        "site={site:?}, valid_cookie={valid_cookie}, expired={expired}"
-                    );
-                    assert!(!html.contains(&token));
-                    if recovered {
-                        assert!(session.matches_request(Some(&cookie), Some(&proof)));
-                    }
-                }
-            }
-        }
+        let response = web_page_response();
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert!(
+            response.headers()[header::CONTENT_SECURITY_POLICY]
+                .to_str()
+                .unwrap()
+                .contains("frame-ancestors 'none'")
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let html = std::str::from_utf8(&body).unwrap();
+        assert!(!html.contains(&proof));
+        assert!(!html.contains(&token));
+        assert!(!html.contains("codewhale-web-request"));
         assert_eq!(
             web.consume(&nonce, "127.0.0.1".parse().unwrap()),
             Err(BootstrapError::Invalid)

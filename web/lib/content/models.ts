@@ -14,7 +14,7 @@ export const MODELS_COPY = {
   patterns: [
     {
       title: { en: "DeepSeek", zh: "DeepSeek" },
-      detail: { en: "The default model is {model}. Connect your DeepSeek account with an API key.", zh: "默认模型为 {model}。用 API 密钥连接你的 DeepSeek 账户。" },
+      detail: { en: "The default model is {model}. On 2026-10-17 DeepSeek moved deepseek-flash to DeepSeek-V4.1-Flash-1017 at the same price, and Codewhale 0.10.1 runs it without an update. Connect with a DeepSeek API key.", zh: "默认模型为 {model}。2026-10-17 起，DeepSeek 以相同价格在 deepseek-flash 上提供 DeepSeek-V4.1-Flash-1017，Codewhale 0.10.1 无需更新即可使用。用 DeepSeek API 密钥连接。" },
       reference: "DEEPSEEK_API_KEY",
     },
     {
@@ -30,7 +30,7 @@ export const MODELS_COPY = {
   ],
   listTitle: { en: "Supported providers", zh: "支持的提供商" },
   listLead: { en: "Providers declared in source v{version}. Run /provider to see the choices in your installed version; the setup guides cover credentials, endpoints, and model selection.", zh: "源码 v{version} 中声明的提供商。运行 /provider 查看已安装版本中的可选项；配置指南介绍凭据、端点与模型选择。" },
-  modelsTitle: { en: "Models in this release", zh: "本版本支持的模型" },
+  modelsTitle: { en: "Models in source v{version}", zh: "源码 v{version} 中的模型" },
   modelsLead: { en: "Every model id the source declares for v{version}, merged across provider spellings. “Added” is the date the model first entered the source, not the provider’s release date. Sort any column; the default order is most recently added.", zh: "源码 v{version} 声明的全部模型 ID，已合并不同提供商拼写。“加入时间”是模型首次进入源码的日期，而非提供商自己的发布日期。各列均可排序，默认按最近加入排列。" },
   colModel: { en: "Model", zh: "模型" },
   colProvider: { en: "Provider", zh: "提供商" },

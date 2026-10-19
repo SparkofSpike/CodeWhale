@@ -14,8 +14,8 @@ export const USAGE_COUNTING_COPY = {
   footerLink: { en: "Usage data", zh: "使用数据" },
   heading: { en: "Usage counting on this site", zh: "本站的使用统计" },
   summary: {
-    en: "This site counts page views, documentation views, install-command copies, sign-in and sign-up link clicks, and error pages shown as plain totals. Counting is on by default. Only those totals leave your browser — no page addresses, referrers, account, or content — sent to Codewhale's own endpoint, which may pass them to PostHog. A random install id, unrelated to you, rotates every 90 days.",
-    zh: "本站会把页面浏览、文档浏览、安装命令复制、登录和注册链接点击以及错误页面显示次数作为纯总数统计，默认开启。离开浏览器的只有这些总数——没有页面地址、来源、账户或内容——发送到 Codewhale 自己的端点，该端点可能把总数交给 PostHog 处理。与你无关的随机安装 id 每 90 天轮换一次。",
+    en: "This site counts page views, documentation views, install-command copies, sign-in link clicks, and error pages shown as plain totals. Counting is on by default. Only those totals leave your browser — no page addresses, referrers, account, or content — sent to Codewhale's own endpoint, which may pass them to PostHog. A random install id, unrelated to you, rotates every 90 days.",
+    zh: "本站会把页面浏览、文档浏览、安装命令复制、登录链接点击以及错误页面显示次数作为纯总数统计，默认开启。离开浏览器的只有这些总数——没有页面地址、来源、账户或内容——发送到 Codewhale 自己的端点，该端点可能把总数交给 PostHog 处理。与你无关的随机安装 id 每 90 天轮换一次。",
   },
   choice: {
     en: "Turning it off is kept in this browser and clears any queued counts and the install id. Nothing here records that you accepted anything.",

@@ -952,6 +952,7 @@ fn deepseek_flash_responses_body_uses_stateless_0731_contract() {
                 thinking: "preserve this tool-loop reasoning".to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             }],
         },
     );
@@ -1021,6 +1022,7 @@ fn chatgpt_replays_only_exact_grant_and_model_opaque_reasoning_state() {
                 thinking: SENTINEL.to_string(),
                 signature: None,
                 state: Some(state),
+                redacted_data: None,
             }],
         },
     );
@@ -1215,6 +1217,7 @@ async fn generic_responses_captures_and_replays_opaque_reasoning() {
             thinking: "readable-private-summary".into(),
             signature: None,
             state: Some(state),
+            redacted_data: None,
         }],
     });
     let replay = client

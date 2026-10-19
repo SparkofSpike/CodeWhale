@@ -64,6 +64,9 @@ pub enum SearchProvider {
     /// returns Google organic results with snippets. Falls back to the
     /// `SERPLY_API_KEY` env var when `[search] api_key` is not set.
     Serply,
+    /// DeepSeek Search API (<https://api-docs.deepseek.com/guides/search>). Requires api_key.
+    #[serde(rename = "deepseek", alias = "deep-seek", alias = "deepseek-search")]
+    DeepSeek,
 }
 
 impl SearchProvider {
@@ -83,6 +86,7 @@ impl SearchProvider {
             "volcengine" | "ark" | "volc" | "volcengine-ark" => Some(Self::Volcengine),
             "sofya" => Some(Self::Sofya),
             "serply" => Some(Self::Serply),
+            "deepseek" | "deep-seek" | "deepseek-search" => Some(Self::DeepSeek),
             _ => None,
         }
     }
@@ -101,12 +105,13 @@ impl SearchProvider {
             Self::Volcengine => "volcengine",
             Self::Sofya => "sofya",
             Self::Serply => "serply",
+            Self::DeepSeek => "deepseek",
         }
     }
 
     #[must_use]
     pub fn names_hint() -> &'static str {
-        "bing, duckduckgo, firecrawl, tavily, bocha, metaso, searxng, baidu, volcengine, sofya, serply"
+        "bing, duckduckgo, firecrawl, tavily, bocha, metaso, searxng, baidu, volcengine, sofya, serply, deepseek"
     }
 }
 
@@ -193,7 +198,7 @@ pub struct SearchConfig {
     /// SearXNG instance root or `/search` endpoint.
     #[serde(default)]
     pub base_url: Option<String>,
-    /// Optional for Firecrawl; required for Tavily, Bocha, Metaso, Baidu, Volcengine, Sofya, or Serply.
+    /// Optional for Firecrawl; required for Tavily, Bocha, Metaso, Baidu, Volcengine, Sofya, Serply, or DeepSeek.
     /// Metaso also falls back to the `METASO_API_KEY` env var.
     /// Baidu also falls back to `BAIDU_SEARCH_API_KEY` env var.
     /// Serply also falls back to the `SERPLY_API_KEY` env var.

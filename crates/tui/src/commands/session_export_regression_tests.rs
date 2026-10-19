@@ -119,6 +119,7 @@ fn adapter_projects_authoritative_metadata_and_omits_hidden_payloads() {
                     thinking: "private chain of thought".to_string(),
                     signature: Some("signature-secret".to_string()),
                     state: None,
+                    redacted_data: None,
                 },
                 ContentBlock::ToolUse {
                     execution_id: None,
@@ -705,6 +706,7 @@ fn baseline_golden_messages() -> Vec<Message> {
                     thinking: "private chain of thought".to_string(),
                     signature: Some("signature-secret".to_string()),
                     state: None,
+                    redacted_data: None,
                 },
                 ContentBlock::ToolUse {
                     execution_id: None,
@@ -1001,6 +1003,7 @@ fn command_clipboard_export_preserves_structure_and_redacts_secrets() {
                     thinking: "private chain of thought".to_string(),
                     signature: Some("signature-secret".to_string()),
                     state: None,
+                    redacted_data: None,
                 },
                 ContentBlock::ToolUse {
                     execution_id: None,

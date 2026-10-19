@@ -25,7 +25,7 @@ Global key chords are not yet user-configurable — tracked for a future release
 | `Ctrl-L`             | Compact the conversation context (status line shows progress; no-op while a compaction is already running) |
 | `Ctrl-O`             | Open the reasoning detail for the selected or current turn, regardless of composer contents |
 | `Ctrl-Alt-O`         | Open the whole-turn Turn Inspector, regardless of composer contents |
-| `Alt-V` / `Option-V` (macOS) | Open the details pager for the selected tool/sub-agent card; with nothing selected, the live inspector of the newest running shell, else the visible or most recent card; terminals that emit the legacy Option-V glyph are also handled |
+| `Alt-V` / `Option-V` (macOS) | Open the details pager for the selected tool/sub-agent card; with nothing selected, the newest visible error, else the first visible card with details, else the most recent one. Click a card first to keep Alt-V on it while newer cards arrive. Terminals that emit the legacy Option-V glyph are also handled |
 | `Ctrl-Shift-E` / `Cmd-Shift-E` | Toggle the file tree in the workbar                   |
 | `Ctrl-]` or `Ctrl-Tab` | Cycle the pet view while the pet main view is showing; otherwise cycle the work dock: TODO → Agents → Jobs → Background. `Ctrl-]` is portable; `Ctrl-Tab` requires the kitty keyboard protocol. Terminal.app uses it to switch terminal tabs |
 | `Ctrl-Shift-Tab`     | Cycle the pet view or work dock backwards where the terminal sends the kitty keyboard chord. Terminal.app uses it to switch terminal tabs |

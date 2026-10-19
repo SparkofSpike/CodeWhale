@@ -110,7 +110,10 @@ enum Reply {
 
 #[cfg(all(unix, not(target_env = "ohos")))]
 impl Worker {
-    fn start(workspace: PathBuf) -> Result<Self, String> {
+    fn start(
+        workspace: PathBuf,
+        shell_manager: crate::tools::shell::SharedShellManager,
+    ) -> Result<Self, String> {
         let (requests, incoming) = mpsc::sync_channel(128);
         let (outgoing, replies) = mpsc::sync_channel(32);
         std::thread::Builder::new()
@@ -132,8 +135,13 @@ impl Worker {
                         Request::Create(policy) => {
                             let name =
                                 format!("user-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
-                            match terminal_session::get_or_create(&name, &workspace, policy)
-                                .and_then(|_| terminal_session::inspect_workspace(&workspace, None))
+                            match terminal_session::get_or_create(
+                                &name,
+                                &workspace,
+                                policy,
+                                &shell_manager,
+                            )
+                            .and_then(|_| terminal_session::inspect_workspace(&workspace, None))
                             {
                                 Ok((sessions, _)) => {
                                     match sessions.into_iter().find(|session| session.name == name)
@@ -222,7 +230,14 @@ pub(crate) fn poll(app: &mut App) {
             "poll"
         );
         if visible && dock.worker.is_none() && dock.error.is_none() {
-            match Worker::start(app.workspace.clone()) {
+            let shell_manager = app
+                .runtime_services
+                .shell_manager
+                .clone()
+                .unwrap_or_else(|| {
+                    crate::tools::shell::new_shared_shell_manager(app.workspace.clone())
+                });
+            match Worker::start(app.workspace.clone(), shell_manager) {
                 Ok(worker) => dock.worker = Some(worker),
                 Err(error) => dock.error = Some(error),
             }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Locale } from "@/lib/i18n/config";
 import { getChrome } from "@/lib/i18n/dictionaries";
-import { navLinks, secondaryNavLinks, REPO_URL, APP_LOGIN_URL } from "@/lib/i18n/links";
+import { navLinks, secondaryNavLinks, REPO_URL } from "@/lib/i18n/links";
 import { Icon } from "./icon";
 import { LocaleSwitcher } from "./locale-switcher";
 import { MobileMenu } from "./mobile-menu";
@@ -13,8 +13,7 @@ import { ArrowLabel } from "./arrow-label";
 /**
  * Masthead + primary nav. Like the GPUI titlebar it carries few visible
  * controls: the whale and the wordmark, four links, quiet icon controls
- * with accessible names, one identity door (Sign in; the sign-in page
- * offers account creation) and the one primary action, Install.
+ * with accessible names and the one primary action, Install.
  */
 export function Nav({ locale = "en" }: { locale?: Locale }) {
   const chrome = getChrome(locale);
@@ -48,9 +47,6 @@ export function Nav({ locale = "en" }: { locale?: Locale }) {
           <Link href={REPO_URL} className="nav-icon-button site-github-link" aria-label="GitHub" title="GitHub">
             <Icon name="github" className="nav-icon" />
           </Link>
-          <Link href={APP_LOGIN_URL} className="paper-auth-signin hidden lg:inline-flex" data-usage="login">
-            {chrome.authSignIn}
-          </Link>
           <Link
             href={`/${locale}/install`}
             className="paper-install-cta hidden lg:inline-flex"
@@ -60,8 +56,6 @@ export function Nav({ locale = "en" }: { locale?: Locale }) {
           <MobileMenu
             installHref={`/${locale}/install`}
             installLabel={chrome.installCta}
-            signInHref={APP_LOGIN_URL}
-            signInLabel={chrome.authSignIn}
             links={links}
             moreLinks={moreLinks}
             openLabel={chrome.menuOpen}

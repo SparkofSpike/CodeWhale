@@ -163,6 +163,7 @@ async fn session_update_preserves_reasoning_tool_only_turn() {
             ContentBlock::Thinking {
                 signature: None,
                 state: None,
+                redacted_data: None,
                 thinking: "Need a tool before answering.".to_string(),
             },
             ContentBlock::ToolUse {

@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale: 오픈 소스 코딩 에이전트",
   metaDescription: "Codewhale은 터미널에서 실행되는 오픈 소스 코딩 에이전트입니다. 선택한 클라우드 또는 로컬 모델로 프로젝트를 읽고, 수정하고, 테스트하세요.",
-  heroTitle: "앱을 만들고 작업을 자동화하세요.",
-  heroIntro: "{brand}은 터미널에서 파일을 읽고 코드를 작성하며 명령을 실행하는 오픈 소스 코딩 에이전트입니다. 모델 API나 로컬 모델을 연결하고 승인이 필요한 작업을 선택하세요.",
+  heroTitle: "모든 모델을 위한 오픈 소스 코딩 에이전트",
+  heroIntro: "{brand}은 터미널에서 프로젝트를 읽고, 파일을 편집하고, 테스트를 실행합니다. 호스팅 또는 로컬 모델을 연결하고 승인이 필요한 작업을 선택하세요.",
   getCodewhale: "Codewhale 설치",
   heroInstallAria: "설치 명령",
   exploreProduct: "Codewhale 둘러보기",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "소스",
   sourceCandidate: "미공개",
   publishedRelease: "공개됨",
-  gainHeading: "할 수 있는 일",
+  gainHeading: "터미널에서 개발하고 자동화하세요",
   gainLede: "만들거나 자동화하고 싶은 작업을 설명하세요. Codewhale은 사용자가 제어하는 접근 권한 안에서 파일을 편집하고, 명령을 실행하고, 결과를 확인할 수 있습니다.",
   gain: [
     [
@@ -41,7 +41,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "내 API 계정",
-      "자신의 키로 OpenAI, Anthropic, Google, DeepSeek 등에 연결하세요."
+      "자신의 키로 DeepSeek, OpenAI, Anthropic, Google 등의 제공업체에 연결하세요. 기본 모델인 deepseek-flash는 이제 DeepSeek-V4.1-Flash로 실행됩니다."
     ],
     [
       "내 게이트웨이",
@@ -50,6 +50,10 @@ export const home: HomeDict = {
     [
       "내 추론 환경",
       "Ollama, vLLM, SGLang으로 로컬 또는 자체 호스팅 모델을 실행하세요."
+    ],
+    [
+      "내 ChatGPT 요금제",
+      "codewhale auth chatgpt로 로그인하여 API 키 대신 ChatGPT 요금제를 사용하세요. 실험 기능입니다."
     ]
   ],
   modelsLink: "모델과 제공업체 둘러보기",
@@ -74,22 +78,16 @@ export const home: HomeDict = {
     ],
     [
       "호스팅 웹 앱",
-      "개발 미리보기",
-      "데스크톱 앱에 맞춰 다시 만드는 중입니다. 지금은 로그인한 뒤 실행 중인 터미널 세션에서 /rc를 입력하면 웹에서 이어서 작업할 수 있습니다. 호스팅 작업 실행은 아직 검증 중입니다."
+      "개발 중",
+      "데스크톱 앱에 맞춰 다시 만드는 중이며 아직 공개되지 않았습니다. 지금 브라우저에서 사용하려면 자신의 컴퓨터에서 codewhale web을 실행하세요."
     ],
     [
       "데스크톱",
       "개발 빌드",
-      "Codewhale의 주 클라이언트가 되어 가는 네이티브 앱으로, 폴더, 대화, 모델 연결을 하나의 창에서 다룹니다. 아직 공개 다운로드는 없습니다."
-    ],
-    [
-      "클라우드 컴퓨터",
-      "개발 중",
-      "작업을 실행하는 호스팅 컴퓨터."
+      "같은 엔진으로 실행되는 네이티브 앱입니다. 변경 사항을 검토하고 커밋하며, 여러 프로젝트의 작업을 확인하고, 메시지를 편집해 새 분기로 다시 보낼 수 있습니다. 아직 공개 다운로드는 없습니다."
     ]
   ],
-  availabilityNote: "터미널, 로컬 브라우저, GUI는 Codewhale 계정이 필요 없습니다. 호스팅 웹과 데스크톱은 계정을 사용합니다. 본인의 제공업체 키를 사용하는 경우, 해당 사용 요금은 그 제공업체가 청구합니다.",
-  accountLink: "계정 만들기",
+  availabilityNote: "터미널, 로컬 브라우저, GUI는 Codewhale 계정이 필요 없습니다. 본인의 제공업체 키를 사용하는 경우, 해당 사용 요금은 그 제공업체가 청구합니다.",
   surfacesHeading: "파일과 도구로 작업하세요",
   surfaces: [
     [
@@ -121,7 +119,7 @@ export const home: HomeDict = {
   chinaMirrors: "중국 미러",
   installGuideLink: "설치 가이드 읽기",
   communityHeading: "Codewhale에 기여하세요",
-  communityBody: "GitHub에서 버그를 신고하거나, 문서를 개선하거나, 코드를 기여하세요. 플러그인을 만들고 다른 사용자와 워크플로를 공유할 수도 있습니다.",
+  communityBody: "{count}명이 Codewhale 개발에 참여했습니다. GitHub에서 버그를 신고하거나, 문서를 개선하거나, 코드를 기여하세요.",
   communityLinksAria: "커뮤니티 링크",
   contribute: "GitHub에서 기여하기",
 };

@@ -1571,6 +1571,7 @@ pub struct HookExecutor {
     background_supervisor: BackgroundSupervisor,
     caller: Option<HookCaller>,
     fire_context: Option<Arc<HookContext>>,
+    cancel: Option<tokio_util::sync::CancellationToken>,
     host_manager: Arc<crate::extension_host::ExtensionHostManager>,
     engine_handle: Option<tokio::runtime::Handle>,
     native_policy: bool,
@@ -1588,6 +1589,20 @@ impl fmt::Debug for HookExecutor {
     }
 }
 impl HookExecutor {
+    /// Foreground hooks run under this executor stop, and are reaped, when
+    /// `token` is cancelled; hooks not yet started are skipped.
+    #[must_use]
+    pub(crate) fn with_cancel(mut self, token: tokio_util::sync::CancellationToken) -> Self {
+        self.cancel = Some(token);
+        self
+    }
+
+    fn cancelled(&self) -> bool {
+        self.cancel
+            .as_ref()
+            .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
+    }
+
     /// One Engine scheduler, propagated through the existing std workers.
     pub(crate) fn bind_caller(&self, caller: HookCaller) -> Self {
         let mut bound = self.clone();
@@ -1680,6 +1695,7 @@ impl HookExecutor {
             background_supervisor: BackgroundSupervisor::new(),
             caller: None,
             fire_context: None,
+            cancel: None,
             host_manager: crate::extension_host::manager(),
             engine_handle: tokio::runtime::Handle::try_current().ok(),
             native_policy: crate::plugins::activation::extension_host_policy_enabled(),
@@ -1706,6 +1722,7 @@ impl HookExecutor {
                 .clone()
                 .filter(|c| c.workspace == default_working_dir),
             fire_context: None,
+            cancel: self.cancel.clone(),
             host_manager: Arc::clone(&self.host_manager),
             engine_handle: self.engine_handle.clone(),
             native_policy: self.native_policy,
@@ -1728,6 +1745,7 @@ impl HookExecutor {
             background_supervisor: BackgroundSupervisor::new(),
             caller: None,
             fire_context: None,
+            cancel: None,
             host_manager: crate::extension_host::manager(),
             engine_handle: tokio::runtime::Handle::try_current().ok(),
             native_policy: crate::plugins::activation::extension_host_policy_enabled(),
@@ -2072,6 +2090,9 @@ impl HookExecutor {
         let mut results = Vec::new();
 
         for hook in &hooks {
+            if this.cancelled() {
+                break;
+            }
             if !self.matches_condition(hook, context) {
                 continue;
             }
@@ -2341,7 +2362,7 @@ impl HookExecutor {
             if hook.native_shell.is_some() {
                 return unavailable_hook(hook, "Native shell hook is disabled");
             }
-            return self.execute_sync_legacy(hook, env_vars, stdin_json, None);
+            return self.execute_sync_legacy(hook, env_vars, stdin_json, self.cancel.as_ref());
         }
         let Some(caller) = self.caller.clone() else {
             return unavailable_hook(hook, "hook caller receipt is unavailable");
@@ -2382,18 +2403,24 @@ impl HookExecutor {
                 .cloned()
                 .unwrap_or_default()
         };
+        let turn_cancel = self.cancel.clone();
         let work = handle.spawn(async move {
             let _policy = crate::plugins::activation::PolicyScope::propagate(policy);
             #[cfg(test)]
             let _env_scope = crate::test_support::join_env_scope(env_scope);
             let timeout = Duration::from_secs(executor.effective_timeout_secs(&owned_hook));
             let hook_for_run = owned_hook.clone();
-            let result = manager
-                .execute_hook(caller, owned_hook, timeout, query, move |cancel| {
-                    let _policy = crate::plugins::activation::PolicyScope::propagate(policy);
-                    executor.execute_sync_legacy(&hook_for_run, &env, input.as_ref(), Some(&cancel))
-                })
-                .await;
+            let run = manager.execute_hook(caller, owned_hook, timeout, query, move |cancel| {
+                let _policy = crate::plugins::activation::PolicyScope::propagate(policy);
+                executor.execute_sync_legacy(&hook_for_run, &env, input.as_ref(), Some(&cancel))
+            });
+            let result = match turn_cancel {
+                Some(turn_cancel) => tokio::select! {
+                    result = run => result,
+                    () = turn_cancel.cancelled() => Err("hook cancelled with its turn".into()),
+                },
+                None => run.await,
+            };
             let _ = sender.send(result);
         });
         // Never block an Engine/UI runtime worker. Its synchronous callsites already use
@@ -2647,13 +2674,17 @@ impl HookExecutor {
                     stdout: String::new(),
                     stderr: String::new(),
                     duration: started.elapsed(),
-                    error: Some(if reaped {
-                        format!("Hook timed out after {timeout_secs}s")
-                    } else {
-                        // The gate still did not answer, and now we also cannot
-                        // prove the process is gone. Say the weaker thing.
-                        "hook could not be reaped after its timeout".to_string()
-                    }),
+                    error: Some(
+                        if reaped && cancel.is_some_and(|token| token.is_cancelled()) {
+                            "Hook cancelled with its turn".to_string()
+                        } else if reaped {
+                            format!("Hook timed out after {timeout_secs}s")
+                        } else {
+                            // The gate still did not answer, and now we also cannot
+                            // prove the process is gone. Say the weaker thing.
+                            "hook could not be reaped after its timeout".to_string()
+                        },
+                    ),
                 }
             }
             Err(e) => {

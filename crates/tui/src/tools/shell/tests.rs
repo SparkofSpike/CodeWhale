@@ -571,7 +571,7 @@ async fn lowercase_bash_readonly_refusal_names_work_mode() {
         message.contains("The user can change modes with /mode."),
         "{message}"
     );
-    assert!(!message.contains("Act mode"));
+    assert!(!message.contains("Work mode"));
     assert!(!message.contains("switch to"), "{message}");
     assert!(!workspace.path().join("blocked-by-plan").exists());
 }

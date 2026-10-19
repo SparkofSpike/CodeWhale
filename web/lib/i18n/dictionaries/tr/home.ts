@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale: açık kaynak kodlama ajanı",
   metaDescription: "Codewhale, terminaliniz için açık kaynak bir kodlama ajanıdır. Kendi barındırılan veya yerel modellerinizle projeleri okuyun, düzenleyin ve test edin.",
-  heroTitle: "Uygulamalar geliştir ve işlerini otomatikleştir.",
-  heroIntro: "{brand}, terminalde dosyaları okuyan, kod yazan ve komutları çalıştıran açık kaynak bir kodlama ajanıdır. Model API’nizi veya yerel modelinizi bağlayın ve hangi işlemlerin onay gerektirdiğini seçin.",
+  heroTitle: "Her model için açık kaynak kodlama ajanı",
+  heroIntro: "{brand} terminalinden projeni okur, dosyaları düzenler ve testlerini çalıştırır. Barındırılan veya yerel bir model bağla ve hangi işlemlerin onayını gerektirdiğini seç.",
   getCodewhale: "Codewhale'i kur",
   heroInstallAria: "Kurulum komutu",
   exploreProduct: "Codewhale’i keşfet",
@@ -19,7 +19,7 @@ export const home: HomeDict = {
   sourceCandidate: "Yayımlanmadı",
   publishedRelease: "yayımlandı",
   gainHeading:
-    "Neler yapabilirsin",
+    "Terminalinden geliştir ve otomatikleştir",
   gainLede:
     "Ne geliştirmek veya otomatikleştirmek istediğini anlat. Codewhale, erişimini senin belirlediğin sınırlar içinde dosyaları düzenleyebilir, komut çalıştırabilir ve sonucu kontrol edebilir.",
   gain: [
@@ -43,7 +43,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "API hesapların",
-      "OpenAI, Anthropic, Google veya DeepSeek’i kendi anahtarlarınla bağla."
+      "DeepSeek, OpenAI, Anthropic veya Google gibi sağlayıcıları kendi anahtarlarınla bağla. Varsayılan model deepseek-flash artık DeepSeek-V4.1-Flash kullanıyor."
     ],
     [
       "Ağ geçidin",
@@ -52,6 +52,10 @@ export const home: HomeDict = {
     [
       "Kendi çıkarımın",
       "Ollama, vLLM veya SGLang ile yerel ya da kendi barındırdığın modelleri çalıştır."
+    ],
+    [
+      "ChatGPT planın",
+      "API anahtarı yerine ChatGPT planı kullanmak için codewhale auth chatgpt ile oturum aç. Deneysel."
     ]
   ],
   modelsLink: "Modellere ve sağlayıcılara göz at",
@@ -78,23 +82,17 @@ export const home: HomeDict = {
     ],
     [
       "Web uygulaması",
-      "Geliştirme önizlemesi",
-      "Masaüstü uygulamasına uyacak şekilde yeniden yapılıyor. Bugün oturum açabilir, ardından çalışan bir terminal oturumuna /rc yazarak o oturumu web üzerinde sürdürebilirsin; barındırılan görev yürütme hâlâ doğrulanıyor."
+      "Geliştirme aşamasında",
+      "Masaüstü uygulamasına uyacak şekilde yeniden yapılıyor ve henüz açılmadı. Bugün tarayıcıda kullanmak için kendi bilgisayarında codewhale web komutunu çalıştır."
     ],
     [
       "Masaüstü",
       "Geliştirme sürümü",
-      "Codewhale'in ana istemcisi haline gelen yerel uygulama: klasörler, sohbetler ve model bağlantıları tek bir pencerede. Henüz herkese açık indirme yok."
-    ],
-    [
-      "Bulut bilgisayarları",
-      "Geliştirme aşamasında",
-      "Görevlerini çalıştıran barındırılan bilgisayarlar."
+      "Aynı motoru kullanan yerel bir uygulama. Değişiklikleri inceleyip commit et, projeler arasındaki işleri takip et ve bir mesajı düzenleyerek yeni bir dal olarak yeniden gönder. Henüz herkese açık indirme yok."
     ]
   ],
   availabilityNote:
-    "Terminal, yerel tarayıcı ve GUI için Codewhale hesabı gerekmez. Barındırılan web ve masaüstü uygulaması bir hesap kullanır. Kendi sağlayıcı anahtarını kullanırsan, bu kullanımı sağlayıcın faturalandırır.",
-  accountLink: "Hesap oluştur",
+    "Terminal, yerel tarayıcı ve GUI için Codewhale hesabı gerekmez. Kendi sağlayıcı anahtarını kullanırsan, bu kullanımı sağlayıcın faturalandırır.",
   surfacesHeading: "Dosyalar ve araçlarla çalış",
   surfaces: [
     [
@@ -127,7 +125,7 @@ export const home: HomeDict = {
   installGuideLink: "Kurulum kılavuzunu oku",
   communityHeading: "Codewhale’e katkıda bulun",
   communityBody:
-    "GitHub’da bir hata bildir, belgeleri iyileştir veya kod katkısı yap. Ayrıca eklentiler geliştirebilir ve iş akışlarını diğer kullanıcılarla paylaşabilirsin.",
+    "Codewhale'in geliştirilmesine {count} kişi katkıda bulundu. GitHub’da bir hata bildir, belgeleri iyileştir veya kod katkısı yap.",
   communityLinksAria: "Topluluk bağlantıları",
   contribute: "GitHub’da katkıda bulun",
 };

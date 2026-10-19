@@ -5,8 +5,8 @@ export const home: HomeDict = {
   metaTitle: "Codewhale: an open-source coding agent",
   metaDescription: "Codewhale is an open-source coding agent for your terminal. Read, edit and test projects with your own hosted or local models.",
 
-  heroTitle: "Build apps and automate your work.",
-  heroIntro: "{brand} is an open-source coding agent that reads files, writes code and runs commands in your terminal. Connect your existing model API or a local model, and choose which actions need approval.",
+  heroTitle: "The open-source coding agent for any model",
+  heroIntro: "{brand} reads your project, edits files and runs your tests from your terminal. Connect a hosted or local model, and choose which actions need your approval.",
   getCodewhale: "Install Codewhale",
   heroInstallAria: "Install command",
   exploreProduct: "Explore Codewhale",
@@ -21,7 +21,7 @@ export const home: HomeDict = {
   sourceCandidate: "Unreleased",
   publishedRelease: "released",
 
-  gainHeading: "What you can do",
+  gainHeading: "Build and automate from your terminal",
   gainLede:
     "Describe what you want to build or automate. Codewhale can edit files, run commands and check the result, with access you control.",
   gain: [
@@ -46,7 +46,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "Your API accounts",
-      "Connect providers such as OpenAI, Anthropic, Google or DeepSeek with your own keys."
+      "Connect providers such as DeepSeek, OpenAI, Anthropic or Google with your own keys. The default, deepseek-flash, now runs DeepSeek-V4.1-Flash."
     ],
     [
       "Your gateway",
@@ -55,6 +55,10 @@ export const home: HomeDict = {
     [
       "Your inference",
       "Run local or self-hosted models with Ollama, vLLM or SGLang."
+    ],
+    [
+      "Your ChatGPT plan",
+      "Sign in with codewhale auth chatgpt to use a ChatGPT plan instead of an API key. Experimental."
     ]
   ],
   modelsLink: "Browse models and providers",
@@ -83,23 +87,17 @@ export const home: HomeDict = {
     ],
     [
       "Hosted web app",
-      "Development preview",
-      "Being rebuilt to match the desktop app. Today you can sign in, then type /rc in a running terminal session to continue it on the web; hosted task execution is still being qualified.",
+      "In development",
+      "Being rebuilt to match the desktop app, and not open yet. For a browser view today, run codewhale web on your machine.",
     ],
     [
       "Desktop",
       "Development build",
-      "The native app becoming the main Codewhale client: folders, conversations, and model connections in one window. No public download yet.",
-    ],
-    [
-      "Cloud computers",
-      "In development",
-      "Hosted computers that run your tasks.",
+      "A native app on the same engine. Review and commit changes, follow work across projects, and edit a message to resend it as a new branch. No public download yet.",
     ],
   ],
   availabilityNote:
-    "The terminal, local browser, and GUI need no Codewhale account. Hosted web and desktop use an account. When you use your own provider key, your provider bills that usage.",
-  accountLink: "Create an account",
+    "The terminal, local browser, and GUI need no Codewhale account. When you use your own provider key, your provider bills that usage.",
 
   surfacesHeading: "Work across files and tools",
   surfaces: [
@@ -135,7 +133,7 @@ export const home: HomeDict = {
 
   communityHeading: "Contribute to Codewhale",
   communityBody:
-    "Report a bug, improve the docs or contribute code on GitHub. You can also build plugins and share workflows with others.",
+    "{count} people have built Codewhale. Report a bug, improve the docs or contribute code on GitHub.",
   communityLinksAria: "Community links",
   contribute: "Contribute on GitHub",
 };

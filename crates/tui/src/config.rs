@@ -1,5 +1,6 @@
 //! Configuration loading and defaults for codewhale.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,6 +9,7 @@ use std::time::SystemTime;
 
 use anyhow::{Context, Result};
 use codewhale_execpolicy::ExecPolicyEngine;
+use codewhale_localization::{Locale, MessageId, tr};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 #[cfg(unix)]
@@ -1580,21 +1582,24 @@ impl StatusItem {
     /// One-line hint shown beside the label so the user knows what each item
     /// surfaces without having to toggle it on first.
     #[must_use]
-    pub fn hint(self) -> &'static str {
-        match self {
-            StatusItem::Mode => "plan · act · operate",
-            StatusItem::Model => "the model id you'll send to",
-            StatusItem::Cost => "running total for this session",
-            StatusItem::Cache => "% of prompt served from cache",
-            StatusItem::ContextPercent => "tokens used / model context window",
-            StatusItem::Tokens => "output tokens of the live or last turn",
-            StatusItem::Balance => "remaining prepaid credit from the active provider",
-            StatusItem::SessionMetrics => "time to first token and output rate",
-            StatusItem::Ttft => "average wait for the first token",
-            StatusItem::OutputRate => "average tok/s, including first-token wait",
-            StatusItem::Workspace => "directory this session writes to",
-            StatusItem::GitBranch => "branch the next commit lands on",
-        }
+    pub fn hint(self, locale: Locale) -> Cow<'static, str> {
+        tr(
+            locale,
+            match self {
+                StatusItem::Mode => MessageId::StatusPickerModeHint,
+                StatusItem::Model => MessageId::StatusPickerModelHint,
+                StatusItem::Cost => MessageId::StatusPickerCostHint,
+                StatusItem::Cache => MessageId::StatusPickerCacheHint,
+                StatusItem::ContextPercent => MessageId::StatusPickerContextPercentHint,
+                StatusItem::Tokens => MessageId::StatusPickerTokensHint,
+                StatusItem::Balance => MessageId::StatusPickerBalanceHint,
+                StatusItem::SessionMetrics => MessageId::StatusPickerSessionMetricsHint,
+                StatusItem::Ttft => MessageId::StatusPickerTtftHint,
+                StatusItem::OutputRate => MessageId::StatusPickerOutputRateHint,
+                StatusItem::Workspace => MessageId::StatusPickerWorkspaceHint,
+                StatusItem::GitBranch => MessageId::StatusPickerGitBranchHint,
+            },
+        )
     }
 
     /// Editable items in display order. Legacy combined metrics parse but
@@ -9557,37 +9562,11 @@ fn xiaomi_mimo_env_api_key_for_runtime(
 }
 
 fn wire_config_prefers_anthropic(wire: Option<&str>) -> bool {
-    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
-        return false;
-    };
-    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
-    matches!(
-        normalized.as_str(),
-        "anthropic"
-            | "anthropic-messages"
-            | "messages"
-            | "claude"
-            | "anthropic-compatible"
-            | "anthropic-compat"
-    )
+    codewhale_config::provider::wire_dialect_prefers_anthropic(wire)
 }
 
 fn wire_config_prefers_responses(wire: Option<&str>) -> bool {
-    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
-        return false;
-    };
-    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
-    matches!(
-        normalized.as_str(),
-        "responses"
-            | "responses-api"
-            | "openai-responses"
-            | "openai-responses-api"
-            | "response"
-            | "response-api"
-            | "openai-responses-compat"
-            | "responses-compat"
-    )
+    codewhale_config::provider::wire_dialect_prefers_responses(wire)
 }
 
 fn modelstudio_mode_is_coding_plan(provider: ProviderKind, mode: Option<&str>) -> bool {

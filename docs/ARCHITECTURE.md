@@ -198,6 +198,30 @@ rather than a traced write path.
 - **`crates/release`** / **`crates/build-support`** - Release checks and build
   plumbing.
 
+### Embedded turn terminal ownership
+
+`TurnComplete` is the authoritative terminal event; `Error` remains advisory.
+The engine and protocol projection preserve the operation's original identity:
+
+- Model turns echo their actual `TurnStarted.turn_id` and the submitted
+  `submission_id` on completion, failure and interruption. Runtime self-starts
+  carry no host submission token.
+- A route-install failure or an `edit_last_turn` rejection before
+  `TurnStarted` emits a failed terminal with the rejected `submission_id` and
+  no `turn_id`. It does not claim a previous turn. Image and constitution
+  rejections in `handle_send_message` still emit only `Error`.
+- Manual compaction terminals carry only their `compaction_id`, including route
+  rejection and cancellation. Automatic compaction remains part of its owning
+  model turn. Purge operations carry none of these identities.
+
+Wire fields are optional and default to absent for older producers. An embedded
+host must match an owned receipt before closing a pending operation; it must
+not infer ownership from advisory errors, an absent ID, or whichever request
+happens to be busy. Hosts also need their own engine-incarnation fence: these
+IDs do not authorize an event from an evicted runtime to mutate its
+replacement. This contract adds no model prompt/context contributor and no
+second turn loop.
+
 ### LLM Integration
 
 - **`client.rs`** - The live HTTP client layer: OpenAI-compatible, Anthropic,

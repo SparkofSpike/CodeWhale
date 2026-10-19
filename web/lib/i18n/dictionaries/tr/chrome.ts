@@ -34,8 +34,6 @@ export const chrome: ChromeDict = {
 
   installCta: "Kur →",
 
-  authSignIn: "Giriş yap",
-
   dateLocale: "tr-TR",
 
   menuOpen: "Menüyü aç",
@@ -48,7 +46,7 @@ export const chrome: ChromeDict = {
   themeTitle: "Tema · otomatik / açık / koyu",
 
   footerTagline:
-    "Kendi modellerin ve bağlı araçlarınla uygulamalar geliştir, işleri otomatikleştir.",
+    "Terminalin ve seçtiğin modeller için açık kaynak kodlama ajanı.",
   footerProduct: "Ürün",
   footerProject: "Proje",
   footerDocs: "Belgeler",

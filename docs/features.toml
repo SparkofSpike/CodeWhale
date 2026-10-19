@@ -70,7 +70,7 @@ owner = "crates/tui/src/tools/subagent"
 [[feature]]
 id = "web-search"
 name = "Web search"
-summary = "Searches and fetches the web for the agent (web.run, with the web_search alias)."
+summary = "Searches and fetches the web for the agent, including DeepSeek Search (web.run, with the web_search alias)."
 status = "stable"
 surfaces = { tui = "stable" }
 since = "0.1.0"
@@ -531,6 +531,16 @@ docs = "docs/schemas/user-theme.schema.json"
 owner = "crates/palette"
 
 [[feature]]
+id = "chat-color"
+name = "Chat color"
+summary = "/color gives one chat's composer box its own color, kept with that session."
+status = "stable"
+surfaces = { tui = "stable" }
+since = "0.10.2"
+docs = "docs/GUIDE.md"
+owner = "crates/tui/src/commands/groups/session/color.rs"
+
+[[feature]]
 id = "localization"
 name = "Localization"
 summary = "Interface text in 15 locales."
@@ -568,7 +578,7 @@ owner = "crates/tui/src/commands/groups/core/home.rs"
 [[feature]]
 id = "account-login"
 name = "Account login"
-summary = "/login signs in to Codewhale or stores provider keys; plugin providers connect with /connect."
+summary = "/login signs in to an optional Codewhale account; plugin providers connect with /connect."
 status = "stable"
 surfaces = { tui = "stable" }
 owner = "crates/tui/src/commands/groups/config/config.rs"
@@ -628,6 +638,7 @@ name = "Terminal dock"
 summary = "/workbar terminal shows workspace PTYs with live output, human input, session selection and a fresh shell; macOS/Linux."
 status = "stable"
 surfaces = { tui = "stable" }
+since = "0.10.2"
 owner = "crates/tui/src/tui/work_surface/terminal.rs"
 
 # --- Operations and platforms ---

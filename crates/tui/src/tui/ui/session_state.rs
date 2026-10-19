@@ -872,6 +872,8 @@ pub(crate) fn begin_launch_session(
     }
     app.current_session_id = Some(session_id.clone());
     app.current_session_metadata = None;
+    app.window_title = None;
+    app.composer_color = None;
     app.session_title = Some(app.tr(MessageId::SessionsNewSessionTitle).into_owned());
     app.launch.dismiss();
     app.launch.status = None;

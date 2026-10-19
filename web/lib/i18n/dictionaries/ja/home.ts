@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale：オープンソースのコーディングエージェント",
   metaDescription: "Codewhale はターミナルで動くオープンソースのコーディングエージェントです。選んだクラウドやローカルモデルでプロジェクトを読み、編集し、テストできます。",
-  heroTitle: "アプリを作り、仕事を自動化しましょう。",
-  heroIntro: "{brand} はターミナルでファイルを読み、コードを書き、コマンドを実行するオープンソースのコーディングエージェントです。モデル API やローカルモデルを接続し、承認が必要な操作を選べます。",
+  heroTitle: "あらゆるモデルに対応するオープンソースのコーディングエージェント",
+  heroIntro: "{brand} はターミナルからプロジェクトを読み、ファイルを編集し、テストを実行します。ホスト型またはローカルのモデルを接続し、承認が必要な操作を選べます。",
   getCodewhale: "Codewhale をインストール",
   heroInstallAria: "インストールコマンド",
   exploreProduct: "Codewhale を見る",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "ソース",
   sourceCandidate: "未リリース",
   publishedRelease: "リリース済み",
-  gainHeading: "できること",
+  gainHeading: "ターミナルから開発と自動化を",
   gainLede: "作りたいものや自動化したい作業を伝えてください。Codewhale は、あなたが指定したアクセス権限の範囲で、ファイルを編集し、コマンドを実行して結果を確認できます。",
   gain: [
     [
@@ -41,7 +41,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "自分の API アカウント",
-      "自分のキーで OpenAI、Anthropic、Google、DeepSeek などに接続。"
+      "自分のキーで DeepSeek、OpenAI、Anthropic、Google などのプロバイダーに接続できます。既定の deepseek-flash は、現在 DeepSeek-V4.1-Flash で動作します。"
     ],
     [
       "自分のゲートウェイ",
@@ -50,6 +50,10 @@ export const home: HomeDict = {
     [
       "自分の推論環境",
       "Ollama、vLLM、SGLang でローカルまたは自己ホスト型モデルを実行。"
+    ],
+    [
+      "自分の ChatGPT プラン",
+      "codewhale auth chatgpt でサインインすると、API キーの代わりに ChatGPT プランを使えます。実験的な機能です。"
     ]
   ],
   modelsLink: "モデルとプロバイダーを見る",
@@ -74,22 +78,16 @@ export const home: HomeDict = {
     ],
     [
       "ホスト型 Web アプリ",
-      "開発プレビュー",
-      "デスクトップアプリに合わせて作り直しています。現在はサインインしたうえで、実行中のターミナルセッションで /rc と入力すると、そのセッションを Web で続けられます。ホスト型のタスク実行は引き続き検証中です。"
+      "開発中",
+      "デスクトップアプリに合わせて作り直しており、まだ公開されていません。今すぐブラウザーで使うには、自分のマシンで codewhale web を実行してください。"
     ],
     [
       "デスクトップ",
       "開発ビルド",
-      "Codewhale の主要なクライアントになりつつあるネイティブアプリです。フォルダー、会話、モデル接続をひとつのウィンドウにまとめます。一般向けのダウンロードはまだありません。"
-    ],
-    [
-      "クラウドコンピューター",
-      "開発中",
-      "タスクを実行するホスト型コンピューター。"
+      "同じエンジンで動くネイティブアプリです。変更のレビューとコミット、複数プロジェクトにまたがる作業の確認、メッセージを編集して新しい分岐として再送信できます。一般向けのダウンロードはまだありません。"
     ]
   ],
-  availabilityNote: "ターミナル、ローカルブラウザー、GUI は Codewhale のアカウントなしで使えます。ホスト型 Web とデスクトップはアカウントを使います。自分のプロバイダーキーを使う場合、その利用料金はプロバイダーから請求されます。",
-  accountLink: "アカウントを作成",
+  availabilityNote: "ターミナル、ローカルブラウザー、GUI は Codewhale のアカウントなしで使えます。自分のプロバイダーキーを使う場合、その利用料金はプロバイダーから請求されます。",
   surfacesHeading: "ファイルやツールを使って作業する",
   surfaces: [
     [
@@ -121,7 +119,7 @@ export const home: HomeDict = {
   chinaMirrors: "中国ミラー",
   installGuideLink: "インストールガイドを読む",
   communityHeading: "Codewhale に貢献する",
-  communityBody: "GitHub でバグを報告したり、ドキュメントを改善したり、コードを提供したりできます。プラグインを作り、他のユーザーとワークフローを共有することもできます。",
+  communityBody: "{count} 人が Codewhale の開発に参加しています。GitHub でバグを報告したり、ドキュメントを改善したり、コードを提供したりできます。",
   communityLinksAria: "コミュニティリンク",
   contribute: "GitHub で参加",
 };

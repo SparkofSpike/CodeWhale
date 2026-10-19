@@ -114,12 +114,25 @@ fn resolve_endpoint(
             Ok(_) | Err(_) => raw_selected_model,
         }
     };
+    // The table's wire dialect rides into the resolver exactly as it does on
+    // the TUI turn path, so a `wire = "responses"` custom table mints a
+    // Responses route and fails closed at this handler's Chat-only guard
+    // instead of silently receiving a chat body.
+    let wire_override = (provider_kind == ProviderKind::Custom)
+        .then(|| {
+            codewhale_config::provider::wire_dialect_override(
+                provider_kind.as_str(),
+                provider_cfg.wire.as_deref(),
+            )
+        })
+        .flatten();
     let route = RouteResolver::new().resolve(&RouteRequest {
         explicit_provider: Some(provider_kind),
         model_selector: Some(LogicalModelRef::from(selected_model.as_str())),
         saved_provider_model: None,
         base_url_override: Some(base_url.clone()),
         limit_overrides: Vec::new(),
+        wire_override,
     })?;
     let model = route.wire_model_id().as_str().to_string();
 

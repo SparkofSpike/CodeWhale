@@ -1066,6 +1066,7 @@ mod tests {
             ContentBlock::Thinking {
                 signature: None,
                 state: None,
+                redacted_data: None,
                 thinking: "skip".to_string(),
             },
             ContentBlock::Text {

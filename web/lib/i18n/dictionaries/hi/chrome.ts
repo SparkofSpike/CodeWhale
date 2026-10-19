@@ -35,8 +35,6 @@ export const chrome: ChromeDict = {
 
   installCta: "इंस्टॉल करें →",
 
-  authSignIn: "साइन इन करें",
-
   dateLocale: "hi-IN",
 
   menuOpen: "मेनू खोलें",
@@ -49,7 +47,7 @@ export const chrome: ChromeDict = {
   themeTitle: "थीम · ऑटो / लाइट / डार्क",
 
   footerTagline:
-    "अपने मॉडल और जुड़े टूल से ऐप बनाएं और काम स्वचालित करें।",
+    "आपके टर्मिनल और आपकी पसंद के मॉडल के लिए ओपन-सोर्स कोडिंग एजेंट।",
   footerProduct: "उत्पाद",
   footerProject: "प्रोजेक्ट",
   footerDocs: "दस्तावेज़ीकरण",

@@ -1993,9 +1993,19 @@ impl ExtensionsView {
                 format!("{} · {}{action} · {}", item.label, item.state, item.detail)
             }
             Some(VisibleEntry::Problem(problem)) => problem.to_string(),
-            Some(VisibleEntry::Empty) | None => {
-                tr(self.locale, MessageId::ExtensionsNoItems).into_owned()
-            }
+            Some(VisibleEntry::Empty) | None => self.empty_message(),
+        }
+    }
+
+    fn empty_message(&self) -> String {
+        if self.query.is_empty() {
+            tr(self.locale, MessageId::ExtensionsNoItems).into_owned()
+        } else {
+            localize(
+                self.locale,
+                MessageId::ExtensionsNoMatches,
+                &[("query", &self.query)],
+            )
         }
     }
 }
@@ -2405,15 +2415,7 @@ impl ModalView for ExtensionsView {
                     Some(codewhale_palette::ChromeInk::Failure),
                 )),
                 VisibleEntry::Empty => parts.push((
-                    if self.query.is_empty() {
-                        tr(self.locale, MessageId::ExtensionsNoItems).into_owned()
-                    } else {
-                        localize(
-                            self.locale,
-                            MessageId::ExtensionsNoMatches,
-                            &[("query", &self.query)],
-                        )
-                    },
+                    self.empty_message(),
                     Some(codewhale_palette::ChromeInk::MetadataHint),
                 )),
             }

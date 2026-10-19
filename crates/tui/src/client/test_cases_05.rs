@@ -633,6 +633,7 @@
                 content: vec![ContentBlock::Thinking {
                     signature: None,
                     state: None,
+                    redacted_data: None,
                     thinking: "plan".to_string(),
                 }],
             };
@@ -781,6 +782,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "Need to inspect the directory".to_string(),
                     },
                     ContentBlock::ToolUse {
@@ -826,6 +828,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "Need to search".to_string(),
                     },
                     ContentBlock::ToolUse {
@@ -922,6 +925,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "Need to list files".to_string(),
                     },
                     ContentBlock::ToolUse {

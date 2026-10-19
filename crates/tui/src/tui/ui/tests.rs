@@ -1260,6 +1260,7 @@ fn underwater_motion_keeps_its_smoother_cadence_during_live_status() {
     app.low_motion = false;
     app.fancy_animations = true;
     app.constrained_frame_rate = false;
+    app.is_loading = true;
 
     use crate::tui::display_refresh::DrawCadenceTier;
     assert_eq!(
@@ -6666,6 +6667,7 @@ fn running_exec_cell() -> HistoryCell {
         started_at: None,
         duration_ms: Some(20),
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -7771,6 +7773,7 @@ fn restored_reasoning_and_answer_clear_prior_fold_ownership() {
                     .join("\n"),
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
             codewhale_models::ContentBlock::Text {
                 text: "restored final answer".to_string(),
@@ -9345,6 +9348,7 @@ fn saved_session_with_messages(messages: Vec<Message>) -> SavedSession {
         approval_receipts: Vec::new(),
         work_state: None,
         window_title: None,
+        composer_color: None,
         last_auto_route: None,
         turn_outcomes: Vec::new(),
     }
@@ -10035,6 +10039,7 @@ fn refresh_shell_exec_live_output_finalizes_restored_missing_shell_job() {
         started_at: None,
         duration_ms: Some(1_234),
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -10071,6 +10076,7 @@ fn shell_live_output_update_matches_exact_task_id_only() {
         started_at: None,
         duration_ms: Some(111),
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -10087,6 +10093,7 @@ fn shell_live_output_update_matches_exact_task_id_only() {
         started_at: None,
         duration_ms: None,
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -10183,6 +10190,7 @@ fn shell_live_output_update_marks_stale_running_job_static() {
         started_at: Some(Instant::now() - Duration::from_secs(90)),
         duration_ms: Some(90_000),
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -10266,6 +10274,7 @@ fn shell_live_output_update_finalizes_background_exec_output() {
         started_at: None,
         duration_ms: None,
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -10357,6 +10366,7 @@ fn shell_live_output_update_skips_finalized_exec_cell() {
         started_at: None,
         duration_ms: Some(10),
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -16080,6 +16090,9 @@ fn user_input_completion_preserves_newer_question_and_dispatch() {
     observe_human_request_settlement(
         &mut app,
         &EngineEvent::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: Usage::default(),
             parent_route_usage: Usage::default(),
             routed_usage_dropped_records: 0,
@@ -16114,6 +16127,9 @@ fn user_input_turn_end_cancel_and_disconnect_retire_question_views() {
             _ => observe_human_request_settlement(
                 &mut app,
                 &EngineEvent::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id: None,
                     usage: Usage::default(),
                     parent_route_usage: Usage::default(),
                     routed_usage_dropped_records: 0,
@@ -18693,6 +18709,9 @@ fn local_cancel_marks_late_stream_events_for_suppression() {
     ));
     assert!(!suppress_engine_event_after_local_cancel(
         &EngineEvent::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: Usage::default(),
             parent_route_usage: Usage::default(),
             routed_usage_dropped_records: 0,
@@ -18713,6 +18732,76 @@ fn local_cancel_marks_late_stream_events_for_suppression() {
     assert!(!suppress_engine_event_after_local_cancel(
         &stream_drop_approval_event()
     ));
+}
+
+#[test]
+fn turn_end_outbox_uses_the_terminal_events_owner() {
+    let mut app = create_test_app();
+    app.runtime_turn_id = Some("turn-model".to_string());
+
+    let model_terminal = EngineEvent::TurnComplete {
+        turn_id: Some("turn-model".to_string()),
+        submission_id: None,
+        compaction_id: None,
+        usage: Usage::default(),
+        parent_route_usage: Usage::default(),
+        routed_usage_dropped_records: 0,
+        status: crate::core::events::TurnOutcomeStatus::Completed,
+        error: None,
+        tool_catalog: None,
+        base_url: None,
+    };
+    let model = super::event_loop::turn_end_lifecycle_event(
+        &app,
+        super::event_loop::TurnEndLifecycleReceipt::capture(&model_terminal)
+            .expect("terminal lifecycle data"),
+        Duration::from_millis(37),
+    );
+    assert_eq!(model.kind, "turn.completed");
+    assert_eq!(model.turn_id.as_deref(), Some("turn-model"));
+
+    let rejected_terminal = EngineEvent::TurnComplete {
+        turn_id: None,
+        submission_id: Some("submission-rejected".to_string()),
+        compaction_id: None,
+        usage: Usage::default(),
+        parent_route_usage: Usage::default(),
+        routed_usage_dropped_records: 0,
+        status: crate::core::events::TurnOutcomeStatus::Failed,
+        error: Some("route rejected".to_string()),
+        tool_catalog: None,
+        base_url: None,
+    };
+    let rejected = super::event_loop::turn_end_lifecycle_event(
+        &app,
+        super::event_loop::TurnEndLifecycleReceipt::capture(&rejected_terminal)
+            .expect("terminal lifecycle data"),
+        Duration::ZERO,
+    );
+    assert_eq!(rejected.kind, "turn.failed");
+    assert!(rejected.turn_id.is_none());
+
+    let compaction_terminal = EngineEvent::TurnComplete {
+        turn_id: None,
+        submission_id: None,
+        compaction_id: Some("compact-manual".to_string()),
+        usage: Usage::default(),
+        parent_route_usage: Usage::default(),
+        routed_usage_dropped_records: 0,
+        status: crate::core::events::TurnOutcomeStatus::Completed,
+        error: None,
+        tool_catalog: None,
+        base_url: None,
+    };
+    let manual_compaction = super::event_loop::turn_end_lifecycle_event(
+        &app,
+        super::event_loop::TurnEndLifecycleReceipt::capture(&compaction_terminal)
+            .expect("terminal lifecycle data"),
+        Duration::ZERO,
+    );
+    assert_eq!(manual_compaction.kind, "turn.completed");
+    assert!(manual_compaction.turn_id.is_none());
+    assert_eq!(app.runtime_turn_id.as_deref(), Some("turn-model"));
 }
 
 /// A turn the Engine stopped itself (here its per-turn wall-clock budget)
@@ -21796,6 +21885,7 @@ fn spillover_pager_uses_session_artifact_for_specialized_bash_cell() {
         started_at: None,
         duration_ms: None,
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -21863,6 +21953,7 @@ fn terminal_pause_has_live_owner_only_for_running_exec_cells() {
             started_at: Some(Instant::now()),
             duration_ms: None,
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::Assistant,
             description: None,
             interaction: Some("interactive".to_string()),
@@ -25432,19 +25523,27 @@ fn tool_details_survive_active_cell_flush() {
 
 #[test]
 fn exploring_label_uses_progressive_for_read_file() {
-    let label = exploring_label("read_file", &serde_json::json!({"path": "src/foo.rs"}));
+    let label = exploring_label(
+        "read_file",
+        &serde_json::json!({"path": "src/foo.rs"}),
+        std::path::Path::new(""),
+    );
     assert_eq!(label, "Reading src/foo.rs");
 }
 
 #[test]
 fn exploring_label_uses_progressive_for_list_dir() {
-    let label = exploring_label("list_dir", &serde_json::json!({"path": "crates/tui/src/"}));
+    let label = exploring_label(
+        "list_dir",
+        &serde_json::json!({"path": "crates/tui/src/"}),
+        std::path::Path::new(""),
+    );
     assert_eq!(label, "Listing crates/tui/src/");
 }
 
 #[test]
 fn exploring_label_uses_progressive_for_list_dir_no_path() {
-    let label = exploring_label("list_dir", &serde_json::json!({}));
+    let label = exploring_label("list_dir", &serde_json::json!({}), std::path::Path::new(""));
     assert_eq!(label, "Listing directory");
 }
 
@@ -25453,13 +25552,18 @@ fn exploring_label_for_grep_quotes_pattern_with_searching_for() {
     let label = exploring_label(
         "grep_files",
         &serde_json::json!({"pattern": "TranscriptScroll"}),
+        std::path::Path::new(""),
     );
     assert_eq!(label, "Searching for `TranscriptScroll`");
 }
 
 #[test]
 fn exploring_label_for_list_files_uses_progressive() {
-    let label = exploring_label("list_files", &serde_json::json!({}));
+    let label = exploring_label(
+        "list_files",
+        &serde_json::json!({}),
+        std::path::Path::new(""),
+    );
     assert_eq!(label, "Listing files");
 }
 
@@ -25931,6 +26035,7 @@ fn turn_inspector_renders_overview_sections_for_active_turn() {
             started_at: None,
             duration_ms: Some(2400),
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::Assistant,
             description: None,
             interaction: None,
@@ -26092,6 +26197,7 @@ fn turn_inspector_timeline_numbers_semantic_entries_and_checkpoint_actions() {
             started_at: None,
             duration_ms: Some(1250),
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::Assistant,
             description: None,
             interaction: None,
@@ -26399,6 +26505,7 @@ fn turn_handoff_markdown_renders_compact_sections_for_active_turn() {
             started_at: None,
             duration_ms: Some(2400),
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::Assistant,
             description: None,
             interaction: None,

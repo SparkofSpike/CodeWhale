@@ -27,28 +27,12 @@ version (for example a v0.10.2 source candidate before its tag). A
 prebuilt candidate is available through the official installer only after its
 tag, checksums and release assets exist. Contributors can build `main` now.
 
-## One account for your provider keys
+## No account needed
 
-[Register](https://app.codewhale.net/register) or [sign in](https://app.codewhale.net/login)
-to keep your model providers' API keys in one place. Add, replace or remove
-keys in your account's [Providers settings](https://app.codewhale.net/providers),
-or use the terminal commands below. On another device, sign in and select the
-Codewhale model route to use the same account keys without pasting them again.
-
-```bash
-codewhale login
-codewhale account keys set deepseek  # asks for the key without echoing it
-codewhale account keys list         # shows status, never the key itself
-codewhale --provider codewhale      # use your account's model route
-```
-
-The account setup here describes the 0.10.1 source candidate. Signing in does
-not upload existing local keys. To copy one deliberately, use
-`codewhale account keys set deepseek --from-local`. Account keys stay on the
-service; they are used for account-routed requests, not downloaded into each
-device's local key store. You can keep using local keys or a local model
-without an account. See [account key settings](CONFIGURATION.md#account-provider-keys)
-for updating keys and switching between these options.
+Codewhale needs no account. Keys you save with `/provider` or
+`codewhale auth set` stay on your machine; see
+[API keys and providers](#8-api-keys-and-providers). New Codewhale accounts
+are not open, so this guide does not cover account key storage.
 
 ## Test and contribute to current source
 

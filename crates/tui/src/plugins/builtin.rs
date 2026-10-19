@@ -470,16 +470,26 @@ pub(super) fn publish_snapshot(source: &Path, destination: &Path) -> io::Result<
         .encode_wide()
         .chain(Some(0))
         .collect();
-    // SAFETY: both paths are nul-terminated and live through the call. Omitting
-    // MOVEFILE_REPLACE_EXISTING preserves every existing destination entry.
-    unsafe {
-        MoveFileExW(
-            PCWSTR(source.as_ptr()),
-            PCWSTR(destination.as_ptr()),
-            MOVEFILE_WRITE_THROUGH,
-        )
+    let mut attempt = 0;
+    loop {
+        // SAFETY: both paths are nul-terminated and live through the call. Omitting
+        // MOVEFILE_REPLACE_EXISTING preserves every existing destination entry.
+        let error = match unsafe {
+            MoveFileExW(
+                PCWSTR(source.as_ptr()),
+                PCWSTR(destination.as_ptr()),
+                MOVEFILE_WRITE_THROUGH,
+            )
+        } {
+            Ok(()) => return Ok(()),
+            Err(_) => io::Error::last_os_error(),
+        };
+        let Some(backoff) = crate::utils::windows_publish_retry_delay(&error, attempt) else {
+            return Err(error);
+        };
+        std::thread::sleep(backoff);
+        attempt += 1;
     }
-    .map_err(|_| io::Error::last_os_error())
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]

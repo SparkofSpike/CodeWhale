@@ -882,6 +882,28 @@ textarea::placeholder {
   font-size: 15px;
 }
 
+.attention-card .approval-request {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.3));
+  border-radius: 6px;
+}
+
+.attention-card .approval-reason {
+  font-weight: 600;
+}
+
+.attention-card .approval-claim {
+  opacity: 0.75;
+  font-style: italic;
+}
+
 .attention-card p {
   margin: 0;
   color: var(--text-soft);

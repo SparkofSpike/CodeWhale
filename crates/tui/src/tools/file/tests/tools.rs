@@ -771,6 +771,7 @@ async fn write_file_tool_preserves_existing_mode() {
     let path = tmp.path().join("shared.txt");
     fs::write(&path, b"before").expect("initial write");
     fs::set_permissions(&path, fs::Permissions::from_mode(0o664)).expect("set shared permissions");
+    ctx.note_file_read(&ctx.resolve_path("shared.txt").expect("resolve"));
 
     WriteFileTool
         .execute(json!({"path": "shared.txt", "content": "after"}), &ctx)
@@ -788,6 +789,7 @@ async fn write_file_over_crlf_file_preserves_crlf_line_endings() {
     let ctx = ToolContext::new(tmp.path().to_path_buf());
     let path = tmp.path().join("crlf.txt");
     fs::write(&path, b"alpha\r\nbeta\r\n").expect("initial CRLF write");
+    ctx.note_file_read(&ctx.resolve_path("crlf.txt").expect("resolve"));
 
     WriteFileTool
         .execute(
@@ -812,6 +814,7 @@ async fn contract_write_over_crlf_file_preserves_crlf_line_endings() {
     let ctx = ToolContext::new(tmp.path().to_path_buf());
     let path = tmp.path().join("crlf.txt");
     fs::write(&path, b"alpha\r\nbeta\r\n").expect("initial CRLF write");
+    ctx.note_file_read(&ctx.resolve_path("crlf.txt").expect("resolve"));
 
     WriteFileTool::execute_contract_write(
         json!({"path": "crlf.txt", "content": "gamma\ndelta\n"}),

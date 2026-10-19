@@ -77,17 +77,16 @@ codewhale --provider ollama --model <model-tag>`,
     },
     {
       id: "account",
-      title: "登录 Codewhale 账户（可选）",
+      title: "Codewhale 账户",
       blocks: [
         {
-          p: "提供商密钥和 Codewhale 账户是两回事。账户只用于账户相关的功能，比如云端智能体、在网页应用里接着使用某个会话。安装 Codewhale 和在本地工作都不需要账户。",
+          p: "提供商密钥和 Codewhale 账户是两回事。Codewhale 从不需要账户，新账户也暂未开放。提供商密钥通过 `codewhale auth set` 保存在你的机器上。",
         },
         {
           rows: [
             ["codewhale login", "在浏览器中用一次性验证码登录。"],
             ["codewhale account status", "查看当前配置档登录的是哪个账户。"],
             ["codewhale account logout", "移除当前配置档的登录会话。"],
-            ["codewhale account keys list", "列出保存在账户里的提供商密钥，永远不会显示密钥内容。"],
           ],
           codeTerms: true,
         },

@@ -12,7 +12,7 @@ use crate::tools::spec::{ToolError, ToolResult};
 use crate::tui::active_cell::ActiveCell;
 use crate::tui::app::{App, ToolDetailRecord, ToolEvidence};
 use crate::tui::history::{
-    ExecCell, ExecSource, ExploringEntry, GenericToolCell, HistoryCell, McpToolCell,
+    ExecCell, ExecSource, ExecWait, ExploringEntry, GenericToolCell, HistoryCell, McpToolCell,
     PatchSummaryCell, PlanUpdateCell, ReviewCell, ToolCell, ToolStatus, ViewImageCell,
     WebSearchCell, output_looks_like_diff, summarize_mcp_output, summarize_tool_args,
     summarize_tool_output,
@@ -45,7 +45,7 @@ pub(super) fn handle_tool_call_started(
     }
 
     if is_exploring_tool(semantic_name) {
-        let label = exploring_label(semantic_name, input);
+        let label = exploring_label(semantic_name, input, &app.workspace);
         // ensure_exploring + append_to_exploring keeps all parallel exploring
         // starts in a single ExploringCell entry.
         let active = app.active_cell.as_mut().expect("active_cell just ensured");
@@ -109,9 +109,10 @@ pub(super) fn handle_tool_call_started(
                     shell_task_id: None,
                     owner_agent_id: None,
                     owner_agent_name: None,
-                    started_at: Some(Instant::now()),
+                    started_at: None,
                     duration_ms: None,
                     stale_elapsed_since_output_ms: None,
+                    waiting: None,
                     source,
                     description: None,
                     interaction: Some(summary.clone()),
@@ -147,9 +148,10 @@ pub(super) fn handle_tool_call_started(
                 shell_task_id: None,
                 owner_agent_id: None,
                 owner_agent_name: None,
-                started_at: Some(Instant::now()),
+                started_at: None,
                 duration_ms: None,
                 stale_elapsed_since_output_ms: None,
+                waiting: None,
                 source,
                 description: input
                     .get("description")
@@ -325,6 +327,55 @@ fn push_active_tool_cell(
     let virtual_index = app.history.len() + entry_idx;
     register_tool_cell(app, tool_id, tool_name, input, virtual_index);
     app.mark_history_updated();
+}
+
+pub(crate) fn hold_exec_cards_for_approval(app: &mut App, tool_id: &str) {
+    if !crate::tools::subagent::SubAgentManager::is_child_approval_id(tool_id) {
+        let queued: Vec<usize> = app
+            .tool_cells
+            .iter()
+            .filter(|(id, _)| id.as_str() != tool_id)
+            .map(|(_, &index)| index)
+            .filter(|&index| {
+                matches!(
+                    app.cell_at_virtual_index(index),
+                    Some(HistoryCell::Tool(ToolCell::Exec(exec)))
+                        if exec.status == ToolStatus::Running
+                            && exec.started_at.is_none()
+                            && exec.waiting.is_none()
+                )
+            })
+            .collect();
+        for index in queued {
+            set_exec_card_waiting(app, index, Some(ExecWait::Queue));
+        }
+    }
+    if let Some(&index) = app.tool_cells.get(tool_id) {
+        set_exec_card_waiting(app, index, Some(ExecWait::Approval));
+    }
+}
+
+pub(crate) fn start_exec_card(app: &mut App, tool_id: &str) {
+    if let Some(&index) = app.tool_cells.get(tool_id) {
+        set_exec_card_waiting(app, index, None);
+    }
+}
+
+fn set_exec_card_waiting(app: &mut App, index: usize, waiting: Option<ExecWait>) {
+    let is_change = matches!(
+        app.cell_at_virtual_index(index),
+        Some(HistoryCell::Tool(ToolCell::Exec(exec)))
+            if exec.status == ToolStatus::Running
+                && (exec.waiting != waiting || (waiting.is_none() && exec.started_at.is_none()))
+    );
+    if !is_change {
+        return;
+    }
+    if let Some(HistoryCell::Tool(ToolCell::Exec(exec))) = app.cell_at_virtual_index_mut(index) {
+        exec.waiting = waiting;
+        exec.started_at = waiting.is_none().then(Instant::now);
+        app.needs_redraw = true;
+    }
 }
 
 fn register_tool_cell(
@@ -1642,20 +1693,23 @@ pub(super) fn refreshes_workspace_context_on_completion(name: &str) -> bool {
     )
 }
 
-pub(super) fn exploring_label(name: &str, input: &serde_json::Value) -> String {
+pub(super) fn exploring_label(
+    name: &str,
+    input: &serde_json::Value,
+    workspace: &std::path::Path,
+) -> String {
     let fallback = format!("{name} tool");
     let obj = input.as_object();
+    let path = || {
+        obj.and_then(|o| o.get("path"))
+            .and_then(|v| v.as_str())
+            .map(|path| crate::utils::workspace_relative(path, workspace))
+    };
     match name {
-        "read_file" => obj
-            .and_then(|o| o.get("path"))
-            .and_then(|v| v.as_str())
-            .map_or(fallback, |path| format!("Reading {path}")),
-        "list_dir" => obj
-            .and_then(|o| o.get("path"))
-            .and_then(|v| v.as_str())
-            .map_or("Listing directory".to_string(), |path| {
-                format!("Listing {path}")
-            }),
+        "read_file" => path().map_or(fallback, |path| format!("Reading {path}")),
+        "list_dir" => path().map_or("Listing directory".to_string(), |path| {
+            format!("Listing {path}")
+        }),
         "grep_files" => {
             let pattern = obj
                 .and_then(|o| o.get("pattern"))
@@ -2771,6 +2825,7 @@ mod tests {
             started_at: None,
             duration_ms: Some(120),
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::Assistant,
             description: None,
             interaction: None,

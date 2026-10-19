@@ -14,6 +14,7 @@ function summary(facts: RepoFacts) {
     providerCount: facts.providers.length,
     modelCount: facts.models.length,
     toolCount: facts.toolCount,
+    contributorCount: facts.contributorCount,
   };
 }
 

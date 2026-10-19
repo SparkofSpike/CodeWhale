@@ -15,5 +15,5 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 export default async function SignInPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  return <PublicAccountEntry locale={locale} kind="sign-in" />;
+  return <PublicAccountEntry locale={locale} />;
 }

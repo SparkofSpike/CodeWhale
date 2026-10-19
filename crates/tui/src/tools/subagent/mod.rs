@@ -13538,6 +13538,8 @@ fn build_initial_subagent_messages(
     )
 }
 
+pub(crate) const SUBAGENT_CONTEXT_OPEN: &str = "<codewhale:subagent_context>";
+
 fn build_initial_subagent_messages_with_system(
     prompt: &str,
     assignment: &SubAgentAssignment,
@@ -13562,7 +13564,7 @@ fn build_initial_subagent_messages_with_system(
         }
 
         messages.push(system_text_message(format!(
-            "<codewhale:subagent_context>\n{}\n</codewhale:subagent_context>",
+            "{SUBAGENT_CONTEXT_OPEN}\n{}\n</codewhale:subagent_context>",
             subagent_system_prompt
         )));
     }

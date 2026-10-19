@@ -1,4 +1,4 @@
-<!-- source: README.md sha256:75bb6a506af5 -->
+<!-- source: README.md sha256:eefdc9e645b6 -->
 <div align="center">
 
 <picture>
@@ -6,10 +6,14 @@
   <img src="brand/wordmark.svg" alt="Codewhale" width="320">
 </picture>
 
-**Her modelle çalışan açık kaynaklı kodlama ajanı.**
+**Terminaliniz için her modelle çalışan, açık kaynaklı bir kodlama ajanı.**
 
-Codewhale projenizi okur, dosyaları düzenler, komutları çalıştırır ve kendi işini
-kontrol eder — terminalinizde, seçtiğiniz barındırılan veya yerel bir modelle.
+Codewhale'e bir görev verin; görev bitene ya da sizden girdi gerekene kadar depoyu
+okur, dosyaları düzenler ve komutları çalıştırır. 40'tan fazla yerleşik sağlayıcıyla
+(varsayılan olarak DeepSeek V4.1 Flash) ve kendi makinenizde çalışan modellerle
+çalışır.
+`/receipts`, değiştirdiği dosyaları, çalıştırdığı komutları ve yaptığı web ve MCP
+çağrılarını listeler.
 
 [![CI](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml/badge.svg)](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/codewhale-cli?label=crates.io)](https://crates.io/crates/codewhale-cli)
@@ -23,7 +27,7 @@ kontrol eder — terminalinizde, seçtiğiniz barındırılan veya yerel bir mod
 
 <img src="web/public/codewhale-tui-0102-demo.png" alt="Bir Codewhale terminal oturumu" width="760">
 
-<sub>Yapılandırılmış yerel bir demo oturumundan gerçek Codewhale terminal görüntüsü.</sub>
+<sub>Betikli bir test modeliyle, atılabilir bir çalışma alanında Full Access ile çalışan bir 0.10.2 geliştirme derlemesi. Düzenleme, üç test ve bir alt ajan incelemesi gerçekten çalıştı.</sub>
 
 </div>
 
@@ -35,119 +39,211 @@ macOS ve Linux:
 curl -fsSL https://codewhale.net/install.sh | sh
 ```
 
-Kurulum betiği, sağlama toplamı doğrulanmış ikili dosyaları `~/.local/bin` dizinine
-indirir. Ardından `codewhale` "command not found" derse, betiğin yazdırdığı tek satırlık
-PATH komutunu çalıştırın veya [PATH'e ekleme](docs/INSTALL.md#put-it-on-your-path)
-bölümüne bakın. İstediğiniz zaman `codewhale update` ile yükseltebilirsiniz.
+Kurulum betiği, sağlama toplamı doğrulanmış `codewhale` ikili dosyasını ve kısa
+takma adı olan `codew` komutunu `~/.local/bin` dizinine koyar. Ardından kabuğunuz
+`command not found` derse, betiğin yazdırdığı PATH satırını çalıştırın
+([ayrıntılar](docs/INSTALL.md#put-it-on-your-path)). `codewhale update` kurulumu
+yükseltir. Bu komutlar en son sürümü kurar. Bu sayfa `main` dalını izler; bu yüzden
+bir sürüm numarasıyla işaretlenen özellik o sürümle gelir. Her sürümün neler
+eklediğini [değişiklik günlüğü](CHANGELOG.md) listeler.
 
 <details>
-<summary><b>Windows, npm, Cargo ve diğer yollar</b></summary>
+<summary><b>Windows, npm, Cargo ve diğer kurulum yolları</b></summary>
 
 ```bash
 winget install HunterBown.CodeWhale  # Windows x64 (or Scoop, or the installer from GitHub Releases)
 npm install -g codewhale            # wraps the same release binaries
-cargo install codewhale-cli --locked  # build from crates.io
+cargo install codewhale-cli --locked  # crates.io; can trail GitHub Releases
 ```
 
-Docker, Nix, Linux'ta Homebrew, Android/Termux, sağlama toplamı doğrulamalı elle
-indirmeler ve isteğe bağlı CNB yansısı [kurulum kılavuzunda](docs/INSTALL.md) anlatılır.
-Tek bir yol seçin: aynı makinedeki birden fazla kurulum `PATH` üzerinde birbiriyle çakışır.
+Hazır derlenmiş ikili dosyalar x64 ve arm64 üzerinde Linux, macOS ve Windows'u
+kapsar. Nix, Linux'ta Homebrew, Android/Termux (önizleme) ve elle indirme
+[kurulum kılavuzunda](docs/INSTALL.md), konteynerler ise [Docker](docs/DOCKER.md)
+sayfasında anlatılır. Her makinede tek bir kurulum yöntemi kullanın; aksi halde
+`PATH` üzerinde iki kopya olur ve hangisi önce gelirse o çalışır.
 
 </details>
 
 ## Hızlı başlangıç
 
-**Sağlayıcı API anahtarlarınızı tek bir yerden yönetin.** [Codewhale hesabı oluşturun](https://app.codewhale.net/register)
-veya oturum açmak için `codewhale login` komutunu çalıştırın. API anahtarlarınızı hesabınıza kaydedip güncelleyin,
-ardından oturum açtığınız cihazlarda Codewhale model rotası üzerinden kullanın.
-[Hesap anahtarlarını ayarlayın](docs/CONFIGURATION.md#account-provider-keys).
-Oturum açmak mevcut yerel anahtarları yüklemez; hesap olmadan da yerel kullanım mümkündür.
-
-1. **Projenizi açın.** Üzerinde çalışmak istediğiniz klasörde `codewhale` çalıştırın.
-2. **Bir model bağlayın.** Barındırılan bir anahtar eklemek veya yerel bir çalışma ortamı
-   seçmek için `/provider` komutunu çalıştırın (veya `F3` tuşuna basın). Ollama zaten bir
-   sohbet modeliyle çalışıyorsa Codewhale kendiliğinden ona geçer. Modeli değiştirmek için
-   `/model` kullanın.
-3. **Ona somut bir görev verin.**
+1. Çalışmanızı commit edin veya stash'leyin, ardından bir git deposunun kök
+   dizininde `codewhale` çalıştırın. Varsayılan olarak orada dosya düzenlemelerini
+   sormadan uygular ve size diff'i gösterir.
+2. `/provider` çalıştırın (veya `F3` tuşuna basın), bir sağlayıcı seçin, onun API
+   anahtarını yapıştırın ve bir model seçin. Varsayılan sağlayıcı DeepSeek'tir.
+   Anahtarınız yoksa bunun yerine yerel bir çalışma ortamı seçin. Hiçbir sağlayıcı
+   yapılandırılmamışsa ve Ollama zaten bir sohbet modeli sunuyorsa Codewhale onu
+   kendiliğinden kullanır; 0.10.2'den itibaren ilk mesajınızı gönderdiğinizde onu
+   kullanmayı önerir.
+3. Bir görev yazın:
 
 ```text
 Fix the failing tests and explain what changed.
 ```
 
-Aynı görev bir betikten veya CI işinden arayüzsüz de çalışır:
+Salt okunur komutlar hemen çalışır. Diğer her kabuk komutu için Codewhale önce
+sorar: `y` komutu bir kez çalıştırır, `a` konuşmanın geri kalanında benzer
+komutlara izin verir, `n` reddeder. `/undo` son isteğinizi ve onun dosya
+değişikliklerini geri alır (0.10.1'de önce `/trust on` çalıştırın). `/help`
+komutları ve tuşları listeler.
+
+Betikler ve CI için `codewhale exec`, tek bir görevi arayüz olmadan çalıştırır.
+`--auto` ile dosyaları düzenler ve kabuk komutlarını sormadan çalıştırır; bu yüzden
+ona bir konteyner veya atılabilir bir checkout verin:
 
 ```bash
 codewhale exec --auto "fix the failing tests and explain what changed"
 ```
 
-Komutlar ve klavye kısayolları için `/help` çalıştırın.
+## Modlar ve izinler
 
-## Çalıştırma yolları
+Yeni bir kurulum Work modunda ve Ask izniyle başlar.
 
-Her istemci aynı yerel Codewhale Runtime'ı kullanır; bu nedenle oturumlar, araçlar ve
-izinler her yerde aynı şekilde davranır.
+| | Nasıl değiştirilir | Seçenekler |
+| --- | --- | --- |
+| Mod | `Tab` (giriş alanı boşken) veya `/mode` | **Plan** okur ve arar ama hiçbir şeyi değiştirmez. **Work** dosyaları düzenler ve komutları çalıştırır. **Operate** Work ile aynı erişime sahiptir, isteğinizi bir hedef olarak ele alır ve hedef doğrulanana ya da sizden girdi gerekene kadar devam eder. |
+| İzin | `Shift+Tab` | **Ask** deponuzdaki dosya düzenlemelerini sormadan uygular, salt okunur olmayan kabuk komutlarından önce sorar. **Auto-Review** rutin çağrıların kurallar ve bir inceleyici model tarafından onaylanmasına izin verir, yüksek riskli olanları reddeder; bunları kendiniz onaylamak için Ask iznine geçin. **Full Access** hiç sormaz ve Codewhale'in korumalı alanını kapatır; depo kuralları ve yönetilen politika yine de geçerlidir. |
 
-| Komut | Ne yapar |
-| --- | --- |
-| `codewhale` | Etkileşimli terminal arayüzü |
-| `codewhale exec "…"` | Bir betikten veya CI'dan tek bir arayüzsüz tur; `--auto` dosya ve kabuk araçlarına izin verir, `--output-format stream-json` JSON akışı sağlar |
-| `codewhale web` | `127.0.0.1` üzerinde paketle gelen [yerel tarayıcı istemcisi](docs/WEB.md) |
-| `codewhale review --pr N` | Tavsiye niteliğinde bir [pull request incelemesi](docs/GITHUB_ACTION.md); yayınlamak isteğe bağlıdır |
-| Runtime API | İş parçacıkları, olaylar ve onaylar için [yerel bir HTTP API](docs/RUNTIME_API.md) |
-
-Oturum açılan ürün istemcisi olarak yerel bir masaüstü uygulaması (GPUI) geliştiriliyor;
-kullanılabilirlik için [ürün sayfasına](https://codewhale.net/en/product) bakın. Topluluk
-tarafından sürdürülen [VS Code eklentisi](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
-kenar çubuğundan aynı Runtime'a bağlanır ([kaynak](https://github.com/HengQuWorld/CodeWhale-VSCode)).
+Ayrıntılar için [modlar ve izinler kılavuzuna](docs/MODES.md) bakın.
 
 ## Ne yapar
 
-- **Her model, kilitlenme yok.** 40'tan fazla yerleşik sağlayıcı yolu — Anthropic,
-  DeepSeek, Google, Mistral, Moonshot, OpenAI, OpenRouter, xAI ve daha fazlası — ayrıca
-  OpenAI uyumlu her uç nokta ve Ollama, vLLM veya SGLang üzerinden yerel modeller.
-  [Sağlayıcılar](docs/PROVIDERS.md)
-- **Kontrol sizde kalır.** Plan modu hiçbir şeyi değiştirmeden keşfeder; Work ve Operate
-  değişiklik yapar. Onay duruşları hangi araç çağrısının onayınıza ihtiyaç duyduğunu
-  belirler, `/undo` ve `/restore` çalışma alanı değişikliklerini geri getirir, `/receipts`
-  ise bir oturumdaki her dosyayı, komutu ve onayı listeler. [Modlar](docs/MODES.md) ·
-  [Makbuzlar](docs/RECEIPTS.md)
-- **Uzun işler için yapıldı.** Kalıcı bir `/goal` belirleyin, sınırlı işleri
-  [alt ajanlara](docs/SUBAGENTS.md) devredin, harcamadan önce kontrol yapan gözetimli
-  [ajan ekipleri](docs/FLEET.md) çalıştırın veya bunları depoya eklenmiş
-  [iş akışları](docs/WORKFLOW_AUTHORING.md) olarak betikleyin.
-- **Zaten kullandıklarınızı genişletin.** [MCP sunucuları](docs/MCP.md) bağlayın,
-  [beceriler](docs/SKILLS.md) ve [eklentiler](docs/PLUGINS.md) kurun, oturum ve araç
-  olaylarında [kancalar](docs/HOOKS.md) çalıştırın ve mevcut
-  [Claude Code eklentilerini](docs/CLAUDE_PLUGIN_COMPAT.md) yükleyin.
-- **Computer Use.** Dahil edilen bir eklenti, diğer uygulamaları gözlemlemek ve
-  kullanmak için araçlar ekler. Kullanmadan önce erişimini gözden geçirin ve etkinleştirin.
-  [Kılavuz](crates/tui/plugins/computer-use/README.md)
+### 0.10.2'de geliyor
 
-## Modlar ve izinler
+Bunlar `main` dalına birleştirildi ama henüz yayımlanmış bir sürümde yok; şimdi
+denemek için
+[`main` dalını derleyin](docs/INSTALL.md#test-and-contribute-to-current-source).
 
-| | Nasıl seçilir | Seçenekler |
-| --- | --- | --- |
-| **Mode** — ajanın ne yaptığı | `Tab` veya `/mode` | Plan (keşfet, değişiklik yok) · Work (düzenle ve çalıştır) · Operate (bir hedefi planlı, doğrulanmış adımlarla yürüt) |
-| **Posture** — ne zaman önce sorduğu | `Shift+Tab` | Ask · Auto-Review · Full Access |
+- `/pet on`, terminalinizi ajanın ne yaptığını gösteren hareketli bir balinaya
+  dönüştürür; bu sırada mesaj kutusu kullanılabilir kalır. 980 parçacığı o anki
+  adımı İngilizce, Çince veya Japonca olarak yazar.
+- `/workbar terminal`, ajanın çalıştırdığı kabukları çalışırken gösterir. Birine
+  yazın ya da kendinize ait bir kabuk için `Ctrl+N` tuşuna basın (macOS ve Linux).
+- `/undo`, son isteğinizin tamamını, değiştirdiği her dosya dahil tek adımda geri
+  alır; `/diff` de Git kullanılmayan klasörlerde çalışır.
+- Bir plan açık adımlarla bittiğinde Codewhale, Work'e Ask ile mi yoksa
+  Auto-Review ile mi başlanacağını ya da planlamaya devam edilip edilmeyeceğini
+  sorar.
+- `/color`, her sohbete oturumla birlikte kaydedilen kendi yazma kutusu rengini
+  verir.
+- `web_search`, DeepSeek'in yeni Search API'sini kullanabilir: bir DeepSeek
+  anahtarıyla `[search] provider = "deepseek"` ayarlayın.
+- Full Access dışında, bir kimlik bilgisini yükleyecek bir `curl` veya `wget`
+  onayınız olmadan asla çalışmaz; görünmez Unicode gizleyen bir komut ise
+  reddedilir. `write` artık ajanın okumadığı ya da okuduktan sonra değişmiş bir
+  dosyanın üzerine yazmaz.
 
-Full Access de katı politika sınırlarına uyar.
-[Modlar ve izinler kılavuzu](docs/MODES.md) her seçeneği açıklar.
+### Modeller
 
-## Güvenlik
+Anthropic, OpenAI, DeepSeek, Google, Mistral, Moonshot, OpenRouter ve xAI dahil
+40'tan fazla sağlayıcı yerleşik olarak gelir. OpenAI uyumlu her uç nokta çalışır;
+Ollama, vLLM veya SGLang üzerinden yerel modeller de çalışır. Varsayılan model,
+DeepSeek'in `deepseek-flash` modelidir; DeepSeek bu modeli 2026-10-17'de
+DeepSeek-V4.1-Flash-1017'ye taşıdı. 0.10.1 onu güncelleme gerektirmeden çalıştırır
+([ayrıntılar](docs/PROVIDERS.md#deepseek-v41-flash)).
 
-Codewhale makinenizde, ona verdiğiniz erişimle çalışır. Onay duruşları ve depo kuralları
-ajanın yapabileceklerini sınırlar; komutlar, desteklenen yerlerde bir işletim sistemi
-korumalı alanı içinde çalışır (macOS'ta Seatbelt; Linux'ta bubblewrap, kurulu ve çalışıyorsa).
-`/preview-request`, herhangi bir şey gönderilmeden önce tam ve gizlenmiş (redacted)
-isteği gösterir. Fiyatı bilinmeyen modeller ücretsiz olarak gösterilmez, bilinmeyen olarak kalır.
+`/model` turlar arasında model değiştirir; `/model auto` ise her tur için bir model
+seçer (seçimin nasıl yapılacağını `/router` ayarlar). `/turn inspect`, bir turun
+hangi modeli kullandığını, ne kadara mal olduğunu ve ne kadar sürdüğünü gösterir.
+`codewhale auth chatgpt`, API anahtarı yerine bir ChatGPT planı kullanmanızı sağlar
+(deneysel). Bkz. [Sağlayıcılar](docs/PROVIDERS.md).
 
-[Yetkilendirme sırası](docs/AUTHORIZATION_ORDER.md), [korumalı alan](docs/SANDBOX.md) ve
-[telemetri](docs/TELEMETRY.md) bölümlerine bakın — kullanım sayıları varsayılan olarak
-açıktır ve `codewhale config set telemetry false` bunları kapatır.
+### Makbuzlar ve geri alma
+
+`/receipts` (veya çıktıktan sonra `codewhale receipts --last`), değiştirilen
+dosyaları, çalıştırılan komutları, web ve MCP çağrılarını, başlatılan ajanları,
+onayları ve bunları kimin verdiğini ve hataları listeler. `/undo` son isteğinizi
+geri alır; 0.10.1'de dosyalar için `/trust on` gerektirir ve her seferinde bir araç
+çağrısı geri gider. `/restore` tüm çalışma alanını daha önceki bir anlık görüntüye geri
+döndürür; bu, sonraki düzenlemelerin üzerine yazdığı için `/trust on` veya Full
+Access gerektirir. Bkz. [Makbuzlar](docs/RECEIPTS.md).
+
+### Daha uzun işler
+
+`/goal`, turlar boyunca geçerli kalan bir hedef belirler. Codewhale işi
+[alt ajanlara](docs/SUBAGENTS.md) bölebilir, bir [ajan filosu](docs/FLEET.md)
+çalıştırabilir veya depoya eklenmiş bir [iş akışını](docs/WORKFLOW_AUTHORING.md)
+izleyebilir.
+
+### Başka bir ajandan geçiş
+
+Codewhale `AGENTS.md` dosyasını kendiliğinden okur. `CLAUDE.md`, `.cursorrules`
+veya `.github/copilot-instructions.md` gibi başka araçlar için yazılmış talimat
+dosyaları, yalnızca yapılandırmanızda `project_instruction_imports = ["claude"]`
+(veya `"cursor"`, `"cline"`, `"windsurf"`, `"copilot"`, `"all"`) ile bunu açıkça
+seçtiğinizde yüklenir; bkz. [config.example.toml](config.example.toml). Codewhale,
+yüklemediği böyle bir dosya bulduğunda uyarır.
+
+`/import-claude`, Claude Code ayarlarınızın ve MCP sunucularınızın içe aktarımını
+gözden geçirmeniz için hazırlar. `/plugin install`, beceriler, komutlar, ajan
+profilleri ve MCP sunucuları içeren Claude Code eklentilerini kabul eder; kanca
+veya LSP sunucusu gerektiren eklentileri reddeder
+([ayrıntılar](docs/CLAUDE_PLUGIN_COMPAT.md)).
+
+### Uzantılar
+
+[MCP sunucuları](docs/MCP.md) bağlayın, [beceriler](docs/SKILLS.md) ve
+[eklentiler](docs/PLUGINS.md) ekleyin, oturum ve araç olaylarında
+[kancalar](docs/HOOKS.md) çalıştırın. Code mode (deneysel, varsayılan olarak açık),
+modelin birkaç MCP ve eklenti aracını çağıran tek bir `execute_tools` programı
+yazmasını sağlar; her çağrı yine onay kurallarınızdan geçer ve makbuzunu korur.
+Birlikte gelen Computer Use eklentisi
+(deneysel, yalnızca macOS) diğer uygulamaları gözlemleyip kullanabilir. Siz
+erişimini gözden geçirip etkinleştirene kadar kapalı kalır
+([kılavuz](crates/tui/plugins/computer-use/README.md)).
+
+## Çalıştırma yolları
+
+| Komut | Ne yapar |
+| --- | --- |
+| `codewhale` | Etkileşimli terminal uygulaması |
+| `codewhale exec "…"` | Arayüz olmadan tek bir görev. Tek başına araç kullanmadan yanıt verir; `--auto` dosyaları düzenlemesine ve komutları çalıştırmasına izin verir, `--output-format stream-json` olayları JSON olarak akış halinde verir |
+| `codewhale web` | `127.0.0.1` üzerinde yerel bir web arayüzü ([kılavuz](docs/WEB.md)) |
+| `codewhale review --pr N` | Bir GitHub pull request'inin tavsiye niteliğinde incelemesi. `--post` eklemediğiniz sürece hiçbir şey yayınlamaz; [GitHub Action](docs/GITHUB_ACTION.md) aynı incelemeyi CI'da çalıştırır |
+| `codewhale app-server --http` | [Runtime API](docs/RUNTIME_API.md); iş parçacıkları, olaylar, onaylar ve her turun dosya değişiklikleri için yerel bir HTTP API |
+| `codewhale serve --acp` | Zed gibi editörler için stdio üzerinden Agent Client Protocol |
+
+Terminal uygulaması, `exec`, `web` ve Runtime API tek bir motoru paylaşır
+([mimari](docs/ARCHITECTURE.md)). Topluluk tarafından sürdürülen bir
+[VS Code eklentisi](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
+kenar çubuğundan bu motora bağlanır ([kaynak](https://github.com/HengQuWorld/CodeWhale-VSCode)).
+Runtime API üzerine kurulu, platforma özgü bir masaüstü uygulaması geliştiriliyor;
+henüz herkese açık bir indirmesi yok.
+
+## Maliyet ve hesaplar
+
+Codewhale ücretsizdir ve MIT lisanslıdır. Kendi API anahtarınızla ödemeyi doğrudan
+sağlayıcıya yaparsınız; yerel modeller anahtar gerektirmez. Alt bilgi satırı ve
+`/cost`, fiyat biliniyorsa bir oturumun maliyetini gösterir; bilinmeyen bir fiyat
+asla ücretsiz olarak değil, bilinmeyen olarak gösterilir.
+
+Hesaba ihtiyacınız yok. `/provider` ile eklediğiniz anahtarlar makinenizde kalır.
+
+## Güvenlik ve gizlilik
+
+Ask ve Auto-Review izinlerinde komutlar, sistemde varsa bir işletim sistemi
+korumalı alanında çalışır: macOS'ta Seatbelt, Linux'ta ise kuruluysa bubblewrap.
+Windows'ta henüz işletim sistemi korumalı alanı yoktur ve Full Access korumalı
+alanı kapatır. Korumalı alanın içinde kabuk komutları `~/.ssh`, `~/.aws` ve `.env`
+dosyaları gibi kimlik bilgisi depolarını okuyamaz; 0.10.2'den itibaren aynı kural
+terminal oturumlarını ve daha fazla dosya aracını da kapsar. `/preview-request`, bir sonraki isteğin gizlenmiş (redacted) bir
+önizlemesini, isteği göndermeden gösterir.
+
+Telemetri varsayılan olarak açıktır. Her 90 günde bir değişen rastgele bir kurulum
+kimliğiyle birlikte toplu sayımlar (sürüm ve platform, oturum süresi ve sonucu,
+kullandığınız yerleşik sağlayıcılar, özellik ve hata sayıları) gönderir;
+konuşmalar, kod, istemler, model adları, dosya veya depo adları ya da kimlik
+bilgileri asla gönderilmez.
+`codewhale config set telemetry false` telemetriyi kapatır. Codewhale başlangıçta
+ayrıca yeni bir sürüm için GitHub'ı kontrol eder; bunu atlamak için
+`CODEWHALE_NO_UPDATE_CHECK=1` ayarlayın. Daha fazlası için
+[yetkilendirme sırası](docs/AUTHORIZATION_ORDER.md),
+[korumalı alan](docs/SANDBOX.md) ve [telemetri](docs/TELEMETRY.md) belgelerine
+bakın.
 
 ## Belgeler
 
-| Buradan başlayın | Daha derine inin |
+| Buradan başlayın | Başvuru |
 | --- | --- |
 | [Kurulum](docs/INSTALL.md) | [Yapılandırma](docs/CONFIGURATION.md) |
 | [Sağlayıcılar ve yerel modeller](docs/PROVIDERS.md) | [Mimari](docs/ARCHITECTURE.md) |
@@ -157,22 +253,24 @@ açıktır ve `codewhale config set telemetry false` bunları kapatır.
 
 ## Topluluk
 
-Hata raporları, özellik fikirleri ve pull request'ler memnuniyetle karşılanır — ister
-Codewhale'i aylardır kullanıyor olun, ister ilk kez deneyin. Bir sağlayıcı eksikse veya
-bir iş akışı zahmetliyse [bir issue açın](https://github.com/codewhale-hq/CodeWhale/issues/new/choose)
-ya da [pull request gönderin](CONTRIBUTING.md). İlk katkılar memnuniyetle karşılanır ve
-katkıda bulunanlar, kabul edilen işin hakkını korur. [Depo yapısı](CONTRIBUTING.md#project-structure)
-başlamak için iyi bir yerdir.
+Bir sağlayıcı eksikse veya bir iş akışı zahmetliyse
+[bir issue açın](https://github.com/codewhale-hq/CodeWhale/issues/new/choose) ya da
+[pull request gönderin](CONTRIBUTING.md). Katkıda bulunanlar, kabul edilen işin
+hakkını korur; [depo yapısı](CONTRIBUTING.md#project-structure) neyin nerede
+olduğunu gösterir.
 
-[Discord](https://discord.gg/37gfS3ksug) sunucusuna katılın veya WeChat'te Hunter'ı
-(`hunterbown`) ekleyip Whale Brothers grubuna katılmak istediğinizi söyleyin.
+[Discord](https://discord.gg/37gfS3ksug) üzerinde sohbet edin veya projenin
+bakımcısı Hunter'ı WeChat'te (`hunterbown`) ekleyip Whale Brothers grubuna katılmak
+istediğinizi söyleyin.
 
 ## Geçmiş ve lisans
 
 Codewhale, `deepseek-tui` olarak başladı ve hâlâ o projenin yapılandırmasını ve
-oturumlarını okuyor. Artık sağlayıcıdan bağımsız, bağımsız olarak sürdürülüyor ve hiçbir
-model sağlayıcısıyla bağlantılı değil. [Tüm katkıda bulunanlara](docs/CONTRIBUTORS.md) ve
-büyümesine yardım eden açık kaynak topluluklarına teşekkürler.
+oturumlarını okur. Bağımsız olarak sürdürülür ve DeepSeek ya da başka herhangi bir
+model sağlayıcısıyla bağlantılı değildir.
+[Katkıda bulunan herkese](docs/CONTRIBUTORS.md) teşekkürler.
 
-[MIT](LICENSE). Diğer açık kaynak projelerden uyarlanan bölümler
-[üçüncü taraf bildirimlerinde](docs/THIRD_PARTY_NOTICES.md) kayıtlıdır.
+[![Codewhale contributors](docs/assets/contributors.png)](docs/CONTRIBUTORS.md#everyone)
+
+[MIT](LICENSE). Diğer açık kaynak projelerden uyarlanan kod
+[üçüncü taraf bildirimlerinde](docs/THIRD_PARTY_NOTICES.md) listelenir.

@@ -168,16 +168,16 @@ function parseGeneratedFacts(source: string): Record<string, unknown> | null {
   }
 }
 
-function deriveToolCountFromGeneratedFacts(source: string): number | null {
-  const toolCount = parseGeneratedFacts(source)?.toolCount;
-  return typeof toolCount === "number" && Number.isSafeInteger(toolCount) && toolCount >= 0
-    ? toolCount
+function deriveCountFromGeneratedFacts(facts: Record<string, unknown> | null, field: "toolCount" | "contributorCount"): number | null {
+  const count = facts?.[field];
+  return typeof count === "number" && Number.isSafeInteger(count) && count >= (field === "contributorCount" ? 1 : 0)
+    ? count
     : null;
 }
 
 /**
  * Model presentation comes from the exact revision's reviewed catalog;
- * tool counts retain the existing generated-source boundary.
+ * tool and contributor counts retain the existing generated-source boundary.
  */
 export async function deriveFactsFromRemote(ghToken?: string): Promise<RepoFacts | null> {
   const source = await fetchSourceMarker(ghToken);
@@ -197,14 +197,14 @@ export async function deriveFactsFromRemote(ghToken?: string): Promise<RepoFacts
   if (!cargo) return null;
   const providerData = parseProviderDescriptors(providerMetadata);
   if (!providerData) return null;
-  const toolCount = generatedFacts
-    ? deriveToolCountFromGeneratedFacts(generatedFacts)
-    : null;
+  const generated = generatedFacts ? parseGeneratedFacts(generatedFacts) : null;
+  const toolCount = deriveCountFromGeneratedFacts(generated, "toolCount");
+  const contributorCount = deriveCountFromGeneratedFacts(generated, "contributorCount");
   const models = parseModelCatalog(modelCatalog);
-  // Never attach current-main provenance to build-time tool/model facts. The
+  // Never attach current-main provenance to build-time tool/model/contributor facts. The
   // checked-in generated snapshot is guarded by the exact revision's CI drift
   // check, so an absent or malformed value makes the whole derivation fail.
-  if (toolCount === null || models === null) return null;
+  if (toolCount === null || contributorCount === null || models === null) return null;
 
   const facts: RepoFacts = {
     generatedAt: new Date().toISOString(),
@@ -222,6 +222,7 @@ export async function deriveFactsFromRemote(ghToken?: string): Promise<RepoFacts
       try { return npmPkg ? JSON.parse(npmPkg).engines?.node ?? null : null; } catch { return null; }
     })(),
     toolCount,
+    contributorCount,
     license: licText ? deriveLicense(licText) : BUILD_FACTS.license,
     latestPublishedRelease:
       latestPublishedRelease ?? BUILD_FACTS.latestPublishedRelease,
@@ -251,6 +252,7 @@ function diff(a: RepoFacts, b: RepoFacts): DriftDiff[] {
     "defaultModel",
     "nodeEngines",
     "toolCount",
+    "contributorCount",
     "license",
     "latestPublishedRelease",
   ];

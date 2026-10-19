@@ -2191,12 +2191,17 @@ impl CodewhaleClient {
     pub(crate) fn resolve_model_route(&self, model: &str) -> Result<ReadyRouteCandidate> {
         static RESOLVER: OnceLock<RouteResolver> = OnceLock::new();
         let resolver = RESOLVER.get_or_init(RouteResolver::new);
+        // Pin the transport's own wire: a custom-table client constructed
+        // from a wire-true candidate keeps speaking that wire even when this
+        // internal re-resolution runs config-free (an engine-internal model
+        // switch must not silently downgrade the table's dialect).
         let request = RouteRequest {
             explicit_provider: Some(self.api_provider),
             model_selector: Some(LogicalModelRef::from(model)),
             saved_provider_model: None,
             base_url_override: Some(self.base_url.clone()),
             limit_overrides: Vec::new(),
+            wire_override: (self.api_provider == ProviderKind::Custom).then_some(self.wire_format),
         };
         if self.configured_models.is_empty() || self.api_provider == ProviderKind::OpenaiCodex {
             resolver.resolve(&request)
@@ -2714,37 +2719,11 @@ fn provider_wire_format_for_config(
 }
 
 fn wire_config_prefers_anthropic(wire: Option<&str>) -> bool {
-    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
-        return false;
-    };
-    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
-    matches!(
-        normalized.as_str(),
-        "anthropic"
-            | "anthropic-messages"
-            | "messages"
-            | "claude"
-            | "anthropic-compatible"
-            | "anthropic-compat"
-    )
+    codewhale_config::provider::wire_dialect_prefers_anthropic(wire)
 }
 
 fn wire_config_prefers_responses(wire: Option<&str>) -> bool {
-    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
-        return false;
-    };
-    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
-    matches!(
-        normalized.as_str(),
-        "responses"
-            | "responses-api"
-            | "openai-responses"
-            | "openai-responses-api"
-            | "response"
-            | "response-api"
-            | "openai-responses-compat"
-            | "responses-compat"
-    )
+    codewhale_config::provider::wire_dialect_prefers_responses(wire)
 }
 
 fn api_provider_skips_models_probe(api_provider: ProviderKind) -> bool {
@@ -2974,8 +2953,11 @@ impl CodewhaleClient {
         let outbound_dialect = WireDialect::from_wire_format(self.wire_format);
         role_placement::reject_unsupported_roles(&request.messages, outbound_dialect)?;
         let clamp_output_cap = |mut request: MessageRequest, route_limits: Option<RouteLimits>| {
-            let route_cap =
-                self.effective_max_output_tokens_with_limits(&request.model, route_limits);
+            let route_cap = self.effective_max_output_tokens_with_limits(
+                &request.model,
+                route_limits,
+                request.reasoning_effort.as_deref(),
+            );
             if request.max_tokens > route_cap {
                 tracing::debug!(
                     requested_max_tokens = request.max_tokens,
@@ -3246,7 +3228,7 @@ impl CodewhaleClient {
                 .ok()
                 .and_then(|candidate| crate::route_budget::known_route_limits(candidate.limits()))
         };
-        self.effective_max_output_tokens_with_limits(requested_model, route_limits)
+        self.effective_max_output_tokens_with_limits(requested_model, route_limits, None)
     }
 
     #[must_use]
@@ -3254,12 +3236,15 @@ impl CodewhaleClient {
         &self,
         requested_model: &str,
         route_limits: Option<RouteLimits>,
+        reasoning_effort: Option<&str>,
     ) -> u32 {
         let wire_model = self.wire_model_for_route(requested_model);
-        crate::route_budget::effective_max_output_tokens_for_route(
+        crate::route_budget::effective_max_output_tokens_for_turn(
             self.api_provider,
             &wire_model,
             route_limits,
+            None,
+            reasoning_effort,
         )
     }
 

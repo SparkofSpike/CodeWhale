@@ -26,6 +26,10 @@ function ordered(value: unknown): unknown {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, value]) => [key, ordered(value)]))
   return value
 }
+function intent(value: unknown): string {
+  const commits = value === undefined ? '' : text(value)
+  return commits.trim() ? `The author's commit messages for this range follow. They state what the change is meant to do; check them against the diff rather than trusting them.\n\n${commits}\n\nEnd of commit messages.\n\n` : ''
+}
 function source(input: Row): string {
   const kind = text(input.kind)
   if (kind === 'file') {
@@ -33,7 +37,7 @@ function source(input: Row): string {
     return `Review the following file and provide feedback.\nPath: ${text(input.display)}\n\n${content}\n\nEnd of file.`
   }
   if (kind === 'diff') return `Review the following ${text(input.label)} and provide feedback.\n\n${text(input.diff)}\n\nEnd of diff.`
-  if (kind === 'cli_diff') return `Review the following diff and provide feedback:\n\n${text(input.diff)}\n\nEnd of diff.`
+  if (kind === 'cli_diff') return `${intent(input.commits)}Review the following diff and provide feedback:\n\n${text(input.diff)}\n\nEnd of diff.`
   if (kind === 'pr') return `Review the complete pull request diff (${text(input.label)}) at head ${text(input.head_sha)} and base ${text(input.base_sha)}. Binary changes are represented by metadata; their contents are not semantically inspected. Exact binary object IDs remain in the review evidence.\n\n${text(input.diff)}\n\nEnd of diff.`
   throw new Error('unadmitted review source')
 }

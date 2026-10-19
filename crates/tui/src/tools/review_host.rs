@@ -55,8 +55,16 @@ pub(crate) async fn source_prompt(
 ) -> Result<String, ToolError> {
     project(StockOperation::ReviewSourcePrompt, snapshot, context).await
 }
-pub(crate) async fn cli_prompt(diff: &str, context: &ToolContext) -> Result<String, ToolError> {
-    source_prompt(json!({"kind":"cli_diff","diff":diff}), context).await
+pub(crate) async fn cli_prompt(
+    diff: &str,
+    commits: &str,
+    context: &ToolContext,
+) -> Result<String, ToolError> {
+    source_prompt(
+        json!({"kind":"cli_diff","diff":diff,"commits":commits}),
+        context,
+    )
+    .await
 }
 pub(crate) async fn pr_prompts(
     number: u32,
@@ -126,7 +134,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let context = ToolContext::new(temp.path());
         assert!(matches!(
-            cli_prompt("diff", &context).await,
+            cli_prompt("diff", "", &context).await,
             Err(ToolError::NotAvailable { .. })
         ));
     }

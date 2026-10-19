@@ -2,7 +2,7 @@
   "format": "codewhale.features.v1",
   "source": {
     "path": "docs/features.toml",
-    "sha256": "ad6e3212d40391da4312f661ba87a72dc675f494419055665ade18b105289f88"
+    "sha256": "b32b87ba20e9726f69840a2091f69d67da317690f622ee058194296760fe1066"
   },
   "features": [
     {
@@ -48,7 +48,7 @@
     {
       "id": "web-search",
       "name": "Web search",
-      "summary": "Searches and fetches the web for the agent (web.run, with the web_search alias).",
+      "summary": "Searches and fetches the web for the agent, including DeepSeek Search (web.run, with the web_search alias).",
       "status": "stable",
       "surfaces": {
         "tui": "stable"
@@ -684,6 +684,19 @@
       "registryLine": 525
     },
     {
+      "id": "chat-color",
+      "name": "Chat color",
+      "summary": "/color gives one chat's composer box its own color, kept with that session.",
+      "status": "stable",
+      "surfaces": {
+        "tui": "stable"
+      },
+      "since": "0.10.2",
+      "flag": null,
+      "docs": "docs/GUIDE.md",
+      "registryLine": 534
+    },
+    {
       "id": "localization",
       "name": "Localization",
       "summary": "Interface text in 15 locales.",
@@ -694,7 +707,7 @@
       "since": null,
       "flag": null,
       "docs": "docs/LOCALIZATION.md",
-      "registryLine": 534
+      "registryLine": 544
     },
     {
       "id": "voice",
@@ -708,7 +721,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 543
+      "registryLine": 553
     },
     {
       "id": "pet",
@@ -722,7 +735,7 @@
       "since": null,
       "flag": null,
       "docs": "docs/PET_MODE.md",
-      "registryLine": 551
+      "registryLine": 561
     },
     {
       "id": "overview",
@@ -735,12 +748,12 @@
       "since": null,
       "flag": null,
       "docs": "docs/PROVIDERS.md",
-      "registryLine": 560
+      "registryLine": 570
     },
     {
       "id": "account-login",
       "name": "Account login",
-      "summary": "/login signs in to Codewhale or stores provider keys; plugin providers connect with /connect.",
+      "summary": "/login signs in to an optional Codewhale account; plugin providers connect with /connect.",
       "status": "stable",
       "surfaces": {
         "tui": "stable"
@@ -748,7 +761,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 569
+      "registryLine": 579
     },
     {
       "id": "account-computer-files",
@@ -761,7 +774,7 @@
       "since": "0.10.2",
       "flag": null,
       "docs": null,
-      "registryLine": 577
+      "registryLine": 587
     },
     {
       "id": "context-anchors",
@@ -774,7 +787,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 586
+      "registryLine": 596
     },
     {
       "id": "window-pin",
@@ -787,7 +800,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 594
+      "registryLine": 604
     },
     {
       "id": "structured-copy",
@@ -800,7 +813,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 602
+      "registryLine": 612
     },
     {
       "id": "live-thinking",
@@ -813,7 +826,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 610
+      "registryLine": 620
     },
     {
       "id": "workbar",
@@ -826,7 +839,7 @@
       "since": null,
       "flag": null,
       "docs": null,
-      "registryLine": 618
+      "registryLine": 628
     },
     {
       "id": "terminal-dock",
@@ -836,10 +849,10 @@
       "surfaces": {
         "tui": "stable"
       },
-      "since": null,
+      "since": "0.10.2",
       "flag": null,
       "docs": null,
-      "registryLine": 626
+      "registryLine": 636
     },
     {
       "id": "telemetry",
@@ -852,7 +865,7 @@
       "since": null,
       "flag": null,
       "docs": "docs/TELEMETRY.md",
-      "registryLine": 636
+      "registryLine": 647
     },
     {
       "id": "docker",
@@ -865,7 +878,7 @@
       "since": null,
       "flag": null,
       "docs": "docs/DOCKER.md",
-      "registryLine": 645
+      "registryLine": 656
     },
     {
       "id": "termux",
@@ -878,7 +891,7 @@
       "since": null,
       "flag": null,
       "docs": "docs/TERMUX.md",
-      "registryLine": 654
+      "registryLine": 665
     },
     {
       "id": "chatgpt-plan-sign-in",
@@ -893,7 +906,7 @@
       "since": "0.10.1",
       "flag": null,
       "docs": "docs/PROVIDERS.md#sign-in-with-chatgpt",
-      "registryLine": 663
+      "registryLine": 674
     },
     {
       "id": "claude-plan-sign-in",
@@ -908,7 +921,7 @@
       "since": "0.10.2",
       "flag": null,
       "docs": "docs/PROVIDERS.md#sign-in-with-claude",
-      "registryLine": 673
+      "registryLine": 684
     },
     {
       "id": "plugin-oauth-providers",
@@ -923,7 +936,7 @@
       "since": "0.10.1",
       "flag": null,
       "docs": "docs/PLUGIN_PROVIDERS.md",
-      "registryLine": 683
+      "registryLine": 694
     },
     {
       "id": "orcarouter-sign-in",
@@ -938,7 +951,7 @@
       "since": "0.10.1",
       "flag": null,
       "docs": "docs/PROVIDERS.md",
-      "registryLine": 693
+      "registryLine": 704
     },
     {
       "id": "merch-interest",
@@ -953,7 +966,7 @@
       "since": "unreleased",
       "flag": null,
       "docs": "web/lib/merch/README.md",
-      "registryLine": 704
+      "registryLine": 715
     },
     {
       "id": "profile-constitution",
@@ -967,7 +980,7 @@
       "since": "0.10.1",
       "flag": null,
       "docs": "docs/RUNTIME_API.md#profile-constitution",
-      "registryLine": 714
+      "registryLine": 725
     },
     {
       "id": "plugin-shell-install",
@@ -980,7 +993,7 @@
       "since": "0.10.2",
       "flag": null,
       "docs": "docs/PLUGINS.md",
-      "registryLine": 724
+      "registryLine": 735
     }
   ]
 }

@@ -560,6 +560,7 @@ fn offline_seed_route_for_a_vision_model_keeps_the_image() {
             saved_provider_model: None,
             base_url_override: None,
             limit_overrides: Vec::new(),
+            wire_override: None,
         })
         .expect("bundled Anthropic route resolves offline");
     let mut messages = vec![message_with_image("data:image/png;base64,QUJD")];

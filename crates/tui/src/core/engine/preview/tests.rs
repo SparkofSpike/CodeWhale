@@ -369,6 +369,7 @@ fn context_pressure_delta_matches_clone_and_push_reference() {
             thinking: "step".repeat(100),
             signature: None,
             state: None,
+            redacted_data: None,
         }],
     });
     // Replayed-reasoning case (#perf-r5 fresh-eyes fix): an assistant message
@@ -383,6 +384,7 @@ fn context_pressure_delta_matches_clone_and_push_reference() {
                 thinking: "replayed".repeat(300), // 8 bytes per unit -> even count
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
             ContentBlock::ToolUse {
                 execution_id: None,
@@ -401,6 +403,7 @@ fn context_pressure_delta_matches_clone_and_push_reference() {
                 thinking: "odd replay".to_string(), // 11 bytes / 4 = 2 (even)... use odd total
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
             ContentBlock::ToolUse {
                 execution_id: None,

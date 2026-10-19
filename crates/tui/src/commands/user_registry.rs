@@ -17,7 +17,7 @@ use super::user_commands;
 
 static USER_COMMAND_REGISTRY: OnceLock<RwLock<UserCommandRegistryState>> = OnceLock::new();
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 struct UserCommandRegistryState {
     initialized: bool,
     workspace: Option<PathBuf>,
@@ -29,6 +29,28 @@ struct UserCommandRegistryState {
     /// reloads when the live extension commands may have changed.
     extension_epoch: u64,
     registry: UserCommandRegistry,
+    snapshot_checked_at: std::sync::Mutex<Option<std::time::Instant>>,
+}
+
+#[cfg(not(test))]
+const SNAPSHOT_RECHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
+#[cfg(test)]
+const SNAPSHOT_RECHECK_INTERVAL: std::time::Duration = std::time::Duration::ZERO;
+
+impl UserCommandRegistryState {
+    fn checked_recently(&self) -> bool {
+        self.snapshot_checked_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_some_and(|at| at.elapsed() < SNAPSHOT_RECHECK_INTERVAL)
+    }
+
+    fn mark_checked(&self) {
+        *self
+            .snapshot_checked_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(std::time::Instant::now());
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -790,6 +812,16 @@ pub fn with_registry_for_workspace<R>(
 ) -> R {
     let workspace = normalize_workspace(workspace);
     let lock = registry_lock();
+    {
+        let guard = lock.read().expect("user command registry lock poisoned");
+        if guard.initialized
+            && guard.workspace == workspace
+            && guard.extension_epoch == crate::extension_host::command::epoch()
+            && guard.checked_recently()
+        {
+            return f(&guard.registry);
+        }
+    }
     let (plugin_sources, plugin_errors) = {
         let guard = lock.read().expect("user command registry lock poisoned");
         if guard.plugin_workspace == workspace {
@@ -806,6 +838,7 @@ pub fn with_registry_for_workspace<R>(
     {
         let guard = lock.read().expect("user command registry lock poisoned");
         if !registry_needs_reload(&guard, &workspace, &snapshot, extension_epoch) {
+            guard.mark_checked();
             return f(&guard.registry);
         }
     }
@@ -827,6 +860,7 @@ pub fn with_registry_for_workspace<R>(
         guard.extension_epoch = extension_epoch;
         guard.registry = replacement;
     }
+    guard.mark_checked();
     f(&guard.registry)
 }
 

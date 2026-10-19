@@ -1,6 +1,6 @@
 //! Bounded provider-native/configured web search with explicit fallback receipts.
 //! Adapters include Firecrawl, Tavily, Bocha, Metaso, SearXNG, Baidu,
-//! Volcengine, Sofya, and Serply; browsing remains a separate `web.run` workflow.
+//! Volcengine, Sofya, Serply, and DeepSeek; browsing remains a separate `web.run` workflow.
 //! `[search]` example:
 //!   provider = "firecrawl"  # keyless on Firecrawl Cloud; optional api_key
 //!   base_url = `"https://search.example/"`  # DDG-compatible URL or SearXNG instance
@@ -42,6 +42,7 @@ const BAIDU_ENDPOINT: &str = "https://qianfan.baidubce.com/v2/ai_search/web_sear
 const VOLCENGINE_RESPONSES_ENDPOINT: &str = "https://ark.cn-beijing.volces.com/api/v3/responses";
 const SOFYA_ENDPOINT: &str = "https://sofya.co/v1/search";
 const SERPLY_ENDPOINT: &str = "https://api.serply.io/v1/search";
+const DEEPSEEK_ENDPOINT: &str = "https://api.deepseek.com/v1/tools/search";
 const ERROR_BODY_PREVIEW_BYTES: usize = 512;
 const PROVIDER_NATIVE_MIN_TIMEOUT_MS: u64 = 45_000;
 const KIMI_K3_FORMULA_MIN_TIMEOUT_MS: u64 = 180_000;
@@ -497,6 +498,7 @@ pub(crate) fn search_probe_target(
         SearchProvider::Volcengine => (VOLCENGINE_RESPONSES_ENDPOINT, false),
         SearchProvider::Sofya => (SOFYA_ENDPOINT, false),
         SearchProvider::Serply => (SERPLY_ENDPOINT, false),
+        SearchProvider::DeepSeek => (DEEPSEEK_ENDPOINT, false),
     };
 
     let mut url = reqwest::Url::parse(raw).map_err(|_| SearchProbeTargetError::Invalid)?;
@@ -573,7 +575,7 @@ impl ToolSpec for WebSearchTool {
     }
 
     fn description(&self) -> &'static str {
-        "Search the web and return ranked results with URLs, snippets, session-scoped ref_ids, and an execution receipt. `web.run` opens a result ref_id when the short summary is not enough. When the exact active route reports a documented first-party server-side search tool, it is tried first; otherwise keyless Firecrawl is the default. Configured API backends visibly degrade through DuckDuckGo then Bing when unavailable, and every hop is recorded. Configuration and network-policy errors fail closed. Explicit Bing and private DuckDuckGo-compatible routes do not cross providers. Set `[search] provider = \"firecrawl\" | \"bing\" | \"tavily\" | \"bocha\" | \"metaso\" | \"searxng\" | \"baidu\" | \"volcengine\" | \"sofya\" | \"serply\"` in config.toml. Firecrawl Cloud works keyless with a bounded quota. `fetch_url` retrieves a known canonical URL directly."
+        "Search the web and return ranked results with URLs, snippets, session-scoped ref_ids, and an execution receipt. `web.run` opens a result ref_id when the short summary is not enough. When the exact active route reports a documented first-party server-side search tool, it is tried first; otherwise keyless Firecrawl is the default. Configured API backends visibly degrade through DuckDuckGo then Bing when unavailable, and every hop is recorded. Configuration and network-policy errors fail closed. Explicit Bing and private DuckDuckGo-compatible routes do not cross providers. Set `[search] provider = \"firecrawl\" | \"bing\" | \"tavily\" | \"bocha\" | \"metaso\" | \"searxng\" | \"baidu\" | \"volcengine\" | \"sofya\" | \"serply\" | \"deepseek\"` in config.toml. Firecrawl Cloud works keyless with a bounded quota. `fetch_url` retrieves a known canonical URL directly."
     }
 
     fn input_schema(&self) -> Value {
@@ -1174,6 +1176,66 @@ impl WebSearchTool {
         }
 
         Ok(parse_serply_results(&parsed, max_results))
+    }
+
+    async fn run_deepseek_search(
+        &self,
+        query: &str,
+        max_results: usize,
+        timeout_ms: u64,
+        context: &ToolContext,
+    ) -> AdapterResult<Vec<SearchResult>> {
+        let api_key = deepseek_search_key(context).ok_or_else(|| {
+            ToolError::invalid_input(
+                "DeepSeek search requires an API key. Set `[search] api_key` in config.toml or the DEEPSEEK_API_KEY env var.",
+            )
+        })?;
+        let client = crate::tls::reqwest_client_builder()
+            .timeout(Duration::from_millis(timeout_ms))
+            .build()
+            .map_err(|e| {
+                ToolError::execution_failed(format!("Failed to build HTTP client: {e}"))
+            })?;
+        let count = max_results.clamp(1, 50);
+        let payload = json!({
+            "query": query.chars().take(128).collect::<String>(),
+            "count": count,
+        });
+        let resp = client
+            .post(DEEPSEEK_ENDPOINT)
+            .header("Content-Type", "application/json")
+            .bearer_auth(&api_key)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| {
+                ToolError::execution_failed(format!("DeepSeek search request failed: {e}"))
+            })?;
+        let status = resp.status();
+        let body = if adapter::search_selected(context) {
+            adapter::read_response(resp, context).await?
+        } else {
+            resp.text().await.map_err(|e| {
+                ToolError::execution_failed(format!("Failed to read DeepSeek response: {e}"))
+            })?
+        };
+        if !status.is_success() {
+            let message = if status.as_u16() == 402 {
+                "DeepSeek search failed: HTTP 402 — top up your DeepSeek account to continue."
+                    .to_string()
+            } else {
+                let truncated = truncate_error_body(&body.replace(&api_key, "[REDACTED]"));
+                format!(
+                    "DeepSeek search failed: HTTP {}: {truncated}",
+                    status.as_u16()
+                )
+            };
+            return Err(ToolError::execution_failed(message).into());
+        }
+        let parsed: Value = serde_json::from_str(&body).map_err(|e| {
+            ToolError::execution_failed(format!("Failed to parse DeepSeek response: {e}"))
+        })?;
+        Ok(parse_deepseek_results(&parsed, count))
     }
 
     /// Search via Bocha AI Search API (<https://bochaai.com>).
@@ -1803,6 +1865,21 @@ fn register_search_citations(response: &mut SearchResponse, context: &ToolContex
     }
 }
 
+fn deepseek_search_key(context: &ToolContext) -> Option<String> {
+    context
+        .search_api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            std::env::var("DEEPSEEK_API_KEY")
+                .ok()
+                .map(|key| key.trim().to_string())
+                .filter(|key| !key.is_empty())
+        })
+}
+
 /// Reject misconfiguration before cache lookup or network access.
 fn preflight_search_provider(context: &ToolContext) -> Result<(), ToolError> {
     let configured_key = context
@@ -1842,6 +1919,9 @@ fn preflight_search_provider(context: &ToolContext) -> Result<(), ToolError> {
         ),
         SearchProvider::Serply if !configured_key && !env_key("SERPLY_API_KEY") => not_configured(
             "Serply search is not configured: it requires an API key. Set `[search] api_key` in config.toml or the SERPLY_API_KEY env var.",
+        ),
+        SearchProvider::DeepSeek if deepseek_search_key(context).is_none() => not_configured(
+            "DeepSeek search is not configured: it requires an API key. Set `[search] api_key` in config.toml or the DEEPSEEK_API_KEY env var.",
         ),
         SearchProvider::Searxng
             if configured_search_base_url(context.search_base_url.as_deref()).is_none() =>
@@ -1892,6 +1972,7 @@ const fn default_backend_host(backend: BackendId) -> Option<&'static str> {
         BackendId::Volcengine => Some("ark.cn-beijing.volces.com"),
         BackendId::Sofya => Some("sofya.co"),
         BackendId::Serply => Some("api.serply.io"),
+        BackendId::DeepSeek => Some("api.deepseek.com"),
     }
 }
 
@@ -2270,6 +2351,19 @@ pub(crate) async fn run_backend_search(
                 tool.run_serply_search(&query.query, filters, max_results, timeout_ms, context)
                     .await?,
             ))
+        }
+        SearchProvider::DeepSeek => {
+            check_policy(context.network_policy.as_ref(), "api.deepseek.com")?;
+            Ok(BackendSearch {
+                backend: BackendId::DeepSeek,
+                source: "deepseek".to_string(),
+                backend_detail: None,
+                results: tool
+                    .run_deepseek_search(&query.query, max_results, timeout_ms, context)
+                    .await?,
+                degraded: Vec::new(),
+                note: None,
+            })
         }
         SearchProvider::Bing | SearchProvider::DuckDuckGo => {
             run_scrape_search(provider, query, timeout_ms, context).await
@@ -3043,6 +3137,30 @@ fn parse_serply_results(parsed: &Value, max_results: usize) -> Vec<WebSearchEntr
             })
         })
         .take(max_results)
+        .collect()
+}
+
+fn parse_deepseek_results(parsed: &Value, max_results: usize) -> Vec<SearchResult> {
+    parsed
+        .get("results")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let title = first_non_empty_string(item, &["title"])?;
+            let url = first_non_empty_string(item, &["url"])?;
+            Some((
+                title,
+                url,
+                first_non_empty_string(item, &["snippet", "summary"]),
+                first_non_empty_string(item, &["date"]),
+            ))
+        })
+        .take(max_results)
+        .enumerate()
+        .map(|(index, (title, url, snippet, published))| {
+            SearchResult::new(index + 1, title, url, snippet, published)
+        })
         .collect()
 }
 
@@ -3836,6 +3954,10 @@ mod tests {
             ),
             (SearchProvider::Sofya, "https://sofya.co/v1/search"),
             (SearchProvider::Serply, "https://api.serply.io/v1/search"),
+            (
+                SearchProvider::DeepSeek,
+                "https://api.deepseek.com/v1/tools/search",
+            ),
         ];
 
         for (provider, expected) in cases {

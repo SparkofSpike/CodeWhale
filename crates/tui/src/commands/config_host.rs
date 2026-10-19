@@ -238,6 +238,7 @@ fn to_search_provider(provider: CommandSearchProvider) -> SearchProvider {
         CommandSearchProvider::Volcengine => SearchProvider::Volcengine,
         CommandSearchProvider::Sofya => SearchProvider::Sofya,
         CommandSearchProvider::Serply => SearchProvider::Serply,
+        CommandSearchProvider::DeepSeek => SearchProvider::DeepSeek,
     }
 }
 
@@ -254,6 +255,7 @@ fn from_search_provider(provider: SearchProvider) -> CommandSearchProvider {
         SearchProvider::Volcengine => CommandSearchProvider::Volcengine,
         SearchProvider::Sofya => CommandSearchProvider::Sofya,
         SearchProvider::Serply => CommandSearchProvider::Serply,
+        SearchProvider::DeepSeek => CommandSearchProvider::DeepSeek,
     }
 }
 

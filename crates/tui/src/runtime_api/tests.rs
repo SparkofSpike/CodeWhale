@@ -319,6 +319,7 @@ fn saved_session_with_blocks(blocks: Vec<codewhale_models::ContentBlock>) -> Sav
         approval_receipts: Vec::new(),
         work_state: None,
         window_title: None,
+        composer_color: None,
         last_auto_route: None,
         turn_outcomes: Vec::new(),
     }
@@ -591,7 +592,19 @@ fn messages_from_thread_detail_batches_tool_results() {
         approval_grants: Vec::new(),
     };
 
-    let messages = messages_from_thread_detail(&detail).expect("rebuild thread history");
+    let mut items_by_turn = std::collections::HashMap::new();
+    for item in &detail.items {
+        items_by_turn
+            .entry(item.turn_id.clone())
+            .or_insert_with(Vec::new)
+            .push(item.clone());
+    }
+    let messages =
+        crate::runtime_threads::RuntimeThreadManager::reconstruct_messages_from_turns_with(
+            &detail.turns,
+            &items_by_turn,
+        )
+        .expect("rebuild thread history");
     let roles = messages
         .iter()
         .map(|message| message.role.as_str())
@@ -2123,9 +2136,7 @@ async fn web_bootstrap_sets_strict_cookie_once_and_preserves_v1_auth() -> Result
             .send()
             .await?;
         assert_eq!(reloaded.headers()[header::CACHE_CONTROL], "no-store");
-        assert!(reloaded.text().await?.contains(&format!(
-            "name=\"codewhale-web-request\" content=\"{proof}\""
-        )));
+        assert!(!reloaded.text().await?.contains(&proof));
     }
     for method in [reqwest::Method::GET, reqwest::Method::POST] {
         for metadata in [false, true] {
@@ -3445,6 +3456,9 @@ async fn compatibility_stream_closes_losslessly_across_replay_live_handoff() -> 
             .await;
         let _ = tx_event
             .send(EngineEvent::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Usage {
                     input_tokens: 3,
                     output_tokens: 1,
@@ -3710,6 +3724,9 @@ async fn compatibility_stream_exposes_and_resolves_user_input_without_answer_ech
         harness
             .tx_event
             .send(EngineEvent::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Usage::default(),
                 parent_route_usage: Usage::default(),
                 routed_usage_dropped_records: 0,
@@ -4069,6 +4086,9 @@ async fn thread_endpoints_expose_lifecycle_contract() -> Result<()> {
                         .await;
                     let _ = tx_event
                         .send(EngineEvent::TurnComplete {
+                            turn_id: None,
+                            submission_id: None,
+                            compaction_id: None,
                             usage: Usage {
                                 input_tokens: 10,
                                 output_tokens: 5,
@@ -4090,6 +4110,9 @@ async fn thread_endpoints_expose_lifecycle_contract() -> Result<()> {
                 Op::CompactContext { .. } => {
                     let _ = tx_event
                         .send(EngineEvent::TurnComplete {
+                            turn_id: None,
+                            submission_id: None,
+                            compaction_id: None,
                             usage: Usage {
                                 input_tokens: 0,
                                 output_tokens: 0,
@@ -4230,6 +4253,9 @@ async fn turn_endpoint_operation_key_returns_original_and_conflicts_on_mismatch(
             sleep(Duration::from_millis(20)).await;
             let _ = tx_event
                 .send(EngineEvent::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id: None,
                     usage: Usage::default(),
                     parent_route_usage: Usage::default(),
                     routed_usage_dropped_records: 0,
@@ -4452,6 +4478,9 @@ async fn turn_operation_lookup_is_authenticated_read_only_and_survives_restart()
     engine
         .tx_event
         .send(EngineEvent::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: Default::default(),
             parent_route_usage: Default::default(),
             routed_usage_dropped_records: 0,
@@ -4581,6 +4610,9 @@ async fn events_endpoint_respects_since_seq_cursor() -> Result<()> {
             .await;
         let _ = tx_event
             .send(EngineEvent::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Usage {
                     input_tokens: 5,
                     output_tokens: 3,
@@ -5520,6 +5552,9 @@ async fn steer_and_interrupt_endpoints_work_on_active_turn() -> Result<()> {
         sleep(Duration::from_millis(60)).await;
         let _ = tx_event
             .send(EngineEvent::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Usage {
                     input_tokens: 2,
                     output_tokens: 1,
@@ -6071,6 +6106,9 @@ async fn stream_endpoint_remains_backward_compatible() -> Result<()> {
             .await;
         let _ = tx_event
             .send(EngineEvent::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Usage {
                     input_tokens: 4,
                     output_tokens: 2,
@@ -8636,6 +8674,9 @@ async fn session_create_from_thread_rejects_active_turn() -> Result<()> {
             .await;
         let _ = tx_event
             .send(EngineEvent::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Usage {
                     input_tokens: 2,
                     output_tokens: 1,
@@ -18199,6 +18240,7 @@ async fn terminal_routes_serve_a_live_engine_session_over_http() -> Result<()> {
         "pane",
         &workspace,
         crate::sandbox::SandboxPolicy::DangerFullAccess,
+        &crate::tools::shell::new_shared_shell_manager(workspace.clone()),
     )
     .map_err(anyhow::Error::msg)?;
 
@@ -19759,6 +19801,9 @@ async fn runtime_image_http_rejects_before_dispatch_and_accepts_large_canonical_
     harness
         .tx_event
         .send(EngineEvent::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: Default::default(),
             parent_route_usage: Default::default(),
             routed_usage_dropped_records: 0,
@@ -24614,12 +24659,23 @@ mod thread_snapshot_ownership {
         /// Run one real turn whose model writes each `(path, content)` with
         /// `write_file`, then answers. Returns the settled turn record.
         async fn write_turn(&self, thread_id: &str, writes: &[(&str, &str)]) -> Result<Value> {
+            let mut current: std::collections::HashMap<&str, Vec<u8>> = writes
+                .iter()
+                .filter_map(|(path, _)| {
+                    fs::read(self.workspace.join(path)).ok().map(|b| (*path, b))
+                })
+                .collect();
             for (path, content) in writes {
                 let call_id = format!("call_{}", &Uuid::new_v4().simple().to_string()[..12]);
+                let mut args = json!({ "path": path, "content": content });
+                if let Some(bytes) = current.get(path) {
+                    args["expected_hash"] = json!(crate::tools::file::content_hash(bytes));
+                }
+                current.insert(path, content.as_bytes().to_vec());
                 self.mock.push_turn(canned::tool_call_turn(
                     &call_id,
                     "write_file",
-                    &json!({ "path": path, "content": content }).to_string(),
+                    &args.to_string(),
                 ));
             }
             self.mock.push_turn(canned::simple_text_turn("done"));
@@ -25725,7 +25781,7 @@ async fn session_export_keeps_execution_identity_and_rejects_invalid_item_correl
         .seed_thread_from_messages(&thread.id, &original)
         .await?;
     let detail = runtime.get_thread_detail(&thread.id).await?;
-    assert_eq!(messages_from_thread_detail(&detail)?, original);
+    assert_eq!(messages_from_thread_detail(&runtime, &detail)?, original);
 
     // A completed live item contains both sides. It must not become only a
     // result when the same thread is saved through the API's projection.
@@ -25757,7 +25813,7 @@ async fn session_export_keeps_execution_identity_and_rejects_invalid_item_correl
     for turn in &mut coalesced.turns {
         turn.item_ids.retain(|id| id != &result_item.id);
     }
-    assert_eq!(messages_from_thread_detail(&coalesced)?, original);
+    assert_eq!(messages_from_thread_detail(&runtime, &coalesced)?, original);
 
     let client = crate::tls::reqwest_client();
     let exported = client

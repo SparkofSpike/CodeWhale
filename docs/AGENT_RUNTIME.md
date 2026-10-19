@@ -213,6 +213,8 @@ request (turn-step) when the provider reported usage for that call:
   `completion_tokens_details` / Responses `output_tokens_details`; Anthropic
   does not report a thinking-token count). `reasoning_replay_tokens` is a
   client-side estimate for DeepSeek V4 interleaved-thinking replays.
+- `finish_reason` is the provider's stop reason for that step (for example
+  `stop`, `tool_calls`, or `length`), omitted when the provider reported none.
 - When a provider reports no usage at all for a call, the whole event is
   skipped for that call. Latency/convergence analysis should sum
   `turn_usage` events instead of inferring per-step tokens from wall time;

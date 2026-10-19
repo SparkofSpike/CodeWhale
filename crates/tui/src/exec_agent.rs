@@ -725,8 +725,7 @@ pub(crate) async fn run_exec_agent(
             .sandbox_backend
             .as_deref()
             .unwrap_or("none"),
-    )
-    .is_none()
+    ) == Some(crate::sandbox::backend::SandboxKind::None)
         && crate::sandbox::get_platform_sandbox_with_bwrap_preference(
             execution_config.prefers_bwrap(),
         )
@@ -1206,7 +1205,10 @@ pub(crate) async fn run_exec_agent(
                 }
             }
             Event::TurnUsage {
-                usage, duration_ms, ..
+                usage,
+                duration_ms,
+                finish_reason,
+                ..
             } => {
                 if output_format == ExecOutputFormat::StreamJson {
                     turn_usage_seq = turn_usage_seq.saturating_add(1);
@@ -1220,6 +1222,7 @@ pub(crate) async fn run_exec_agent(
                         prompt_cache_write_tokens: usage.prompt_cache_write_tokens,
                         reasoning_replay_tokens: usage.reasoning_replay_tokens,
                         duration_ms,
+                        finish_reason,
                     })?;
                 }
             }
@@ -1657,6 +1660,9 @@ mod tests {
             ..Usage::default()
         };
         Event::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: usage.clone(),
             parent_route_usage: usage,
             routed_usage_dropped_records: 0,

@@ -976,6 +976,7 @@ fn offline_resolver_keeps_images_for_a_text_only_seed_row() {
             saved_provider_model: None,
             base_url_override: None,
             limit_overrides: Vec::new(),
+            wire_override: None,
         })
         .expect("bundled Anthropic route resolves offline");
     assert_ne!(

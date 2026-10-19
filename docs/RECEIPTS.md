@@ -304,7 +304,10 @@ fingerprints a truncated prefix. A receipt for
 `review --base <base-sha> --path <path>` covers only that selected path at the
 checked-out revision; validate it with the same base, path, and input limit.
 It does not cover the rest of a pull request or prove that separately reviewed
-changes work together.
+changes work together. With `--base`, the reviewer also reads the
+`base..HEAD` commit messages (merges excluded, capped at 16,000 characters) as
+the author's stated intent; the receipt fingerprints the diff, not those
+messages.
 
 ## Builder Rules
 

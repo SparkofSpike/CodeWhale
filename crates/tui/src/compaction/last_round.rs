@@ -10,7 +10,8 @@ use std::collections::HashSet;
 use codewhale_models::{ContentBlock, Message, SystemPrompt};
 
 use super::{
-    compaction_checkpoint_message, is_compaction_checkpoint_message, retained_user_messages,
+    compaction_checkpoint_message, history_is_post_provenance, is_compaction_checkpoint_message,
+    is_compaction_checkpoint_message_in_era, retained_user_messages_in_era,
     truncate_retained_block, user_text_of,
 };
 
@@ -95,6 +96,8 @@ pub struct CompactionKeep {
 pub fn inspect_compaction_keep(messages: &[Message]) -> CompactionKeep {
     let last_round = last_round_slice(messages);
     CompactionKeep {
+        // Existence check: a stamped carrier also matches the loose form, so
+        // "any checkpoint" reads the same in both eras and needs no era here.
         has_checkpoint: messages.iter().any(is_compaction_checkpoint_message),
         last_round_messages: last_round.len(),
         last_round_tool_results: last_round.iter().flat_map(tool_result_ids).count(),
@@ -124,24 +127,24 @@ pub fn pinned_anchors_text(workspace: Option<&std::path::Path>) -> Option<String
         .filter(|contents| !contents.is_empty())
 }
 
-fn is_plain_user_text(message: &Message) -> bool {
-    !is_compaction_checkpoint_message(message)
+fn is_plain_user_text(post_provenance: bool, message: &Message) -> bool {
+    !is_compaction_checkpoint_message_in_era(message, post_provenance)
         && !crate::runtime_handoff::is_runtime_owned_user_message(message)
         && user_text_of(message).is_some()
 }
 
-fn user_prompt_text_of(message: &Message) -> Option<String> {
-    is_plain_user_text(message)
+fn user_prompt_text_of(post_provenance: bool, message: &Message) -> Option<String> {
+    is_plain_user_text(post_provenance, message)
         .then(|| user_text_of(message))
         .flatten()
 }
 
-fn last_plain_user_index(messages: &[Message], end: usize) -> Option<usize> {
+fn last_plain_user_index(messages: &[Message], end: usize, post_provenance: bool) -> Option<usize> {
     messages[..end]
         .iter()
         .enumerate()
         .rev()
-        .find_map(|(idx, message)| is_plain_user_text(message).then_some(idx))
+        .find_map(|(idx, message)| is_plain_user_text(post_provenance, message).then_some(idx))
 }
 
 fn slice_has_tool_result(messages: &[Message], start: usize) -> bool {
@@ -155,7 +158,15 @@ fn slice_has_tool_result(messages: &[Message], start: usize) -> bool {
 
 #[must_use]
 pub(crate) fn last_round_start(messages: &[Message]) -> usize {
-    let Some(last_user) = last_plain_user_index(messages, messages.len()) else {
+    last_round_start_in_era(messages, history_is_post_provenance(messages))
+}
+
+/// Era-aware core of [`last_round_start`]. The era belongs to the history the
+/// slice is cut from: `last_round_kept_count` reads a prefix of a longer
+/// history whose carrier may sit after the cut, so it passes the full
+/// history's era down instead of letting this re-derive one from the prefix.
+fn last_round_start_in_era(messages: &[Message], post_provenance: bool) -> usize {
+    let Some(last_user) = last_plain_user_index(messages, messages.len(), post_provenance) else {
         return 0;
     };
     if slice_has_tool_result(messages, last_user) {
@@ -167,7 +178,7 @@ pub(crate) fn last_round_start(messages: &[Message]) -> usize {
     // sessions can still summarize older text.
     let mut candidate = last_user;
     loop {
-        let Some(prev) = last_plain_user_index(messages, candidate) else {
+        let Some(prev) = last_plain_user_index(messages, candidate, post_provenance) else {
             return last_user;
         };
         if slice_has_tool_result(messages, prev) {
@@ -183,24 +194,30 @@ pub(crate) fn last_round_range(messages: &[Message]) -> (usize, usize) {
     // A previous checkpoint can sit in the middle of an uninterrupted task.
     // Stopping at that marker hid every tool step after the first compact
     // from the next pass's survival checks.
-    let end = messages.len().saturating_sub(usize::from(
+    let post_provenance = history_is_post_provenance(messages);
+    let end =
         messages
-            .last()
-            .is_some_and(is_compaction_checkpoint_message),
-    ));
+            .len()
+            .saturating_sub(usize::from(messages.last().is_some_and(|message| {
+                is_compaction_checkpoint_message_in_era(message, post_provenance)
+            })));
     (start, end)
 }
 
 /// How many messages of the open round sit in `messages` before a checkpoint.
 #[must_use]
 pub fn last_round_kept_count(messages: &[Message]) -> Option<usize> {
+    let post_provenance = history_is_post_provenance(messages);
     let checkpoint = messages
         .iter()
-        .rposition(is_compaction_checkpoint_message)?;
+        .rposition(|message| is_compaction_checkpoint_message_in_era(message, post_provenance))?;
     if checkpoint == 0 {
         return None;
     }
-    let start = last_round_start(&messages[..checkpoint]);
+    // The prefix belongs to the full history: recognize its turns with the
+    // full history's era, not one re-derived from the prefix (whose carrier
+    // may sit after the cut).
+    let start = last_round_start_in_era(&messages[..checkpoint], post_provenance);
     Some(checkpoint.saturating_sub(start))
 }
 
@@ -215,6 +232,7 @@ fn last_round_slice(messages: &[Message]) -> &[Message] {
 /// Older completed exchanges are covered by the summary and durable history.
 /// A split is legal only when all preceding tool calls have their results.
 fn protected_last_round(messages: &[Message]) -> Vec<&Message> {
+    let post_provenance = history_is_post_provenance(messages);
     let round = last_round_slice(messages);
     let mut pending = HashSet::new();
     let mut boundaries = Vec::new();
@@ -237,8 +255,8 @@ fn protected_last_round(messages: &[Message]) -> Vec<&Message> {
         .iter()
         .enumerate()
         .filter_map(|(idx, message)| {
-            (!is_compaction_checkpoint_message(message)
-                && (idx >= start || is_plain_user_text(message)))
+            (!is_compaction_checkpoint_message_in_era(message, post_provenance)
+                && (idx >= start || is_plain_user_text(post_provenance, message)))
             .then_some(message)
         })
         .collect()
@@ -248,8 +266,13 @@ pub(super) fn replacement_messages(
     messages: &[Message],
     retained_user_message_tokens: usize,
 ) -> Vec<Message> {
+    let post_provenance = history_is_post_provenance(messages);
     let (start, _) = last_round_range(messages);
-    let mut retained = retained_user_messages(&messages[..start], retained_user_message_tokens);
+    let mut retained = retained_user_messages_in_era(
+        post_provenance,
+        &messages[..start],
+        retained_user_message_tokens,
+    );
     let round = protected_last_round(messages)
         .into_iter()
         .cloned()
@@ -387,7 +410,7 @@ fn assistant_text_of(message: &Message) -> Option<String> {
 
 /// A retained copy may be truncated (`bound_last_round` caps oversized blocks),
 /// so a prefix either way counts as survival -- but nothing weaker does.
-fn survives(text: &str, replacement: &[Message], of: fn(&Message) -> Option<String>) -> bool {
+fn survives(text: &str, replacement: &[Message], of: impl Fn(&Message) -> Option<String>) -> bool {
     replacement.iter().any(|message| {
         of(message)
             .is_some_and(|kept| kept == text || text.starts_with(&kept) || kept.starts_with(text))
@@ -398,6 +421,7 @@ pub(crate) fn validate_last_round_coverage(
     original: &[Message],
     replacement: &[Message],
 ) -> Result<()> {
+    let post_provenance = history_is_post_provenance(original);
     let last_round = protected_last_round(original);
     if last_round.is_empty() {
         return Ok(());
@@ -407,8 +431,14 @@ pub(crate) fn validate_last_round_coverage(
     // tool-bearing turn, so the round routinely spans two user messages -- and
     // checking only the earliest let a rewrite drop the *latest* one, which is
     // the turn this whole contract exists to keep.
-    for text in last_round.iter().copied().filter_map(user_prompt_text_of) {
-        if !survives(&text, replacement, user_prompt_text_of) {
+    for text in last_round
+        .iter()
+        .copied()
+        .filter_map(|message| user_prompt_text_of(post_provenance, message))
+    {
+        if !survives(&text, replacement, |message| {
+            user_prompt_text_of(post_provenance, message)
+        }) {
             anyhow::bail!(
                 "Making room stopped: a last-round user message was dropped; history was not replaced."
             );
@@ -490,9 +520,23 @@ pub(crate) fn validate_survival_contract(
     anchors: Option<&str>,
 ) -> Result<()> {
     validate_last_round_coverage(original, replacement)?;
+    // The receipt count reads the replacement in its own era: a replacement
+    // carrying the engine-stamped receipt is modern, so retained turns that
+    // paste a bare header do not count as duplicated summaries, while a
+    // legacy-shaped replacement keeps the loose count that the fixture
+    // matrix pins. A post-provenance *original* raises the bar instead: the
+    // engine stamps every replacement it builds, and the stamped carrier is
+    // the only form request rewriting relocates, so a replacement of a
+    // modern history without a stamp is a dropped receipt even where a
+    // retained pasted turn would loosely count as one.
+    let receipt_recognition = if history_is_post_provenance(original) {
+        true
+    } else {
+        history_is_post_provenance(replacement)
+    };
     let checkpoints = replacement
         .iter()
-        .filter(|message| is_compaction_checkpoint_message(message))
+        .filter(|message| is_compaction_checkpoint_message_in_era(message, receipt_recognition))
         .count();
     if checkpoints == 0 {
         anyhow::bail!(
@@ -554,7 +598,10 @@ pub(super) fn build_replacement_history(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compaction::{COMPACTION_SUMMARY_MARKER, compaction_checkpoint_message};
+    use crate::compaction::{
+        COMPACTION_SUMMARY_MARKER, LEGACY_V2_COMPACTION_SUMMARY_MARKER,
+        compaction_checkpoint_message,
+    };
     use codewhale_models::{ContentBlock, Role};
     use serde_json::json;
 
@@ -1253,6 +1300,90 @@ mod tests {
             msg("assistant", "fine"),
         ];
         assert_eq!(last_round_start(&messages), 2);
+    }
+
+    /// In a history that carries the stamped carrier, a user turn pasting a
+    /// bare legacy summary header is content: it anchors the round, survives
+    /// the replacement, and the receipt count stays 1 instead of rejecting
+    /// the rewrite as a duplicated summary.
+    #[test]
+    fn pasted_legacy_header_turn_is_content_in_a_post_provenance_history() {
+        let pasted = format!(
+            "{LEGACY_V2_COMPACTION_SUMMARY_MARKER}\n\nEarlier turns of another session, pasted."
+        );
+        let original = vec![
+            msg("user", "Run the suite now."),
+            tool_use("live", "Bash", json!({"command": "cargo test"})),
+            tool_result("live", "ok"),
+            checkpoint("suite finished"),
+            msg("assistant", "done"),
+            msg("user", &pasted),
+        ];
+        assert!(
+            !history_is_post_provenance(&[msg("user", &pasted)]),
+            "the pasted turn alone carries no provenance block"
+        );
+        assert_eq!(
+            last_round_start(&original),
+            0,
+            "the pasted turn must anchor like any other user turn"
+        );
+
+        let retained =
+            retained_user_messages_in_era(history_is_post_provenance(&original), &original, 10_000);
+        assert!(
+            retained
+                .iter()
+                .any(|message| user_text_of(message).as_deref() == Some(pasted.as_str())),
+            "the pasted turn must be retained verbatim: {retained:?}"
+        );
+
+        let replacement = vec![
+            checkpoint("second summary"),
+            msg("user", "Run the suite now."),
+            tool_use("live", "Bash", json!({"command": "cargo test"})),
+            tool_result("live", "ok"),
+            msg("assistant", "done"),
+            msg("user", &pasted),
+        ];
+        validate_survival_contract(&original, &replacement, None)
+            .expect("a retained pasted-header turn must not break or lose the round");
+
+        let mut dropped = replacement.clone();
+        dropped.pop();
+        let error = validate_survival_contract(&original, &dropped, None)
+            .expect_err("dropping the pasted turn must fail the coverage floor");
+        assert!(
+            error.to_string().contains("user message was dropped"),
+            "{error}"
+        );
+    }
+
+    /// A history without a stamped carrier predates stamping: the bare
+    /// header there is indistinguishable from the saved carrier, so the
+    /// loose recognition keeps applying.
+    #[test]
+    fn legacy_history_still_recognizes_a_bare_header_checkpoint() {
+        let bare = msg(
+            "user",
+            &format!("{LEGACY_V2_COMPACTION_SUMMARY_MARKER}\n\nCondensed progress."),
+        );
+        assert!(!history_is_post_provenance(std::slice::from_ref(&bare)));
+        assert!(
+            retained_user_messages_in_era(
+                history_is_post_provenance(std::slice::from_ref(&bare)),
+                std::slice::from_ref(&bare),
+                1_000,
+            )
+            .is_empty(),
+            "a bare-header legacy checkpoint must still not be retained as user text"
+        );
+        let messages = vec![msg("user", "older"), bare, msg("assistant", "done")];
+        assert_eq!(
+            last_round_kept_count(&messages),
+            Some(1),
+            "the bare header still bounds the kept round in a legacy history"
+        );
     }
 
     #[derive(serde::Deserialize)]

@@ -1167,6 +1167,9 @@ async fn headless_host_drains_existing_engine_completion_inbox_before_exit() {
     engine
         .tx_event
         .send(Event::TurnComplete {
+            turn_id: None,
+            submission_id: None,
+            compaction_id: None,
             usage: Usage::default(),
             parent_route_usage: Usage::default(),
             routed_usage_dropped_records: 0,

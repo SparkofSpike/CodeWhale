@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale: tác nhân lập trình mã nguồn mở",
   metaDescription: "Codewhale là tác nhân lập trình mã nguồn mở trong terminal. Đọc, sửa và kiểm thử dự án với mô hình từ xa hoặc cục bộ của bạn.",
-  heroTitle: "Tạo ứng dụng và tự động hóa công việc của bạn.",
-  heroIntro: "{brand} là tác nhân lập trình mã nguồn mở, đọc tệp, viết mã và chạy lệnh trong terminal. Kết nối API mô hình hoặc mô hình cục bộ và chọn những hành động cần phê duyệt.",
+  heroTitle: "Tác nhân lập trình mã nguồn mở cho mọi mô hình",
+  heroIntro: "{brand} đọc dự án, chỉnh sửa tệp và chạy kiểm thử từ terminal của bạn. Kết nối mô hình được lưu trữ trực tuyến hoặc mô hình cục bộ và chọn những hành động cần bạn phê duyệt.",
   getCodewhale: "Cài đặt Codewhale",
   heroInstallAria: "Lệnh cài đặt",
   exploreProduct: "Khám phá Codewhale",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "Mã nguồn",
   sourceCandidate: "Chưa phát hành",
   publishedRelease: "đã phát hành",
-  gainHeading: "Bạn có thể làm gì",
+  gainHeading: "Xây dựng và tự động hóa từ terminal",
   gainLede:
     "Mô tả những gì bạn muốn xây dựng hoặc tự động hóa. Codewhale có thể chỉnh sửa tệp, chạy lệnh và kiểm tra kết quả, với quyền truy cập do bạn kiểm soát.",
   gain: [
@@ -42,7 +42,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "Tài khoản API của bạn",
-      "Kết nối OpenAI, Anthropic, Google hoặc DeepSeek bằng khóa riêng."
+      "Kết nối các nhà cung cấp như DeepSeek, OpenAI, Anthropic hoặc Google bằng khóa riêng. Mô hình mặc định deepseek-flash hiện chạy DeepSeek-V4.1-Flash."
     ],
     [
       "Gateway của bạn",
@@ -51,6 +51,10 @@ export const home: HomeDict = {
     [
       "Suy luận của bạn",
       "Chạy mô hình cục bộ hoặc tự lưu trữ bằng Ollama, vLLM hoặc SGLang."
+    ],
+    [
+      "Gói ChatGPT của bạn",
+      "Đăng nhập bằng codewhale auth chatgpt để dùng gói ChatGPT thay cho khóa API. Tính năng thử nghiệm."
     ]
   ],
   modelsLink: "Xem mô hình và nhà cung cấp",
@@ -77,23 +81,17 @@ export const home: HomeDict = {
     ],
     [
       "Ứng dụng web lưu trữ trực tuyến",
-      "Bản xem trước đang phát triển",
-      "Đang được xây dựng lại cho khớp với ứng dụng desktop. Hiện nay bạn có thể đăng nhập, rồi gõ /rc trong một phiên terminal đang chạy để tiếp tục trên web; việc thực thi tác vụ lưu trữ trực tuyến vẫn đang được thẩm định."
+      "Đang phát triển",
+      "Đang được xây dựng lại cho khớp với ứng dụng desktop và chưa mở. Để dùng trong trình duyệt ngay hôm nay, hãy chạy codewhale web trên máy của bạn."
     ],
     [
       "Máy tính để bàn",
       "Bản phát triển",
-      "Ứng dụng gốc đang trở thành client chính của Codewhale: thư mục, cuộc trò chuyện và kết nối mô hình trong một cửa sổ. Hiện chưa có bản tải xuống công khai."
-    ],
-    [
-      "Máy tính đám mây",
-      "Đang phát triển",
-      "Máy tính lưu trữ trực tuyến chạy tác vụ của bạn."
+      "Ứng dụng gốc dùng cùng bộ máy. Xem xét và commit thay đổi, theo dõi công việc giữa các dự án, và chỉnh sửa một tin nhắn để gửi lại thành một nhánh mới. Hiện chưa có bản tải xuống công khai."
     ]
   ],
   availabilityNote:
-    "Terminal, trình duyệt cục bộ và GUI không cần tài khoản Codewhale. Web lưu trữ trực tuyến và ứng dụng desktop dùng tài khoản. Khi bạn dùng khóa riêng của mình từ nhà cung cấp, nhà cung cấp đó tính phí phần sử dụng này.",
-  accountLink: "Tạo tài khoản",
+    "Terminal, trình duyệt cục bộ và GUI không cần tài khoản Codewhale. Khi bạn dùng khóa riêng của mình từ nhà cung cấp, nhà cung cấp đó tính phí phần sử dụng này.",
   surfacesHeading: "Làm việc với tệp và công cụ",
   surfaces: [
     [
@@ -126,7 +124,7 @@ export const home: HomeDict = {
   installGuideLink: "Đọc hướng dẫn cài đặt",
   communityHeading: "Đóng góp cho Codewhale",
   communityBody:
-    "Báo lỗi, cải thiện tài liệu hoặc đóng góp mã trên GitHub. Bạn cũng có thể tạo plugin và chia sẻ quy trình với những người dùng khác.",
+    "{count} người đã góp phần xây dựng Codewhale. Báo lỗi, cải thiện tài liệu hoặc đóng góp mã trên GitHub.",
   communityLinksAria: "Liên kết cộng đồng",
   contribute: "Đóng góp trên GitHub",
 };

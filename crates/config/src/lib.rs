@@ -3512,6 +3512,7 @@ impl ConfigToml {
             saved_provider_model: None,
             base_url_override: Some(base_url.clone()),
             limit_overrides: Vec::new(),
+            wire_override: None,
         });
 
         let mut http_headers = self.http_headers.clone();
@@ -4614,19 +4615,7 @@ fn wire_prefers_anthropic(kind: ProviderKind, wire: Option<&str>) -> bool {
     ) {
         return true;
     }
-    let Some(raw) = wire.map(str::trim).filter(|value| !value.is_empty()) else {
-        return false;
-    };
-    let normalized = raw.to_ascii_lowercase().replace(['_', ' '], "-");
-    matches!(
-        normalized.as_str(),
-        "anthropic"
-            | "anthropic-messages"
-            | "messages"
-            | "claude"
-            | "anthropic-compatible"
-            | "anthropic-compat"
-    )
+    provider::wire_dialect_prefers_anthropic(wire)
 }
 
 fn modelstudio_mode_is_coding_plan(kind: ProviderKind, mode: Option<&str>) -> bool {

@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale : agent de programmation open source",
   metaDescription: "Codewhale est un agent de programmation open source pour votre terminal. Lisez, modifiez et testez des projets avec vos modèles hébergés ou locaux.",
-  heroTitle: "Créez des applications et automatisez votre travail.",
-  heroIntro: "{brand} est un agent de programmation open source qui lit les fichiers, écrit du code et exécute des commandes dans votre terminal. Connectez votre API de modèles ou un modèle local et choisissez les actions à approuver.",
+  heroTitle: "L’agent de programmation open source pour tous les modèles",
+  heroIntro: "{brand} lit votre projet, modifie les fichiers et exécute vos tests depuis votre terminal. Connectez un modèle hébergé ou local et choisissez les actions qui nécessitent votre approbation.",
   getCodewhale: "Installer Codewhale",
   heroInstallAria: "Commande d'installation",
   exploreProduct: "Découvrir Codewhale",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "Source",
   sourceCandidate: "Non publiée",
   publishedRelease: "publiée",
-  gainHeading: "Ce que vous pouvez faire",
+  gainHeading: "Créez et automatisez depuis votre terminal",
   gainLede:
     "Décrivez ce que vous voulez créer ou automatiser. Codewhale peut modifier des fichiers, exécuter des commandes et vérifier le résultat, avec des accès que vous contrôlez.",
   gain: [
@@ -42,7 +42,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "Vos comptes API",
-      "Connectez OpenAI, Anthropic, Google ou DeepSeek avec vos propres clés."
+      "Connectez des fournisseurs comme DeepSeek, OpenAI, Anthropic ou Google avec vos propres clés. Le modèle par défaut, deepseek-flash, utilise désormais DeepSeek-V4.1-Flash."
     ],
     [
       "Votre passerelle",
@@ -51,6 +51,10 @@ export const home: HomeDict = {
     [
       "Votre inférence",
       "Exécutez des modèles locaux ou auto-hébergés avec Ollama, vLLM ou SGLang."
+    ],
+    [
+      "Votre abonnement ChatGPT",
+      "Connectez-vous avec codewhale auth chatgpt pour utiliser un abonnement ChatGPT à la place d’une clé API. Expérimental."
     ]
   ],
   modelsLink: "Parcourir les modèles et les fournisseurs",
@@ -77,23 +81,17 @@ export const home: HomeDict = {
     ],
     [
       "Application web hébergée",
-      "Aperçu de développement",
-      "En cours de reconstruction pour correspondre à l’application de bureau. Aujourd’hui, vous pouvez vous connecter, puis saisir /rc dans une session de terminal en cours pour la poursuivre sur le web ; l’exécution de tâches hébergées est encore en cours de qualification."
+      "En développement",
+      "En cours de reconstruction pour correspondre à l’application de bureau, et pas encore ouverte. Pour l’utiliser dans un navigateur dès aujourd’hui, lancez codewhale web sur votre machine."
     ],
     [
       "Bureau",
       "Build de développement",
-      "L’application native qui devient le client principal de Codewhale : dossiers, conversations et connexions de modèles dans une seule fenêtre. Aucun téléchargement public n’est encore disponible."
-    ],
-    [
-      "Ordinateurs cloud",
-      "En développement",
-      "Des ordinateurs hébergés qui exécutent vos tâches."
+      "Une application native sur le même moteur. Examinez et commitez les modifications, suivez le travail entre les projets et modifiez un message pour le renvoyer dans une nouvelle branche. Aucun téléchargement public n’est encore disponible."
     ]
   ],
   availabilityNote:
-    "Le terminal, le navigateur local et la GUI ne nécessitent aucun compte Codewhale. Le web hébergé et l’application de bureau utilisent un compte. Si vous utilisez votre propre clé fournisseur, celui-ci vous facture cet usage.",
-  accountLink: "Créer un compte",
+    "Le terminal, le navigateur local et la GUI ne nécessitent aucun compte Codewhale. Si vous utilisez votre propre clé fournisseur, celui-ci vous facture cet usage.",
   surfacesHeading: "Travaillez avec vos fichiers et vos outils",
   surfaces: [
     [
@@ -126,7 +124,7 @@ export const home: HomeDict = {
   installGuideLink: "Lire le guide d’installation",
   communityHeading: "Contribuez à Codewhale",
   communityBody:
-    "Signalez un bug, améliorez la documentation ou contribuez au code sur GitHub. Vous pouvez aussi créer des plugins et partager des workflows avec d’autres utilisateurs.",
+    "{count} personnes ont contribué à créer Codewhale. Signalez un bug, améliorez la documentation ou contribuez au code sur GitHub.",
   communityLinksAria: "Liens de la communauté",
   contribute: "Contribuer sur GitHub",
 };

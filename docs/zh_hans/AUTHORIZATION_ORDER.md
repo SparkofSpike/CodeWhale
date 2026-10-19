@@ -125,6 +125,6 @@ cargo test -p codewhale-config --locked project_merge_only_tightens_approval_and
 ## 相关参考
 
 - [配置](CONFIGURATION.md) — 规则模式、`/permissions`、钩子与项目覆盖层
-- [模式](MODES.md) — Plan/Act/Operate 与权限姿态
+- [模式](MODES.md) — Plan/Work/Operate 与权限姿态
 - [沙箱威胁模型](SANDBOX.md) — 平台级强制执行与兜底
 - [运行时 API](RUNTIME_API.md) — 审批事件与远程裁决

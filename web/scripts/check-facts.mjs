@@ -12,7 +12,7 @@
  *
  * Checked fields:
  *   version, providers, crates, sandboxBackends, defaultModel, nodeEngines,
- *   toolCount, license, latestPublishedRelease.
+ *   toolCount, contributorCount, license, latestPublishedRelease.
  *
  * Fields NOT checked (by design):
  *   generatedAt — always different
@@ -68,6 +68,7 @@ function diffFacts(committed, fresh) {
     "defaultModel",
     "nodeEngines",
     "toolCount",
+    "contributorCount",
     "license",
     "latestPublishedRelease",
   ];

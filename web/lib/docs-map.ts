@@ -70,8 +70,8 @@ export const DOC_TOPICS: DocTopic[] = [
     slug: "auth",
     label: { en: "Connect a provider", zh: "连接模型提供商" },
     description: {
-      en: "Save a provider key, check which key is used, run a local model, or sign in to the optional account.",
-      zh: "保存提供商密钥、查看当前使用的密钥、运行本地模型，或登录可选的账户。",
+      en: "Save a provider key, check which key is used, or run a local model.",
+      zh: "保存提供商密钥、查看当前使用的密钥，或运行本地模型。",
     },
     repoSource: ["docs/CONFIGURATION.md", "docs/CODEWHALE_AGENT.md"],
     hasPage: true,
@@ -284,18 +284,6 @@ export const DOC_TOPICS: DocTopic[] = [
   },
   // Fleet is the canonical customer noun; `/docs/pod` remains a
   // permanent compatibility redirect in app/[locale]/docs/pod/page.tsx.
-  {
-    id: "computers",
-    slug: "computers",
-    label: { en: "Send a task to the cloud", zh: "把任务发送到云端" },
-    description: {
-      en: "Preview: quote and run a cloud agent through your account.",
-      zh: "预览版：通过你的账户为云端 Agent 报价并运行。",
-    },
-    repoSource: ["docs/GUIDE.md", "docs/CODEWHALE_AGENT.md"],
-    hasPage: true,
-    category: "extending",
-  },
   {
     id: "troubleshooting",
     slug: "troubleshooting",

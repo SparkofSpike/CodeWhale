@@ -10,9 +10,21 @@ const MCP: &str = "@deepseek-ai/dsh-mcp-client";
 const SKILLS: &str = "@deepseek-ai/dsh-skill-filesystem";
 
 struct Fixture {
+    _host: crate::extension_host::TestManagerGuard,
     _root: tempfile::TempDir,
     bundle: PathBuf,
     output: PathBuf,
+}
+
+fn isolated_host(root: &Path) -> crate::extension_host::TestManagerGuard {
+    crate::extension_host::TestManagerGuard::install(std::sync::Arc::new(
+        crate::extension_host::ExtensionHostManager::new(
+            crate::extension_host::ExtensionHostOptions {
+                root: Some(root.join("host")),
+                ..Default::default()
+            },
+        ),
+    ))
 }
 
 fn fixture(patch: Option<&str>, manifest: Option<Json>) -> Fixture {
@@ -35,6 +47,7 @@ fn fixture(patch: Option<&str>, manifest: Option<Json>) -> Fixture {
     }
     let output = root.path().join("out");
     Fixture {
+        _host: isolated_host(root.path()),
         _root: root,
         bundle,
         output,
@@ -749,6 +762,7 @@ fn raw_agent_presets_import_emits_exact_native_entries_and_catalog() {
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/extension_host/raw-agent-presets/source");
     let root = tempfile::tempdir().unwrap();
+    let _host = isolated_host(root.path());
     let output = root.path().join("raw-preset-output");
     let converted = convert_package(&source, &output).unwrap();
     assert!(converted.requires_native);
@@ -854,6 +868,7 @@ fn raw_catalog_broken_rows_remain_structured_manual_ports_beside_healthy_entries
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/extension_host/raw-agent-presets/source");
     let root = tempfile::tempdir().unwrap();
+    let _host = isolated_host(root.path());
     let bundle = root.path().join("source");
     fs::create_dir(&bundle).unwrap();
     walk_files(&source, |path, is_dir| {

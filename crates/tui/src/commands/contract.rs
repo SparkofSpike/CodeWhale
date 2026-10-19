@@ -185,6 +185,7 @@ pub(crate) fn key_to_message_id(key: &'static str) -> Option<MessageId> {
         "cmd_cache_description" => MessageId::CmdCacheDescription,
         "cmd_change_description" => MessageId::CmdChangeDescription,
         "cmd_clear_description" => MessageId::CmdClearDescription,
+        "cmd_color_description" => MessageId::CmdColorDescription,
         "cmd_compact_description" => MessageId::CmdCompactDescription,
         "cmd_config_description" => MessageId::CmdConfigDescription,
         "cmd_connect_description" => MessageId::CmdConnectDescription,
@@ -575,6 +576,7 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
         forked.metadata.runtime_store = None;
         forked.approval_receipts.clear();
         forked.window_title = None;
+        forked.composer_color = None;
         forked.metadata.spawn_depth = parent.metadata.spawn_depth.saturating_add(1);
         forked.metadata.mark_forked_from(&parent.metadata);
         if let Some(journal) = forked.journal.as_mut() {
@@ -599,6 +601,7 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
         app.session_title = Some(forked.metadata.title.clone());
         // A fork starts as its own session: no inherited tab/window title.
         app.window_title = None;
+        app.composer_color = None;
         let fork_id = forked.metadata.id.clone();
         let parent_label = crate::session_manager::truncate_id(&parent.metadata.id).to_string();
         let fork_label = crate::session_manager::truncate_id(&fork_id).to_string();
@@ -618,6 +621,11 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
     }
 
     fn fork_from(&mut self, session_id_or_prefix: &str) -> Result<SessionForkFromReceipt, String> {
+        let mut config = self
+            .host
+            .config
+            .ok_or_else(|| "The fork command has no active provider configuration.".to_string())?
+            .clone();
         let mut app = self.host.app.borrow_mut();
         let manager = match crate::session_manager::SessionManager::default_location() {
             Ok(m) => m,
@@ -678,34 +686,24 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
         forked.artifacts = source_session.artifacts.clone();
         forked.work_state = source_session.work_state.clone();
         forked.last_auto_route = source_session.last_auto_route.clone();
-        let queue_transition =
-            crate::tui::ui::prepare_offline_queue_transition(&app, &forked.metadata.id)?;
         if let Err(err) = manager.save_session(&forked) {
             return Err(format!("Failed to save forked session: {err}"));
         }
-        crate::tui::ui::install_offline_queue_transition(&mut app, queue_transition);
-        app.current_session_id = Some(forked.metadata.id.clone());
-        app.current_session_metadata = Some(forked.metadata.clone());
-        app.restore_api_messages(forked.messages.clone(), &forked);
-        app.session_title = Some(forked.metadata.title.clone());
-        // A fork starts as its own session: no inherited tab/window title.
-        app.window_title = None;
         let parent_label =
             crate::session_manager::truncate_id(&source_session.metadata.id).to_string();
         let fork_label = crate::session_manager::truncate_id(&forked.metadata.id).to_string();
+        let spawn_depth = forked.metadata.spawn_depth;
+        crate::tui::ui::apply_loaded_session_with_goal(&mut app, &mut config, forked, None)?;
         let mode = to_command_mode(app.mode);
         Ok(SessionForkFromReceipt {
             parent_label,
             fork_label,
-            spawn_depth: forked.metadata.spawn_depth.into(),
+            spawn_depth: spawn_depth.into(),
             sync: SessionSyncPayload {
-                session_id: Some(forked.metadata.id.clone()),
-                messages: forked.messages.clone(),
-                system_prompt: forked
-                    .system_prompt
-                    .as_ref()
-                    .map(|s| codewhale_models::SystemPrompt::Text(s.clone())),
-                model: forked.metadata.model.clone(),
+                session_id: app.current_session_id.clone(),
+                messages: app.api_messages.as_ref().clone(),
+                system_prompt: app.system_prompt.clone(),
+                model: app.model.clone(),
                 workspace: app.workspace.clone(),
                 mode,
             },
@@ -749,6 +747,7 @@ impl CommandSessionLifecycleContext for SessionLifecycleAdapter<'_> {
         // A new session has no tab/window title override yet; the `title`
         // config default still applies.
         app.window_title = None;
+        app.composer_color = None;
         app.scroll_to_bottom();
         let mode = to_command_mode(app.mode);
         Ok(SessionNewReceipt {
@@ -1043,8 +1042,8 @@ fn valid_repo_component(value: &str) -> bool {
 // ---------------------------------------------------------------------------
 // Session control adapter (FEAT-024 D4/D5)
 //
-// Sole host owner of concrete control machinery for the six control commands:
-// relay snapshot reads (goal/plan/work/todo/compact-template), rename/title
+// Sole host owner of concrete control machinery for the seven control commands:
+// relay snapshot reads (goal/plan/work/todo/compact-template), rename/title/color
 // persistence (sanitization, checkpoint recovery, live synchronization, save,
 // publication, redraw), resume routing/imports, remote-control state and the
 // synchronous single-attempt browser launch, and hosted-work Git target
@@ -1271,6 +1270,15 @@ impl CommandSessionControlContext for SessionControlAdapter<'_> {
         persist_window_title(&mut app, None)
     }
 
+    fn composer_color(&self) -> Option<String> {
+        self.host.app.borrow().composer_color.clone()
+    }
+
+    fn set_composer_color(&mut self, color: Option<String>) -> Result<(), String> {
+        let mut app = self.host.app.borrow_mut();
+        persist_composer_color(&mut app, color)
+    }
+
     fn remote_status(&self) -> String {
         self.host.app.borrow().remote_control.status_line()
     }
@@ -1322,6 +1330,32 @@ impl CommandSessionControlContext for SessionControlAdapter<'_> {
 /// Manager resolution intentionally precedes active-session lookup, matching
 /// the original `/title` error precedence for both set and clear operations.
 fn persist_window_title(app: &mut App, title: Option<String>) -> Result<(), String> {
+    persist_session_display(
+        app,
+        "title",
+        "Window title",
+        |session| session.window_title.clone_from(&title),
+        |app| app.window_title = title.clone(),
+    )
+}
+
+fn persist_composer_color(app: &mut App, color: Option<String>) -> Result<(), String> {
+    persist_session_display(
+        app,
+        "composer color",
+        "Composer color",
+        |session| session.composer_color.clone_from(&color),
+        |app| app.composer_color = color.clone(),
+    )
+}
+
+fn persist_session_display(
+    app: &mut App,
+    setting: &str,
+    saved: &str,
+    stage: impl FnOnce(&mut crate::session_manager::SavedSession),
+    commit: impl FnOnce(&mut App),
+) -> Result<(), String> {
     let manager = match crate::session_manager::SessionManager::default_location() {
         Ok(manager) => manager,
         Err(error) => return Err(format!("Could not open sessions directory: {error}")),
@@ -1352,7 +1386,7 @@ fn persist_window_title(app: &mut App, title: Option<String>) -> Result<(), Stri
         Ok(state) => state,
         Err(error) => {
             return Err(format!(
-                "Could not snapshot Work state before setting title: {error}"
+                "Could not snapshot Work state before setting {setting}: {error}"
             ));
         }
     };
@@ -1366,17 +1400,17 @@ fn persist_window_title(app: &mut App, title: Option<String>) -> Result<(), Stri
     session.metadata.workspace.clone_from(&app.workspace);
     session.metadata.mode = Some(app.mode.as_setting().to_string());
     app.sync_cost_to_metadata(&mut session.metadata);
-    session.window_title.clone_from(&title);
+    stage(&mut session);
 
     match manager.save_session(&session) {
         Ok(_) => {
-            app.window_title = title;
+            commit(app);
             // The render loop syncs the resolved prefix into the terminal
             // title; force a frame so the change lands immediately.
             app.needs_redraw = true;
             if let Err(error) = app.publish_pending_work_state() {
                 return Err(format!(
-                    "Window title saved, but Work views were not published: {error}"
+                    "{saved} saved, but Work views were not published: {error}"
                 ));
             }
             Ok(())
@@ -1508,6 +1542,8 @@ fn import_session_container(
     crate::tui::ui::install_offline_queue_transition(app, queue_transition);
     app.current_session_id = Some(new_id.clone());
     app.current_session_metadata = Some(imported.metadata.clone());
+    app.window_title.clone_from(&imported.window_title);
+    app.composer_color.clone_from(&imported.composer_color);
     app.restore_api_messages(imported.messages.clone(), &imported);
     let picker = crate::tui::session_picker::SessionPickerView::new_selecting(
         &app.workspace,
@@ -6907,8 +6943,12 @@ mod tests {
                 .messages
                 .len()
         };
+        app.add_message(HistoryCell::System {
+            content: "another conversation".to_string(),
+        });
+        let config = crate::config::Config::default();
         {
-            let mut bundle = app.command_contexts();
+            let mut bundle = app.command_contexts_with_config(Some(&config));
             let mut parts = bundle.parts();
             let facet = parts.lifecycle.as_deref_mut().expect("lifecycle slot");
             let forked = facet.fork_from(&parent_id).expect("explicit fork ok");
@@ -6919,6 +6959,10 @@ mod tests {
             );
             assert_eq!(forked.sync.messages.len(), 1);
         }
+        assert!(matches!(
+            app.history.as_slice(),
+            [HistoryCell::User { content }] if content == "parent turn"
+        ));
         let manager = crate::session_manager::SessionManager::default_location().unwrap();
         let reloaded = manager
             .load_session(&parent_id)

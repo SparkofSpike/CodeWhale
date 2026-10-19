@@ -1250,7 +1250,7 @@ impl<'a> ComposerWidget<'a> {
             _ => false,
         };
         if editing {
-            self.app.ui_theme.accent_primary
+            composer_chat_color(self.app).unwrap_or(self.app.ui_theme.accent_primary)
         } else {
             self.app.ui_theme.border
         }
@@ -3025,6 +3025,33 @@ pub(crate) fn empty_composer_visual_rows(
     1
 }
 
+fn composer_chat_color(app: &App) -> Option<Color> {
+    let name = app.composer_color.as_deref()?;
+    let (dark, light, ansi) = match name {
+        "red" => ((0xF2, 0x5F, 0x5C), (0xC6, 0x28, 0x28), Color::Red),
+        "orange" => ((0xF0, 0x82, 0x32), (0xB8, 0x5A, 0x0D), Color::LightRed),
+        "amber" => ((0xE8, 0xC5, 0x47), (0x8A, 0x6A, 0x00), Color::Yellow),
+        "green" => ((0x7B, 0xCB, 0x6B), (0x2E, 0x7D, 0x32), Color::Green),
+        "cyan" => ((0x4C, 0xC9, 0xD9), (0x00, 0x79, 0x8A), Color::Cyan),
+        "blue" => ((0x5B, 0x8D, 0xEF), (0x1F, 0x5F, 0xCC), Color::Blue),
+        "purple" => ((0xBE, 0x78, 0xEC), (0x8C, 0x3C, 0xB9), Color::Magenta),
+        "pink" => ((0xF0, 0x7C, 0xC0), (0xB8, 0x32, 0x7F), Color::LightMagenta),
+        _ => return None,
+    };
+    if app.theme_id == palette::ThemeId::Terminal {
+        return Some(ansi);
+    }
+    let (r, g, b) = match app.ui_theme.mode {
+        palette::PaletteMode::Light | palette::PaletteMode::SolarizedLight => light,
+        _ => dark,
+    };
+    Some(palette::enforce_contrast(
+        Color::Rgb(r, g, b),
+        app.ui_theme.composer_bg,
+        palette::SECONDARY_CHROME_CONTRAST,
+    ))
+}
+
 fn composer_max_height(density: ComposerDensity) -> u16 {
     composer_native_density(density).max_rows()
 }
@@ -3882,6 +3909,7 @@ mod tests {
             started_at: None,
             duration_ms: None,
             stale_elapsed_since_output_ms: None,
+            waiting: None,
             source: ExecSource::User,
             description: None,
             interaction: None,

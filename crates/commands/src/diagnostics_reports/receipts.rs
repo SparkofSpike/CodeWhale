@@ -369,7 +369,7 @@ fn duration_label(ms: u64) -> String {
 }
 
 /// One line per action. Plain text that also reads as Markdown; whatever
-/// the record holds cannot break it onto a second line ([`one_line`]).
+/// the record holds cannot break it onto a second line (`one_line`).
 #[must_use]
 pub fn action_line(action: &ReceiptAction) -> String {
     let mut line = action_phrase(action);

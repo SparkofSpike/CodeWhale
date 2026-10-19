@@ -350,6 +350,46 @@ fn startup_memory_preserves_named_and_custom_endpoint_wire_ids() {
 }
 
 #[test]
+fn named_custom_table_wire_responses_reaches_the_runtime_route() {
+    let _lock = lock_test_env();
+    let _provider = EnvVarGuard::remove("CODEWHALE_PROVIDER");
+    let _legacy_provider = EnvVarGuard::remove("DEEPSEEK_PROVIDER");
+    let config: Config = toml::from_str(
+        "provider = 'relay'\n[providers.relay]\nkind = 'openai-compatible'\nbase_url = 'https://relay.example.test/v1'\nmodel = 'gpt-5.5'\nwire = 'responses'\n",
+    )
+    .unwrap();
+    let identity = config.active_provider_identity().unwrap();
+    let route = crate::route_runtime::resolve_runtime_route_for_identity(&config, &identity, None)
+        .expect("custom table runtime route");
+    assert_eq!(route.identity.provider, ProviderKind::Custom);
+    assert_eq!(
+        route.candidate.protocol(),
+        codewhale_config::provider::WireFormat::Responses,
+        "the table's wire dialect must reach the minted candidate instead of \
+         Custom's static Chat policy"
+    );
+    assert_eq!(
+        route.candidate.endpoint().base_url,
+        "https://relay.example.test/v1"
+    );
+
+    // A table without a wire dialect keeps the backward-compatible static
+    // Chat policy, and an unrecognized dialect degrades to it deliberately.
+    let config: Config = toml::from_str(
+        "provider = 'relay'\n[providers.relay]\nkind = 'openai-compatible'\nbase_url = 'https://relay.example.test/v1'\nmodel = 'gpt-5.5'\nwire = 'respones'\n",
+    )
+    .unwrap();
+    let identity = config.active_provider_identity().unwrap();
+    let route = crate::route_runtime::resolve_runtime_route_for_identity(&config, &identity, None)
+        .expect("typo'd table still resolves");
+    assert_eq!(
+        route.candidate.protocol(),
+        codewhale_config::provider::WireFormat::ChatCompletions,
+        "an unrecognized dialect must degrade to the static policy"
+    );
+}
+
+#[test]
 fn provider_environment_model_outranks_startup_memory() {
     let _lock = lock_test_env();
     let home = tempfile::tempdir().unwrap();

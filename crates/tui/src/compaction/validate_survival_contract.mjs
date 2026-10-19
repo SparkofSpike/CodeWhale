@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 
 // Mirrors compaction.rs: a new checkpoint is the handoff-note header block
 // plus the provenance block; only the two legacy markers match by substring,
-// because older checkpoints may lack provenance.
+// because older checkpoints may lack provenance. Recognition is era-scoped:
+// in a history that already carries a stamped carrier only the stamped form
+// is a checkpoint, so a user turn that pastes a bare legacy header stays
+// content; a history without one keeps the loose legacy form.
 const MARKER = "Codewhale handoff note";
 const LEGACY_V2_MARKER = "Another language model started to solve this problem";
 const LEGACY_MARKERS = [LEGACY_V2_MARKER, "Conversation Summary (Auto-Generated)"];
@@ -42,19 +45,24 @@ function isWireCheckpoint(message) {
   );
 }
 
-function isCheckpoint(message) {
+function historyIsPostProvenance(messages) {
+  return messages.some(isWireCheckpoint);
+}
+
+function isCheckpoint(message, postProvenance) {
+  if (postProvenance) return isWireCheckpoint(message);
   if (isWireCheckpoint(message)) return true;
   const text = userTextOf(message);
   return Boolean(text && LEGACY_MARKERS.some((marker) => text.includes(marker)));
 }
 
-function isPlainUserText(message) {
-  return !isCheckpoint(message) && Boolean(userTextOf(message));
+function isPlainUserText(postProvenance, message) {
+  return !isCheckpoint(message, postProvenance) && Boolean(userTextOf(message));
 }
 
-function lastPlainUserIndex(messages, end) {
+function lastPlainUserIndex(messages, end, postProvenance) {
   for (let idx = end - 1; idx >= 0; idx -= 1) {
-    if (isPlainUserText(messages[idx])) return idx;
+    if (isPlainUserText(postProvenance, messages[idx])) return idx;
   }
   return null;
 }
@@ -66,12 +74,13 @@ function sliceHasToolResult(messages, start) {
 }
 
 export function lastRoundStart(messages) {
-  const lastUser = lastPlainUserIndex(messages, messages.length);
+  const postProvenance = historyIsPostProvenance(messages);
+  const lastUser = lastPlainUserIndex(messages, messages.length, postProvenance);
   if (lastUser === null) return 0;
   if (sliceHasToolResult(messages, lastUser)) return lastUser;
   let candidate = lastUser;
   for (;;) {
-    const prev = lastPlainUserIndex(messages, candidate);
+    const prev = lastPlainUserIndex(messages, candidate, postProvenance);
     if (prev === null) return lastUser;
     if (sliceHasToolResult(messages, prev)) return prev;
     candidate = prev;
@@ -117,6 +126,7 @@ function survives(text, replacement, of) {
 }
 
 export function validateSurvivalContract(original, replacement, anchors) {
+  const postProvenance = historyIsPostProvenance(original);
   const start = lastRoundStart(original);
   const round = original.slice(start);
   const pending = new Set();
@@ -128,12 +138,24 @@ export function validateSurvivalContract(original, replacement, anchors) {
     for (const id of toolResultIds(message)) pending.delete(id);
   }
   const tail = boundaries.length > 2 ? boundaries.at(-2) : 0;
-  const lastRound = round.filter((message, idx) => !isCheckpoint(message) && (idx >= tail || isPlainUserText(message)));
+  const lastRound = round.filter(
+    (message, idx) =>
+      !isCheckpoint(message, postProvenance) &&
+      (idx >= tail || isPlainUserText(postProvenance, message)),
+  );
   // Every user turn in the round, not the first one `find` reaches: the round
   // spans a tool-bearing turn plus the toolless tail after it, so checking one
-  // let a rewrite drop the latest turn.
-  for (const text of lastRound.map(userTextOf).filter(Boolean)) {
-    if (!survives(text, replacement, userTextOf)) {
+  // let a rewrite drop the latest turn. The witness reads the replacement
+  // through the same era-scoped plain-user predicate: a stamped carrier is a
+  // user message whose text starts with the summary header, and quoting it
+  // verbatim would let a rewrite hide a dropped pasted turn behind the
+  // carrier's own header.
+  const plainUserTextOf = (message) => {
+    if (isCheckpoint(message, postProvenance)) return null;
+    return userTextOf(message);
+  };
+  for (const text of lastRound.map(plainUserTextOf).filter(Boolean)) {
+    if (!survives(text, replacement, plainUserTextOf)) {
       return "a last-round user message was dropped";
     }
   }
@@ -172,7 +194,16 @@ export function validateSurvivalContract(original, replacement, anchors) {
   ) {
     return "last-round assistant output was dropped";
   }
-  const checkpoints = replacement.filter(isCheckpoint).length;
+  // The receipt count reads the replacement in its own era, except that a
+  // post-provenance original raises the bar to a stamped carrier: the engine
+  // stamps every replacement it builds, and the stamp is the only form
+  // request rewriting relocates.
+  const receiptRecognition = historyIsPostProvenance(original)
+    ? true
+    : historyIsPostProvenance(replacement);
+  const checkpoints = replacement.filter(
+    (message) => isCheckpoint(message, receiptRecognition),
+  ).length;
   if (checkpoints === 0) return "checkpoint receipt was dropped";
   if (checkpoints > 1) return "prior summaries were duplicated";
   if (anchors && !replacement.some((message) =>

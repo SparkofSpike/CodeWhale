@@ -4,27 +4,20 @@ The root `action.yml` runs the existing `codewhale review` command with an
 exact, checksummed release. It needs Node.js 22+, `gh`, Git, and a macOS or
 Linux runner. It does not compile Codewhale or execute the PR's code.
 
-This source adds review mode. Autonomous mention/fix mode remains on the
-hosted GitHub App path; this Action does not yet implement SHA-6706's mention
-acceptance. No release tag containing this Action is claimed here: pin the
-reviewed Action commit until a release containing it exists. CLI version and
-Action revision are separate pins.
+Review mode only. Autonomous mention/fix mode is not implemented in this
+Action. The Action has been in release tags since `v0.10.1`; pin a tag or a
+reviewed commit. The CLI `version` input and the Action ref are separate pins.
 
-## Account setup
+## Setup with your own provider key
 
-Connect your provider and select the model in Codewhale. Create a dedicated
-account machine key with `account:read`, `agent:run` and `models:infer`, and
-save it as the repository Actions secret `CODEWHALE_API_KEY`.
+Pick a provider (`deepseek`, `anthropic`, `openrouter`, `zai`, or
+`modelstudio-token-plan`) and an exact model ID. Save that provider's key as a
+repository Actions secret named for it: `DEEPSEEK_API_KEY`,
+`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `ZAI_API_KEY` or
+`MODELSTUDIO_API_KEY`. Pass only that one secret in `env`. The Action never
+chooses a different credential after an authentication or payment failure.
 
-Set repository variable `CODEWHALE_REVIEW_MODEL` to the exact `provider/model`
-ID from the account's authenticated model catalog. This pins the account
-selection explicitly: today's machine preflight exposes provider readiness,
-not the selected model ID. Updating the account selection alone does not
-update this variable. Do not substitute a guessed provider default or copy
-the account key into a vendor key variable.
-
-Add `.github/workflows/codewhale.yml`, replacing `ACTION_COMMIT_SHA` with the
-reviewed 40-character commit containing this Action:
+Add `.github/workflows/codewhale.yml`:
 
 ```yaml
 name: Codewhale review
@@ -51,14 +44,15 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - uses: codewhale-hq/CodeWhale@ACTION_COMMIT_SHA
+      - uses: codewhale-hq/CodeWhale@v0.10.1
         id: review
         with:
-          version: v0.10.0
-          model: ${{ vars.CODEWHALE_REVIEW_MODEL }}
+          version: v0.10.1
+          provider: deepseek
+          model: deepseek-flash
           pr-number: ${{ inputs.pr-number }}
         env:
-          CODEWHALE_API_KEY: ${{ (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.CODEWHALE_API_KEY || '' }}
+          DEEPSEEK_API_KEY: ${{ (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.DEEPSEEK_API_KEY || '' }}
       - uses: actions/upload-artifact@v7
         if: always() && steps.review.outputs.receipt != ''
         with:
@@ -66,6 +60,15 @@ jobs:
           path: ${{ steps.review.outputs.receipt }}
           retention-days: 14
 ```
+
+Always set `provider`: its default, `codewhale`, is the account relay below.
+
+### Account machine key: not available
+
+The `codewhale` provider routes through a Codewhale account machine key
+(`CODEWHALE_API_KEY`, with `model` as `provider/model` from the account
+catalog). Codewhale accounts are paused for new users while the account and
+key-storage paths get a security review, so use your own provider key.
 
 No repository checkout is needed. To post as your own GitHub App, supply an
 installation token as `github-token`; see [App identity setup](GITHUB_APP.md).
@@ -93,7 +96,7 @@ chooses a different credential after an authentication or payment failure.
 These are input, output, and time bounds, not a dollar guarantee. Model prices
 and reasoning accounting vary. Raising the pass count authorizes more model
 requests. The Action never retries inference automatically. Do not enable it
-without setting the desired review scope and spend limits for the account.
+without setting the desired review scope and spend limits with your provider.
 
 Outputs are `outcome`, `receipt` (absolute JSON path), and `pr-url`. The
 receipt contains the pinned revision, route, limits, publication state,

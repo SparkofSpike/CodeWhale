@@ -183,7 +183,22 @@ async fn turn_started_echoes_submission_id_and_self_starts_stay_none() {
                 .await
                 .expect("timed out waiting for the submitted turn to complete")
                 .expect("engine event");
-            if let Event::TurnComplete { status, error, .. } = event {
+            if let Event::TurnComplete {
+                turn_id,
+                submission_id,
+                compaction_id,
+                status,
+                error,
+                ..
+            } = event
+            {
+                assert_eq!(turn_id.as_deref(), Some(submitted_turn_id.as_str()));
+                assert_eq!(
+                    submission_id.as_deref(),
+                    Some("sub-host-1"),
+                    "the submitted turn's terminal must echo its correlation token"
+                );
+                assert!(compaction_id.is_none());
                 assert_eq!(status, TurnOutcomeStatus::Completed, "{error:?}");
                 break;
             }
@@ -199,7 +214,7 @@ async fn turn_started_echoes_submission_id_and_self_starts_stay_none() {
             payload: "child finished its work".to_string(),
         })
         .expect("inject idle sub-agent completion");
-    {
+    let self_started_turn_id = {
         let mut rx = handle.rx_event.write().await;
         loop {
             let event = tokio::time::timeout(model_turn_event_timeout(), rx.recv())
@@ -220,10 +235,10 @@ async fn turn_started_echoes_submission_id_and_self_starts_stay_none() {
                     submission_id.is_none(),
                     "a runtime self-started turn must not present a submission id"
                 );
-                break;
+                break turn_id;
             }
         }
-    }
+    };
     {
         let mut rx = handle.rx_event.write().await;
         loop {
@@ -231,7 +246,21 @@ async fn turn_started_echoes_submission_id_and_self_starts_stay_none() {
                 .await
                 .expect("timed out waiting for the self-started turn to complete")
                 .expect("engine event");
-            if let Event::TurnComplete { status, error, .. } = event {
+            if let Event::TurnComplete {
+                turn_id,
+                submission_id,
+                compaction_id,
+                status,
+                error,
+                ..
+            } = event
+            {
+                assert_eq!(turn_id.as_deref(), Some(self_started_turn_id.as_str()));
+                assert!(
+                    submission_id.is_none(),
+                    "autonomous terminal must not inherit the preceding host token"
+                );
+                assert!(compaction_id.is_none());
                 assert_eq!(status, TurnOutcomeStatus::Completed, "{error:?}");
                 break;
             }
@@ -241,6 +270,84 @@ async fn turn_started_echoes_submission_id_and_self_starts_stay_none() {
     handle.send(Op::Shutdown).await.expect("shutdown engine");
     run_task.await.expect("engine task");
     assert_eq!(mock.call_count(), 2);
+}
+
+/// A composer shell turn never reaches the model; its terminal must still
+/// carry its own turn id and nothing else — no host submission and no
+/// compaction id.
+#[tokio::test]
+async fn composer_shell_terminal_carries_its_own_turn_and_nothing_else() {
+    use crate::llm_client::mock::MockLlmClient;
+
+    let workspace = tempdir().unwrap();
+    // The composer shell turn never reaches the model; the mock has no canned
+    // responses so any accidental dispatch fails loudly instead of passing.
+    let mock = Arc::new(MockLlmClient::new(vec![]));
+    let (engine, handle) = Engine::new_with_model_client(
+        deterministic_engine_config(workspace.path()),
+        &Config::default(),
+        mock.clone(),
+    );
+    let task = tokio::spawn(engine.run());
+    handle
+        .send(Op::RunShellCommand {
+            command: "echo composer-shell-terminal-attribution".to_string(),
+            mode: AppMode::Agent,
+            allow_shell: true,
+            trust_mode: false,
+            auto_approve: true,
+            approval_mode: ApprovalMode::Bypass,
+        })
+        .await
+        .expect("queue composer shell command");
+    {
+        let mut rx = handle.rx_event.write().await;
+        let started_turn_id = loop {
+            let event = tokio::time::timeout(model_turn_event_timeout(), rx.recv())
+                .await
+                .expect("timed out waiting for the composer shell turn")
+                .expect("engine event");
+            if let Event::TurnStarted {
+                turn_id,
+                submission_id,
+                ..
+            } = event
+            {
+                assert!(
+                    submission_id.is_none(),
+                    "a composer shell turn has no host submission to echo"
+                );
+                break turn_id;
+            }
+        };
+        loop {
+            let event = tokio::time::timeout(model_turn_event_timeout(), rx.recv())
+                .await
+                .expect("timed out waiting for the composer shell completion")
+                .expect("engine event");
+            if let Event::TurnComplete {
+                turn_id,
+                submission_id,
+                compaction_id,
+                status,
+                error,
+                ..
+            } = event
+            {
+                assert_eq!(turn_id.as_deref(), Some(started_turn_id.as_str()));
+                assert!(
+                    submission_id.is_none(),
+                    "a composer shell terminal must not present a submission id"
+                );
+                assert!(compaction_id.is_none());
+                assert_eq!(status, TurnOutcomeStatus::Completed, "{error:?}");
+                break;
+            }
+        }
+    }
+    handle.send(Op::Shutdown).await.expect("shutdown engine");
+    task.await.expect("engine task");
+    assert_eq!(mock.call_count(), 0);
 }
 
 #[test]

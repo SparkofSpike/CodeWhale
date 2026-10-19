@@ -99,6 +99,17 @@ export function deriveToolCount() {
   return count > 0 ? count : null;
 }
 
+export function deriveContributorCount() {
+  const contributors = JSON.parse(read("docs/contributors.json") ?? "null");
+  const people = contributors?.people;
+  if (!Array.isArray(people) || people.length === 0 || people.some((person) =>
+    !person || typeof person.login !== "string" || person.login.trim().length === 0)
+    || new Set(people.map((person) => person.login.toLowerCase())).size !== people.length) {
+    throw new Error("missing or malformed contributor roster");
+  }
+  return people.length;
+}
+
 export function deriveLicense() {
   const lic = read("LICENSE");
   if (!lic) return null;
@@ -195,6 +206,7 @@ export function buildFacts() {
     defaultModel: deriveDefaultModel(),
     nodeEngines: deriveNodeEngines(),
     toolCount: deriveToolCount(),
+    contributorCount: deriveContributorCount(),
     license: deriveLicense(),
     latestPublishedRelease: deriveLatestPublishedRelease(),
   };

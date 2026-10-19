@@ -745,6 +745,19 @@ fn external_user_message_op(content: &str, mode: AppMode, config: &Config) -> Op
     })
 }
 
+fn external_user_message_op_with_submission(
+    content: &str,
+    mode: AppMode,
+    config: &Config,
+    submission_id: Option<String>,
+) -> Op {
+    let mut op = external_user_message_op(content, mode, config);
+    if let Op::SendMessage(TurnSpec { submission_id: token, .. }) = &mut op {
+        *token = submission_id;
+    }
+    op
+}
+
 fn auto_review_message_op(content: &str, config: &Config) -> Op {
     Op::SendMessage(TurnSpec {
         profile_constitution: None,

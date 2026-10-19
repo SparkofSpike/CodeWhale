@@ -113,18 +113,7 @@ impl Engine {
                 return PhaseResult::Retry;
             }
 
-            let shell_completions = if self.is_acp_turn() {
-                Vec::new()
-            } else {
-                self.drain_shell_completion_events()
-            };
-            if !shell_completions.is_empty() {
-                self.add_session_message(shell_completion_runtime_message(&shell_completions))
-                    .await;
-                if let Some(status) = shell_completion_status_text(&shell_completions, "") {
-                    let _ = self.send_event(Event::status(status)).await;
-                }
-            }
+            self.deliver_shell_completions("").await;
 
             // Sub-agent completion handoff (issue #756). Resuming when
             // queued completions exist is correct; #3216 says do not wait
@@ -175,19 +164,7 @@ impl Engine {
             // arrived between the last hold check and now. If a child finished
             // while we were running the thinking-only check, surface its
             // sentinel rather than delaying it to the next turn.
-            let late_shell_completions = if self.is_acp_turn() {
-                Vec::new()
-            } else {
-                self.drain_shell_completion_events()
-            };
-            if !late_shell_completions.is_empty() {
-                self.add_session_message(shell_completion_runtime_message(&late_shell_completions))
-                    .await;
-                if let Some(status) = shell_completion_status_text(&late_shell_completions, "late")
-                {
-                    let _ = self.send_event(Event::status(status)).await;
-                }
-            }
+            self.deliver_shell_completions("late").await;
 
             if !self.is_acp_turn() && self.drain_subagent_completion_events("late").await > 0 {
                 let _ = self

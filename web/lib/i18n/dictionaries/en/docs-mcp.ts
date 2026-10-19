@@ -114,7 +114,7 @@ codewhale mcp tools codewhale`,
       title: "Compose tool calls with code mode (experimental)",
       blocks: [
         {
-          p: "Code mode lets the model write one short JavaScript program that calls several tools, loops, and filters results, instead of making each call as a separate step. Only the program's final value goes back to the model, which keeps long lookups compact. It is on by default — `execute_tools` is advertised from the first request — and MCP and plugin tools compose inside a program the same way built-in ones do. To turn it off for one session, or in config:",
+          p: "Code mode lets the model write one short JavaScript program that calls several tools, loops, and filters results, instead of making each call as a separate step. Only the program's final value goes back to the model, which keeps long lookups compact. It is on by default — `execute_tools` is advertised from the first request — and MCP and plugin tools compose inside a program the same way built-in ones do. Turning it off does not remove code mode: `execute_tools` goes back to being deferred, and the model can still find it through `tool_search`. To turn it off for one session, or in config:",
         },
         {
           code: `codewhale --disable code_mode

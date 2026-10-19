@@ -114,7 +114,7 @@ impl ToolSpec for FimEditTool {
         let max_tokens = optional_u64(&input, "max_tokens", 1024)?;
 
         // 1. Read the file
-        let resolved = context.resolve_path(path)?;
+        let resolved = crate::tools::file::resolve_guarded_read_path(context, path, "fim_edit")?;
         let content = tokio::fs::read_to_string(&resolved).await.map_err(|e| {
             ToolError::execution_failed(format!("Failed to read {}: {}", resolved.display(), e))
         })?;
@@ -161,6 +161,15 @@ impl ToolSpec for FimEditTool {
             }
         };
 
+        let current = tokio::fs::read_to_string(&resolved).await.map_err(|e| {
+            ToolError::execution_failed(format!("Failed to re-read {}: {}", resolved.display(), e))
+        })?;
+        if current != content {
+            return Err(ToolError::execution_failed(format!(
+                "Refusing fim_edit for {path}: the file changed while the FIM completion was running. Nothing was written. Recovery: read the file again and retry."
+            )));
+        }
+
         // 7. Build the new content and write it back
         let generated_len = generated_text.len();
         let new_content = format!("{fim_prompt}{generated_text}{fim_suffix}");
@@ -172,6 +181,7 @@ impl ToolSpec for FimEditTool {
         crate::utils::write_atomic_workspace(&resolved, new_content.as_bytes()).map_err(|e| {
             ToolError::execution_failed(format!("Failed to write {}: {}", resolved.display(), e))
         })?;
+        context.note_file_read(&resolved);
 
         let result = FimEditResult {
             success: true,

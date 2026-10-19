@@ -701,6 +701,7 @@
                 ContentBlock::Thinking {
                     signature: None,
                     state: None,
+                    redacted_data: None,
                     thinking: "plan".to_string(),
                 },
                 ContentBlock::Text {
@@ -741,6 +742,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "plan".to_string(),
                     },
                     ContentBlock::Text {
@@ -792,6 +794,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "Need to call a tool".to_string(),
                     },
                     ContentBlock::ToolUse {
@@ -848,6 +851,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "Need to call a tool".to_string(),
                     },
                     ContentBlock::ToolUse {
@@ -923,6 +927,7 @@
                     ContentBlock::Thinking {
                         signature: None,
                         state: None,
+                        redacted_data: None,
                         thinking: "Internal explanation plan".to_string(),
                     },
                     ContentBlock::Text {
@@ -968,6 +973,7 @@
                 ContentBlock::Thinking {
                     signature: None,
                     state: None,
+                    redacted_data: None,
                     thinking: "I should explain step by step.".to_string(),
                 },
                 ContentBlock::Text {

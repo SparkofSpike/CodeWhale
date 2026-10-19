@@ -1,7 +1,7 @@
 # Codewhale messaging brief
 
 Owner of English home copy: `lib/i18n/dictionaries/en/home.ts`. Style rules: `COPY_STYLE.md`.
-Facts: `docs/features.toml`, `docs/*.md`. Research date: 2026-10-04.
+Facts: `docs/features.toml`, `docs/*.md`. Research date: 2026-10-04. Revised 2026-10-19.
 
 ## 1. How the field advertises (condensed)
 
@@ -42,14 +42,14 @@ For developers who want a coding agent they can inspect and point at any model, 
 open-source (MIT) coding agent for the terminal, scripts, and CI. Unlike single-vendor agents, it
 works with over 40 built-in provider routes, any OpenAI-compatible endpoint, and local models.
 Proof: Plan/Work/Operate modes, Ask/Auto-Review/Full Access approvals, an OS sandbox, `/receipts`,
-`/preview-request`, and a community of 41k GitHub stars and 244 contributors.
+`/preview-request`, and a community whose star and contributor counts are rendered from live data (§6 rule 9).
 
 ## 4. Hero candidates
 
 **A. Recommended.**
 Headline: "The open-source coding agent for any model"
 Subhead: "{brand} reads your project, edits files, and runs your tests from your terminal. Connect a hosted or local model, and choose which actions need your approval."
-Why: category and differentiator in seven words; matches the README tagline, so docs and site agree;
+Why: category and differentiator in seven words; shares the README tagline's words ("open-source coding agent", "any model"), so docs and site agree;
 noun phrase translates without English word order tricks; subhead adds the action list and control.
 
 **B.** Headline: "A coding agent that works with your models"

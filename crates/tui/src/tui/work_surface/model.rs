@@ -1008,16 +1008,16 @@ fn finished_background_rows(app: &App) -> Vec<WorkRow> {
         .iter()
         .filter(|entry| !is_live_task_status(&entry.status))
         .map(|entry| {
-            let failed = matches!(entry.status.as_str(), "failed");
+            let failed = matches!(entry.status.as_str(), "failed" | "timed_out");
             let tone = if failed {
                 WorkTone::Failure
             } else {
                 WorkTone::Muted
             };
-            let mark = if failed {
-                crate::tui::glyphs::ATTENTION
-            } else {
-                crate::tui::glyphs::DONE
+            let mark = match entry.status.as_str() {
+                "completed" => crate::tui::glyphs::DONE,
+                _ if failed => crate::tui::glyphs::ATTENTION,
+                _ => crate::tui::glyphs::NEUTRAL,
             };
             if is_shell_entry(entry) {
                 let command = shell_command(entry);

@@ -908,13 +908,15 @@ attacker has strictly easier local avenues than this race.
 Web fetches require the session cookie plus an origin-scoped request proof;
 streams use a fresh single-use ticket. The initial redirect carries the proof
 in a fragment, which the client removes and saves in origin-scoped
-`sessionStorage`. On reload or in a second tab, an authenticated `GET /` also
-embeds the proof in a meta tag when `Sec-Fetch-Site` is `same-origin` or `none`
-(direct navigation). The page uses `no-store`, disallows framing, and grants no
-cross-origin read access. This lets a new tab recover without reusing the
-bootstrap URL, including when storage is unavailable. Clients without Fetch
-Metadata can only reuse the fragment or their existing stored proof; recovery
-does not extend the server session or replace an expired cookie.
+`sessionStorage`, so a reload of that tab keeps working when the browser
+allows session storage. The server never puts
+the proof in a page: the session cookie is host-scoped, not port-scoped, so a
+listener on another loopback port can receive it, and the cookie alone must
+not be enough to recover the proof. A new tab opened by typing the address
+therefore has no proof; use the original tab, duplicate it, or restart
+`codewhale web` for a fresh one-time session. The page uses `no-store`,
+disallows framing, and grants no cross-origin read access. Nothing extends the
+server session or replaces an expired cookie.
 Cross-origin Fetch Metadata or a mismatched Origin is rejected on web API
 requests. Explicit bearer and Runtime-token header clients keep their existing
 behavior. Transient stream-ticket failures retry with capped backoff; HTTP
@@ -1186,6 +1188,10 @@ accept an empty string to clear a previously-set value. Added in v0.8.10 (#562):
 }
 ```
 
+A `system_prompt` change applies from the next turn: a loaded engine is
+unloaded and rebuilt from the thread's history with the new prompt. Like a
+`workspace` change, it is refused while the thread has a running turn.
+
 `model_provider` switches the provider the thread's future turns use. It
 takes a built-in kind (`deepseek`, `xai`, ...) or a configured route name, as
 `/provider` does. `model_provider_id` names one exact `[providers.<id>]` table
@@ -1207,7 +1213,7 @@ latest turn and publishes a `thread.permissions_changed` event (`from`, `to`,
 - `GET /v1/threads/{id}/turns/{turn_id}/artifacts` - what the turn produced: typed references plus the workspace-delta state. See [Turn artifacts](#turn-artifacts).
 - `GET /v1/threads/{id}/turns/{turn_id}/artifacts/{artifact_id}?offset=&limit=&revision=` - read one reference from the workspace, the post-turn snapshot, or the session artifact directory.
 - `POST /v1/threads/{id}/compact` (manual compaction)
-- `POST /v1/threads/{id}/undo` - fork the thread with the last N turns removed (`{"depth": N}`, default 0 = last turn only); returns the forked thread plus `original_user_text` so a GUI can pre-populate the input box
+- `POST /v1/threads/{id}/undo` - fork the thread with the last N turns removed (`{"depth": N}`, default 0 = last turn only); returns the forked thread plus `original_user_text` so a GUI can pre-populate the input box. `{"turn_id": "turn_…"}` instead names the user turn to remove, together with every turn after it, and wins over `depth`; the Runtime resolves it under the thread's restore guard, so a turn another client appends meanwhile cannot move the cut. `400` when the turn is not a user turn of that thread
 - `POST /v1/threads/{id}/fork-at-turn` - fork at one named user turn (`{"turn_id": "turn_…"}`, as `GET /v1/threads/{id}` reports it). The fork *keeps* that turn and every turn before it, and drops the turns after it; naming the last turn therefore keeps the whole conversation. The receipt is `/undo`'s (`thread`, `original_user_text`, `original_user_images`), carrying the *first dropped* user turn's prompt — what was asked next, even when a prompt-less turn such as a manual `/compact` sits between — so a client can put it back in the composer for editing. The source thread, its session document and the workspace are untouched, and there is no file rollback: a fork is a sibling conversation, and rewinding the workspace would rewind the branch left behind with it. Clients should name the turn instead of computing a `depth` — the transcript they render and the turn list this cuts are not the same list (steers, image-only prompts and injected handoffs each sit on one side only), and a client-side count that is off by one forks the wrong prefix while answering `201`. `400` when the turn is not a user turn of that thread.
 - `POST /v1/threads/{id}/patch-undo` - rolls back the files the dropped turns changed, then the same fork (`{"depth": N}`); returns `patch_result` (`files_restored`, `summary`, `snapshot_label`) alongside the forked thread. See [Workspace restore endpoints](#workspace-restore-endpoints) for ownership, the trust, admission and abort rules, and the `error.code` values of a refusal.
 - `POST /v1/threads/{id}/file-revert` - restore exactly one file from one restore point the thread owns (`{"path", "snapshot_id", "expected_hash"}`); never forks the conversation. See [Workspace restore endpoints](#workspace-restore-endpoints).

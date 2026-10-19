@@ -712,6 +712,10 @@ impl ComposerState {
 
 impl App {
     pub fn insert_str(&mut self, text: &str) {
+        self.insert_str_with_raw_mouse_recovery(text, true);
+    }
+
+    fn insert_str_with_raw_mouse_recovery(&mut self, text: &str, recover_raw_mouse: bool) {
         if text.is_empty() {
             return;
         }
@@ -727,7 +731,9 @@ impl App {
         self.input.insert_str(byte_index, text);
         self.resync_command_line_claim();
         self.cursor_position = cursor + char_count(text);
-        self.strip_raw_mouse_reports_from_input();
+        if recover_raw_mouse {
+            self.strip_raw_mouse_reports_from_input();
+        }
         self.slash_menu_hidden = false;
         self.mention_menu_hidden = false;
         self.mention_menu_selected = 0;
@@ -744,7 +750,7 @@ impl App {
         }
         let normalized = normalize_paste_text(text);
         if !normalized.is_empty() {
-            self.insert_str(&normalized);
+            self.insert_str_with_raw_mouse_recovery(&normalized, false);
         }
         self.paste_burst.clear_after_explicit_paste();
         // Large pasted input stays editable and visible until submit. The

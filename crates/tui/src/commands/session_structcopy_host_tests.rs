@@ -71,6 +71,7 @@ fn seed(app: &mut App) {
                     thinking: "hidden reasoning".into(),
                     signature: Some("hidden-signature".into()),
                     state: None,
+                    redacted_data: None,
                 },
                 call("first-call"),
                 result("first-result", Some(false)),

@@ -1045,6 +1045,8 @@ async fn contract_write_and_edit_reject_payload_or_line_ending_growth_before_mut
     let path = temporary.path().join("plain.txt");
     let context = ToolContext::new(temporary.path());
     fs::write(&path, b"seed\r\n").unwrap();
+    let resolved = context.resolve_path("plain.txt").unwrap();
+    context.note_file_read(&resolved);
     let error = WriteFileTool::execute_contract_write(
         json!({"path": "plain.txt", "content": "x".repeat(CONTRACT_FILE_MAX_BYTES + 1)}),
         &context,
@@ -1074,7 +1076,11 @@ async fn contract_write_and_edit_reject_payload_or_line_ending_growth_before_mut
                 .contains("16 MiB processing cap")
         );
         assert_eq!(fs::read(&path).unwrap(), b"seed\r\n");
-        assert!(context.require_fresh_file_read(&path, "plain.txt").is_err());
+        assert!(
+            context
+                .require_fresh_file_read(&resolved, "plain.txt")
+                .is_ok()
+        );
     }
 }
 

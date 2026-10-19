@@ -145,6 +145,7 @@ mod tests {
                 ContentBlock::Thinking {
                     signature: None,
                     state: None,
+                    redacted_data: None,
                     thinking: "The user seems to be asking me to classify myself.".to_string(),
                 },
                 ContentBlock::Text {

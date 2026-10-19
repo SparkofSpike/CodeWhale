@@ -25,8 +25,6 @@ export const chrome: ChromeDict = {
 
   installCta: "安装 →",
 
-  authSignIn: "登录",
-
   dateLocale: "zh-CN",
 
   menuOpen: "打开菜单",
@@ -39,7 +37,7 @@ export const chrome: ChromeDict = {
   themeTitle: "主题 · 自动 / 浅色 / 深色",
 
   footerTagline:
-    "用自己的模型和连接的工具，构建应用，让工作自动完成。",
+    "面向终端、可搭配你所选模型的开源编程智能体。",
   footerProduct: "产品",
   footerProject: "项目",
   footerDocs: "文档",

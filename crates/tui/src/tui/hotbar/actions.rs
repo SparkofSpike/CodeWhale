@@ -585,7 +585,7 @@ impl HotbarActionSource for BuiltinHotbarActionSource {
         registry.register(AppHotbarAction::new(
             "mode.agent",
             "agent",
-            "Act mode",
+            "Work mode",
             "Do direct work in the current session.",
             AppHotbarKind::Mode(AppMode::Agent),
         ));

@@ -5693,6 +5693,7 @@ model = "gpt-5.5"
             saved_provider_model: None,
             base_url_override: None,
             limit_overrides: Vec::new(),
+            wire_override: None,
         })
         .expect("documented Zen model must resolve");
     assert_eq!(route.protocol(), crate::route::RequestProtocol::Responses);

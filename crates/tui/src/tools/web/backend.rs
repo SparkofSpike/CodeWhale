@@ -13,10 +13,11 @@ use crate::tools::spec::{ToolContext, ToolError};
 
 const SEARCH_BACKEND_CONFIGURATION_HINT: &str = concat!(
     "Check network access, or configure `[search] provider` and `[search] api_key` in ",
-    "config.toml. Keyed providers include tavily, bocha, metaso, baidu, volcengine, serply, ",
+    "config.toml. Keyed providers include tavily, bocha, metaso, baidu, volcengine, serply, deepseek, ",
     "and sofya; metaso also accepts METASO_API_KEY, tavily accepts TAVILY_API_KEY, baidu ",
     "accepts BAIDU_SEARCH_API_KEY, volcengine accepts VOLCENGINE_API_KEY / ",
-    "VOLCENGINE_ARK_API_KEY / ARK_API_KEY, serply accepts SERPLY_API_KEY, and sofya ",
+    "VOLCENGINE_ARK_API_KEY / ARK_API_KEY, serply accepts SERPLY_API_KEY, deepseek accepts ",
+    "DEEPSEEK_API_KEY, and sofya ",
     "accepts SOFYA_API_KEY. SearXNG needs a trusted self-hosted `[search] base_url`. For a ",
     "keyless route, use the default `[search] provider = \"firecrawl\"` or ",
     "`[search] provider = \"bing\"`."
@@ -46,6 +47,7 @@ pub(crate) enum ConfiguredSearchBackend<'a> {
     Volcengine(BackendContext<'a>),
     Sofya(BackendContext<'a>),
     Serply(BackendContext<'a>),
+    DeepSeek(BackendContext<'a>),
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +73,7 @@ impl<'a> ConfiguredSearchBackend<'a> {
             SearchProvider::Volcengine => Self::Volcengine(backend),
             SearchProvider::Sofya => Self::Sofya(backend),
             SearchProvider::Serply => Self::Serply(backend),
+            SearchProvider::DeepSeek => Self::DeepSeek(backend),
         }
     }
 
@@ -87,6 +90,7 @@ impl<'a> ConfiguredSearchBackend<'a> {
             Self::Volcengine(_) => SearchProvider::Volcengine,
             Self::Sofya(_) => SearchProvider::Sofya,
             Self::Serply(_) => SearchProvider::Serply,
+            Self::DeepSeek(_) => SearchProvider::DeepSeek,
         }
     }
 
@@ -102,7 +106,8 @@ impl<'a> ConfiguredSearchBackend<'a> {
             | Self::Baidu(context)
             | Self::Volcengine(context)
             | Self::Sofya(context)
-            | Self::Serply(context) => context,
+            | Self::Serply(context)
+            | Self::DeepSeek(context) => context,
         }
     }
 }
@@ -317,6 +322,7 @@ impl SearchBackend for ConfiguredSearchBackend<'_> {
             SearchProvider::Volcengine => BackendId::Volcengine,
             SearchProvider::Sofya => BackendId::Sofya,
             SearchProvider::Serply => BackendId::Serply,
+            SearchProvider::DeepSeek => BackendId::DeepSeek,
         }
     }
 
@@ -585,6 +591,7 @@ mod tests {
             (SearchProvider::Volcengine, BackendId::Volcengine),
             (SearchProvider::Sofya, BackendId::Sofya),
             (SearchProvider::Serply, BackendId::Serply),
+            (SearchProvider::DeepSeek, BackendId::DeepSeek),
         ];
 
         for (provider, expected) in cases {
@@ -619,6 +626,7 @@ mod tests {
                 QueryCapabilityState::Unsupported,
             ),
             (SearchProvider::Sofya, QueryCapabilityState::Unsupported),
+            (SearchProvider::DeepSeek, QueryCapabilityState::Unsupported),
         ];
         for (provider, expected_locale) in cases {
             let mut context = ToolContext::new(std::path::PathBuf::from("."));
@@ -921,6 +929,7 @@ mod tests {
             "baidu",
             "volcengine",
             "serply",
+            "deepseek",
             "sofya",
         ] {
             assert!(
@@ -938,6 +947,7 @@ mod tests {
         assert!(message.contains("VOLCENGINE_ARK_API_KEY"));
         assert!(message.contains("ARK_API_KEY"));
         assert!(message.contains("SERPLY_API_KEY"));
+        assert!(message.contains("DEEPSEEK_API_KEY"));
         assert!(message.contains("SOFYA_API_KEY"));
         assert!(message.contains("[search] base_url"));
         assert!(message.contains("provider = \"firecrawl\""));

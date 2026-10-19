@@ -213,6 +213,7 @@ const TOOL_HANG_WATCHDOG_TIMEOUT: Duration = Duration::from_secs(600);
 // the per-tool spinner pulse — keep this fast enough that the whale-spout
 // braille pattern reads as continuous motion instead of teleport-frames.
 const UI_STATUS_ANIMATION_MS: u64 = crate::tui::spinner::BRAILLE_SPINNER_FRAME_MS;
+const UI_QUIET_STATUS_ANIMATION_MS: u64 = 1_000;
 /// Ambient fish, the idle-mark caustic, and the completion wake use a modest
 /// ~12.5fps clock by default. On measured high-Hz displays the adaptive probe
 /// may raise this (still bounded); low_motion always freezes the cadence.
@@ -283,7 +284,7 @@ enum TranslationEvent {
     Thinking {
         origin_session_fingerprint: Option<String>,
         origin_turn_fingerprint: Option<String>,
-        placeholder: String,
+        translation_id: u64,
         translated: anyhow::Result<String>,
         usage: Option<codewhale_models::Usage>,
     },

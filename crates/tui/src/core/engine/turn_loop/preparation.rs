@@ -245,6 +245,14 @@ impl Engine {
             }
         }
 
+        // Resolve `auto` reasoning_effort to a concrete tier (#663).
+        let effective_reasoning_effort = resolve_auto_effort(
+            self.session.reasoning_effort.as_deref(),
+            self.api_provider,
+            &self.api_config.active_route_base_url(),
+            &self.config.model,
+        );
+
         // The guard measures what the compaction gate measures: the honest
         // estimate, lifted to the provider's last bill plus the growth
         // since it. The ×1.5-inflated overflow estimate, compared against
@@ -293,6 +301,7 @@ impl Engine {
                     &self.session.model,
                     self.active_route_limits,
                     turn.max_output_tokens,
+                    effective_reasoning_effort.as_deref(),
                 ),
                 reserved_response_headroom_tokens = budget.output_cap_tokens,
                 safety_headroom_tokens = crate::context_budget::CONTEXT_HEADROOM_TOKENS,
@@ -385,18 +394,6 @@ impl Engine {
         // request and inject them as a synthetic user message so the
         // model sees compile errors before its next reasoning step.
         self.flush_pending_lsp_diagnostics().await;
-
-        // Build the request. Tool selection goes through the same
-        // helper that seeded this turn and that `/preview-request`
-        // reports, so a deferred tool activated mid-turn is reflected
-        // identically in both places.
-        // Resolve `auto` reasoning_effort to a concrete tier (#663).
-        let effective_reasoning_effort = resolve_auto_effort(
-            self.session.reasoning_effort.as_deref(),
-            self.api_provider,
-            &self.api_config.active_route_base_url(),
-            &self.config.model,
-        );
 
         // Check prefix-cache stability before building the request.
         // This detects system-prompt or tool-set drift that would
@@ -549,6 +546,10 @@ impl Engine {
         // `take` is what keeps this request-scoped: the nudge is spent
         // here and never reaches `self.session.messages`.
         let request_nudge = progress.reasoning_only_nudge.take();
+        // Build the request. Tool selection goes through the same
+        // helper that seeded this turn and that `/preview-request`
+        // reports, so a deferred tool activated mid-turn is reflected
+        // identically in both places.
         let mut request = prepare_primary_turn_request(PrimaryTurnRequest {
             model: self.session.model.clone(),
             messages: {
@@ -566,6 +567,7 @@ impl Engine {
                 &self.session.model,
                 self.active_route_limits,
                 turn.max_output_tokens,
+                effective_reasoning_effort.as_deref(),
             ),
             system: self.session.system_prompt.clone(),
             tools: active_tools.clone(),
@@ -774,6 +776,12 @@ impl Engine {
         {
             return PhaseResult::Return((TurnOutcomeStatus::Failed, Some("RLM whole round history exceeds the captured route context budget; history was not truncated".into())));
         }
+        let reasoning_effort = resolve_auto_effort(
+            self.session.reasoning_effort.as_deref(),
+            self.api_provider,
+            &self.api_config.active_route_base_url(),
+            &self.config.model,
+        );
         let mut request = prepare_primary_turn_request(PrimaryTurnRequest {
             model: self.session.model.clone(),
             messages: self.messages_with_turn_metadata(),
@@ -782,16 +790,12 @@ impl Engine {
                 &self.session.model,
                 self.active_route_limits,
                 turn.max_output_tokens,
+                reasoning_effort.as_deref(),
             ),
             system: self.session.system_prompt.clone(),
             tools: None,
             tool_choice: None,
-            reasoning_effort: resolve_auto_effort(
-                self.session.reasoning_effort.as_deref(),
-                self.api_provider,
-                &self.api_config.active_route_base_url(),
-                &self.config.model,
-            ),
+            reasoning_effort,
         });
         request.max_tokens = request
             .max_tokens

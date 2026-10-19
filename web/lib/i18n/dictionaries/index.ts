@@ -24,7 +24,6 @@ import type {
   RuntimeDict,
   ComputerUseDict,
   DocsAuthDict,
-  DocsComputersDict,
   DocsConfigurationDict,
   DocsFleetDict,
   DocsGuideDict,
@@ -102,8 +101,6 @@ import { docsWork as enDocsWork } from "./en/docs-work";
 import { docsWork as zhDocsWork } from "./zh/docs-work";
 import { docsPet as enDocsPet } from "./en/docs-pet";
 import { docsPet as zhDocsPet } from "./zh/docs-pet";
-import { docsComputers as enDocsComputers } from "./en/docs-computers";
-import { docsComputers as zhDocsComputers } from "./zh/docs-computers";
 import { docsAuth as enDocsAuth } from "./en/docs-auth";
 import { docsAuth as zhDocsAuth } from "./zh/docs-auth";
 import { docsTrust as enDocsTrust } from "./en/docs-trust";
@@ -311,10 +308,6 @@ const DOCS_PET: Record<string, DocsPetDict> = {
   zh: zhDocsPet,
 };
 
-const DOCS_COMPUTERS: Record<string, DocsComputersDict> = {
-  zh: zhDocsComputers,
-};
-
 const DOCS_AUTH: Record<string, DocsAuthDict> = {
   zh: zhDocsAuth,
 };
@@ -495,10 +488,6 @@ export function getDocsPet(locale: string): DocsPetDict {
   return DOCS_PET[locale] ?? enDocsPet;
 }
 
-export function getDocsComputers(locale: string): DocsComputersDict {
-  return DOCS_COMPUTERS[locale] ?? enDocsComputers;
-}
-
 export function getDocsAuth(locale: string): DocsAuthDict {
   return DOCS_AUTH[locale] ?? enDocsAuth;
 }
@@ -609,7 +598,6 @@ export const EN_DOCS_SUBAGENTS = enDocsSubagents;
 export const EN_DOCS_WEB = enDocsWeb;
 export const EN_DOCS_WORK = enDocsWork;
 export const EN_DOCS_PET = enDocsPet;
-export const EN_DOCS_COMPUTERS = enDocsComputers;
 export const EN_DOCS_AUTH = enDocsAuth;
 export const EN_DOCS_TRUST = enDocsTrust;
 export const EN_DOCS_REVIEW = enDocsReview;

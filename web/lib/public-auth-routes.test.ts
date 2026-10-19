@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { APP_LOGIN_URL, APP_SIGNUP_URL, APP_URL } from "./i18n/links";
+import { APP_LOGIN_URL, APP_URL } from "./i18n/links";
 import {
   APP_AUTH_CALLBACK_URL,
   CANONICAL_MARK_SHA256,
@@ -34,12 +34,12 @@ describe("public auth remainders and kinds", () => {
     expect(publicAuthKind("/en/docs")).toBeNull();
   });
 
-  it("folds login/register aliases onto the public sign-in and create-account routes", () => {
+  it("folds login/register aliases onto the public sign-in route", () => {
     expect(canonicalPublicAuthPath("/login")).toBe("/signin");
     expect(canonicalPublicAuthPath("/en/login")).toBe("/en/signin");
-    expect(canonicalPublicAuthPath("/register")).toBe("/signup");
-    expect(canonicalPublicAuthPath("/zh/register")).toBe("/zh/signup");
-    expect(canonicalPublicAuthPath("/create-account")).toBe("/signup");
+    expect(canonicalPublicAuthPath("/register")).toBe("/signin");
+    expect(canonicalPublicAuthPath("/zh/register")).toBe("/zh/signin");
+    expect(canonicalPublicAuthPath("/create-account")).toBe("/signin");
     expect(canonicalPublicAuthPath("/signin")).toBeNull();
     expect(canonicalPublicAuthPath("/en/signup")).toBeNull();
   });
@@ -47,10 +47,9 @@ describe("public auth remainders and kinds", () => {
 
 describe("CWC destinations", () => {
   it("sends English (and other) public pages to the default app entry", () => {
-    expect(publicAuthAppDestination("sign-in", "en")).toBe(APP_LOGIN_URL);
-    expect(publicAuthAppDestination("sign-up", "ja")).toBe(APP_SIGNUP_URL);
-    expect(publicAuthAppDestination("sign-in", "zh")).toBe(`${APP_URL}/zh/login`);
-    expect(publicAuthAppDestination("sign-up", "zh")).toBe(`${APP_URL}/zh/signup`);
+    expect(publicAuthAppDestination("en")).toBe(APP_LOGIN_URL);
+    expect(publicAuthAppDestination("ja")).toBe(APP_LOGIN_URL);
+    expect(publicAuthAppDestination("zh")).toBe(`${APP_URL}/zh/login`);
   });
 
   it("hops auth callbacks to the CWC app and preserves the query string", () => {

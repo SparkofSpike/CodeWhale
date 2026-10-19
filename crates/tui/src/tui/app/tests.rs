@@ -4632,7 +4632,7 @@ fn expanded_tool_scenario() {
 
         app.shift_history_maps_down(3);
 
-        assert_eq!(app.expanded_tool_runs, std::collections::HashSet::from([3]));
+        assert_eq!(app.expanded_tool_runs, std::collections::HashSet::from([4]));
     }
     // from expanded_tool_runs_prune_when_history_is_truncated
     {

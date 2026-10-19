@@ -220,7 +220,8 @@ impl TurnContext {
     /// pressure. Child-model usage must call [`Self::add_usage`] directly so
     /// it cannot masquerade as the parent request's context size.
     pub fn add_parent_usage(&mut self, usage: &Usage) {
-        self.latest_parent_input_tokens = (usage.input_tokens > 0).then_some(usage.input_tokens);
+        let latest = usage.request_usages.last().unwrap_or(usage);
+        self.latest_parent_input_tokens = (latest.input_tokens > 0).then_some(latest.input_tokens);
         self.add_usage(usage);
         add_usage_to(&mut self.parent_route_usage, usage);
     }

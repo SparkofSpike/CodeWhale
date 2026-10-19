@@ -2211,6 +2211,7 @@ mod tests {
             "rc",
             "remote-env",
             "title",
+            "color",
             // FEAT-025 session export slice.
             "export",
             // FEAT-026 completes the session structural-copy slice.
@@ -2942,7 +2943,7 @@ mod tests {
 
     // ---------------------------------------------------------------------
     // FEAT-024: session control entries register through the portable bridge
-    // (D3/D6) — five declare SESSION_CONTROL only; `/remote-env` declares
+    // (D3/D6) — six declare SESSION_CONTROL only; `/remote-env` declares
     // control plus presentation; export/structcopy have independent authority.
     // ---------------------------------------------------------------------
 
@@ -2950,7 +2951,7 @@ mod tests {
     fn feat024_control_entries_register_through_portable_bridge() {
         use codewhale_command_contract::handler::{CommandCapabilities, CommandHandler};
 
-        for name in ["relay", "rename", "resume", "rc", "title"] {
+        for name in ["relay", "rename", "resume", "rc", "title", "color"] {
             assert!(
                 registry().has_contextual_handler(name),
                 "/{name} must register through the portable bridge"

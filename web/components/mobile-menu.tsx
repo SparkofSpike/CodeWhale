@@ -13,8 +13,6 @@ export function MobileMenu({
   moreLinks,
   installHref,
   installLabel,
-  signInHref,
-  signInLabel,
   openLabel,
   closeLabel,
   navAria,
@@ -24,8 +22,6 @@ export function MobileMenu({
   moreLinks: ChromeLink[];
   installHref: string;
   installLabel: string;
-  signInHref: string;
-  signInLabel: string;
   openLabel: string;
   closeLabel: string;
   /** Accessible name for the dialog's navigation landmark. */
@@ -212,14 +208,6 @@ export function MobileMenu({
               className="mm-action paper-install-cta"
             >
               <ArrowLabel text={installLabel} />
-            </Link>
-            <Link
-              href={signInHref}
-              data-usage="login"
-              onClick={() => setOpen(false)}
-              className="mm-action paper-auth-signin"
-            >
-              {signInLabel}
             </Link>
           </nav>
         </div>, document.body)}

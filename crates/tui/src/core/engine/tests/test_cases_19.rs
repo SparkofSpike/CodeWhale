@@ -387,10 +387,10 @@ fn turn_metadata_carries_the_narrowing_only_on_a_narrowed_turn() {
 /// first, and it is delivered exactly once.
 ///
 /// This exercises the engine's own shell manager through the same
-/// `drain_shell_completion_events` both delivery sites use — the next-turn
-/// boundary drain in `Engine::send_message` and the late drain in the turn
-/// loop — so the exactly-once guarantee holds across them rather than within
-/// one of them.
+/// `drain_shell_completion_events` every delivery site uses — turn start in
+/// `Engine::send_message`, the step boundary after a tool batch, and the
+/// finishing drains in the turn loop — so the exactly-once guarantee holds
+/// across them rather than within one of them.
 #[tokio::test]
 async fn background_completion_after_a_turn_is_delivered_once_on_the_next_turn() {
     let tmp = tempdir().expect("tempdir");

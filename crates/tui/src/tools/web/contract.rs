@@ -31,6 +31,8 @@ pub(crate) enum BackendId {
     Volcengine,
     Sofya,
     Serply,
+    #[serde(rename = "deepseek")]
+    DeepSeek,
 }
 
 impl BackendId {
@@ -49,6 +51,7 @@ impl BackendId {
             Self::Volcengine => "volcengine",
             Self::Sofya => "sofya",
             Self::Serply => "serply",
+            Self::DeepSeek => "deepseek",
         }
     }
 }

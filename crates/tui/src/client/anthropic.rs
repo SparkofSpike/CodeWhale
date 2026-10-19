@@ -229,9 +229,44 @@ impl CodewhaleClient {
             _ => {}
         }
 
-        // Sampling parameters: Claude 4.7+ rejects temperature/top_p
-        // entirely; earlier models reject the two together. Send at most one
-        // (temperature wins), or neither for models that forbid them.
+        // Anthropic documents `redacted_thinking.data` as opaque encrypted
+        // content to pass back unchanged and says nothing about third-party
+        // gateways understanding the block type, and we cannot tell a
+        // terminating gateway from a forwarding proxy to the first-party
+        // API (which would handle the block). Withholding on every
+        // non-native host is the conservative call: a strict terminating
+        // gateway would reject the unknown block type outright, while a
+        // forwarding proxy only loses the block's continuity (a
+        // redacted-only current tool turn can still 400 there). Native
+        // `*.anthropic.com` routes keep the payload byte-exact.
+        if !is_native_anthropic_base_url(&self.base_url)
+            && let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut)
+        {
+            messages.retain_mut(|message| {
+                let is_assistant = message.get("role").and_then(Value::as_str) == Some("assistant");
+                let Some(blocks) = message.get_mut("content").and_then(Value::as_array_mut) else {
+                    return true;
+                };
+                blocks.retain(|block| {
+                    block.get("type").and_then(Value::as_str) != Some("redacted_thinking")
+                });
+                // A message that only carried redacted blocks would
+                // otherwise go out with an empty `content: []`, which
+                // Messages-compatible endpoints reject — the same
+                // every-retry 400 this withhold exists to prevent. Dropping
+                // the message is safe: a redacted-only assistant turn
+                // carries no `tool_use`, so no `tool_result` can dangle.
+                // Reachable only from foreign/imported sessions; the live
+                // engine never persists a reasoning-only turn.
+                !(is_assistant && blocks.is_empty())
+            });
+        }
+
+        // Sampling parameters: every model from Claude 4.7 on (including the
+        // Claude 5 generation and Haiku 5.5) rejects non-default
+        // temperature/top_p; earlier models reject the two together. Send at
+        // most one (temperature wins), or neither for models that forbid
+        // them.
         if !anthropic_model_rejects_sampling(&request.model) {
             if let Some(temperature) = request.temperature {
                 body["temperature"] = json!(temperature);
@@ -480,7 +515,40 @@ fn decode_anthropic_message(mut value: Value) -> Result<MessageResponse> {
     if let Some(usage) = value.get_mut("usage") {
         *usage = json!(parse_anthropic_usage(usage));
     }
+    normalize_redacted_thinking_blocks(&mut value);
     serde_json::from_value(value).context("Failed to decode Anthropic Messages response")
+}
+
+/// Rewrite non-stream `redacted_thinking` content blocks into the
+/// provider-neutral shape (`Thinking` with `redacted_data`) before decoding.
+///
+/// The provider-neutral content model has no `redacted_thinking` tag, so an
+/// unknown block type would fail the whole response decode and lose the turn
+/// — including the tool calls. Streaming responses carry the same blocks as
+/// typed `ContentBlockStart::RedactedThinking` events and need no shim.
+/// A block whose `data` is missing or not a string violates the contract;
+/// it is still rewritten (with an empty payload) so the turn decodes and the
+/// failure surfaces at replay with a diagnosable shape instead of as a
+/// whole-response decode error.
+fn normalize_redacted_thinking_blocks(value: &mut Value) {
+    let Some(content) = value.get_mut("content").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for block in content.iter_mut() {
+        if block.get("type").and_then(Value::as_str) == Some("redacted_thinking") {
+            let data = block.get("data").and_then(Value::as_str).unwrap_or("");
+            if data.is_empty() {
+                logging::warn(
+                    "Response carried a redacted thinking block with a missing or non-string payload; capturing it with an empty payload",
+                );
+            }
+            *block = json!({
+                "type": "thinking",
+                "thinking": "",
+                "redacted_data": data,
+            });
+        }
+    }
 }
 
 /// Build the `/v1/messages` endpoint URL, tolerating base URLs that already
@@ -650,11 +718,25 @@ fn assistant_tool_use_ids(message: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Models that reject `temperature` / `top_p` outright (Claude 4.7+).
+/// Models that reject non-default `temperature` / `top_p` outright (every
+/// model released after Opus 4.6). The Messages API reference states those
+/// models "do not support" setting `temperature` / `top_p` beyond their
+/// backwards-compatible defaults (`temperature: 1.0`, `top_p >= 0.99`), and
+/// the migration guides restate it per family: "Setting `temperature`,
+/// `top_p`, or `top_k` to any non-default value on Claude Opus 4.7 and
+/// later models, including Claude Opus 5.5, returns a 400 error". That
+/// covers the Claude 5 generation (`claude-opus-5(-5)`, `claude-sonnet-5(-5)`)
+/// and Haiku 5.5 (which admits only its defaults — `temperature: 1`, a lone
+/// `top_p: 0.99`; `top_p: 1`, any `top_k`, or both params together 400),
+/// besides the Fable/Mythos lines. Dropping the params entirely is always
+/// safe; sending a forbidden one bricks the request. Re-checked 2026-10-08.
 fn anthropic_model_rejects_sampling(model: &str) -> bool {
     let lower = model.to_ascii_lowercase();
     lower.contains("opus-4-7")
         || lower.contains("opus-4-8")
+        || ["opus-5", "sonnet-5", "haiku-5"]
+            .iter()
+            .any(|family| lower.contains(family))
         || lower.contains("fable")
         || lower.contains("mythos")
 }
@@ -783,8 +865,20 @@ fn content_block_to_anthropic(block: &ContentBlock) -> Option<Value> {
         ContentBlock::Thinking {
             thinking,
             signature,
+            redacted_data,
             ..
         } => {
+            // A redacted thinking block is provider-encrypted content with no
+            // readable text: replay it byte-exact so the API can decrypt it,
+            // exactly like a signed block. Anthropic requires the complete
+            // unmodified block in tool loops and decrypts it to restore the
+            // turn's reasoning.
+            if let Some(data) = redacted_data {
+                return Some(json!({
+                    "type": "redacted_thinking",
+                    "data": data,
+                }));
+            }
             // Anthropic rejects unsigned thinking blocks on replay (and the
             // DeepSeek-era "(reasoning omitted)" placeholders mean nothing to
             // it), so only signed blocks are replayed — verbatim, signature
@@ -1801,16 +1895,52 @@ mod tests {
         assert!(body.get("temperature").is_none(), "{body}");
         assert!(body.get("top_p").is_none(), "{body}");
 
+        // The Claude 5 generation and Haiku 5.5 reject sampling too. The
+        // datestamped spelling pins the substring match against snapshot
+        // suffixes.
+        for model in [
+            "claude-opus-5",
+            "claude-opus-5-5",
+            "claude-opus-5-20260101",
+            "claude-sonnet-5",
+            "claude-sonnet-5-5",
+            "claude-haiku-5-5",
+            "claude-fable-5",
+            "claude-mythos-5",
+        ] {
+            let body =
+                client.build_anthropic_body(&request_with(model, None, Some(0.7), Some(0.9)), true);
+            assert!(
+                body.get("temperature").is_none() && body.get("top_p").is_none(),
+                "{model} must not receive sampling params: {body}"
+            );
+        }
+
         // Older models accept ONE of temperature / top_p (temperature wins).
+        // The pre-4.7 generations stay ungated, so a future over-broad arm
+        // like `contains("opus-4-")` cannot slip through.
+        for model in ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"] {
+            let body =
+                client.build_anthropic_body(&request_with(model, None, Some(0.7), Some(0.9)), true);
+            assert_eq!(
+                body.get("temperature").and_then(Value::as_f64),
+                Some(f64::from(0.7f32)),
+                "{model} keeps temperature"
+            );
+            assert!(
+                body.get("top_p").is_none(),
+                "{model}: never send both: {body}"
+            );
+        }
         let body = client.build_anthropic_body(
-            &request_with("claude-sonnet-4-6", None, Some(0.7), Some(0.9)),
+            &request_with("claude-sonnet-4-6", None, None, Some(0.9)),
             true,
         );
         assert_eq!(
-            body.get("temperature").and_then(Value::as_f64),
-            Some(f64::from(0.7f32))
+            body.get("top_p").and_then(Value::as_f64),
+            Some(f64::from(0.9f32)),
+            "top_p alone passes through: {body}"
         );
-        assert!(body.get("top_p").is_none(), "never send both: {body}");
     }
 
     #[test]
@@ -1832,11 +1962,13 @@ mod tests {
                         thinking: "signed reasoning".to_string(),
                         signature: Some("sig-abc".to_string()),
                         state: None,
+                        redacted_data: None,
                     },
                     ContentBlock::Thinking {
                         thinking: "(reasoning omitted)".to_string(),
                         signature: None,
                         state: None,
+                        redacted_data: None,
                     },
                     ContentBlock::ToolUse {
                         execution_id: None,
@@ -1877,6 +2009,243 @@ mod tests {
             body["messages"][2]["content"][0]["type"].as_str(),
             Some("tool_result")
         );
+    }
+
+    #[test]
+    fn body_replays_redacted_thinking_blocks_byte_exact() {
+        let client = test_client();
+        let mut request = request_with("claude-sonnet-4-6", None, None, None);
+        request.messages = vec![
+            Message {
+                role: Role::User,
+                content: vec![ContentBlock::Text {
+                    text: "do the thing".to_string(),
+                    cache_control: None,
+                }],
+            },
+            Message {
+                role: Role::Assistant,
+                content: vec![
+                    ContentBlock::Thinking {
+                        thinking: String::new(),
+                        signature: None,
+                        state: None,
+                        redacted_data: Some("ENC_REDACTED_PAYLOAD".to_string()),
+                    },
+                    ContentBlock::ToolUse {
+                        execution_id: None,
+                        id: "toolu_1".to_string(),
+                        name: "read_file".to_string(),
+                        input: json!({"path": "a.txt"}),
+                        caller: None,
+                        thought_signature: None,
+                    },
+                ],
+            },
+            Message {
+                role: Role::User,
+                content: vec![ContentBlock::ToolResult {
+                    execution_id: None,
+                    tool_use_id: "toolu_1".to_string(),
+                    content: "contents".to_string(),
+                    is_error: None,
+                    content_blocks: None,
+                }],
+            },
+        ];
+
+        let body = client.build_anthropic_body(&request, true);
+        let assistant = &body["messages"][1]["content"];
+        assert_eq!(assistant.as_array().map(Vec::len), Some(2));
+        assert_eq!(assistant[0]["type"].as_str(), Some("redacted_thinking"));
+        assert_eq!(assistant[0]["data"].as_str(), Some("ENC_REDACTED_PAYLOAD"));
+        assert_eq!(assistant[1]["type"].as_str(), Some("tool_use"));
+    }
+
+    #[test]
+    fn non_native_gateways_never_receive_redacted_thinking_blocks() {
+        // Conservative withholding: the docs promise nothing about
+        // third-party gateways understanding `redacted_thinking`, and a
+        // strict Messages-compatible gateway would reject the unknown type.
+        let client = anthropic_test_client(Some("https://gateway.example.com/anthropic"));
+        let mut request = request_with("claude-sonnet-4-6", None, None, None);
+        request.messages = vec![Message {
+            role: Role::Assistant,
+            content: vec![
+                ContentBlock::Thinking {
+                    thinking: String::new(),
+                    signature: None,
+                    state: None,
+                    redacted_data: Some("ENC_REDACTED".to_string()),
+                },
+                ContentBlock::ToolUse {
+                    execution_id: None,
+                    id: "toolu_1".to_string(),
+                    name: "read_file".to_string(),
+                    input: json!({}),
+                    caller: None,
+                    thought_signature: None,
+                },
+            ],
+        }];
+
+        let body = client.build_anthropic_body(&request, true);
+        let wire = body.to_string();
+        assert!(
+            !wire.contains("redacted_thinking") && !wire.contains("ENC_REDACTED"),
+            "non-native gateway must not receive redacted blocks: {body}"
+        );
+        let assistant = &body["messages"][0]["content"];
+        assert_eq!(assistant.as_array().map(Vec::len), Some(1));
+
+        // First-party Anthropic keeps the block: it can decrypt it.
+        let native = test_client().build_anthropic_body(&request, true);
+        assert!(
+            native.to_string().contains("ENC_REDACTED"),
+            "first-party route must replay redacted blocks: {native}"
+        );
+    }
+
+    #[test]
+    fn gateway_withhold_drops_messages_that_only_carried_redacted_blocks() {
+        // A redacted-only assistant message (reachable from foreign or
+        // imported sessions; the live engine never persists a reasoning-only
+        // turn) must not go out as `content: []` after the withhold — that
+        // is exactly the every-retry 400 this withhold exists to prevent.
+        // Dropping the message is safe: no `tool_use` means no dangling
+        // `tool_result`.
+        let client = anthropic_test_client(Some("https://gateway.example.com/anthropic"));
+        let mut request = request_with("claude-sonnet-4-6", None, None, None);
+        request.messages = vec![
+            Message {
+                role: Role::User,
+                content: vec![ContentBlock::Text {
+                    text: "do the thing".to_string(),
+                    cache_control: None,
+                }],
+            },
+            Message {
+                role: Role::Assistant,
+                content: vec![ContentBlock::Thinking {
+                    thinking: String::new(),
+                    signature: None,
+                    state: None,
+                    redacted_data: Some("ENC_REDACTED_ONLY".to_string()),
+                }],
+            },
+            Message {
+                role: Role::User,
+                content: vec![ContentBlock::Text {
+                    text: "continue".to_string(),
+                    cache_control: None,
+                }],
+            },
+        ];
+
+        let body = client.build_anthropic_body(&request, true);
+        let messages = body["messages"].as_array().expect("messages array");
+        assert_eq!(
+            messages.len(),
+            2,
+            "the redacted-only assistant message must be dropped, not emptied: {body}"
+        );
+        assert_eq!(messages[0]["role"].as_str(), Some("user"));
+        assert_eq!(messages[1]["role"].as_str(), Some("user"));
+        assert!(
+            !body.to_string().contains("ENC_REDACTED_ONLY"),
+            "the payload must stay withheld: {body}"
+        );
+
+        // First-party Anthropic keeps the message and its block.
+        let native = test_client().build_anthropic_body(&request, true);
+        assert_eq!(
+            native["messages"].as_array().map(Vec::len),
+            Some(3),
+            "native routes keep the redacted-only turn: {native}"
+        );
+    }
+
+    #[test]
+    fn sse_redacted_content_block_start_decodes_through_the_stream_decoder() {
+        // The exact event whose decode used to drop the turn's block: a
+        // `redacted_thinking` content_block_start through the SSE decoder.
+        // The contract-violating no-data form must still decode (empty
+        // payload + capture warn) instead of failing the event and silently
+        // losing the block.
+        use codewhale_models::ContentBlockStart;
+
+        let decode = |line: &str| {
+            convert_anthropic_sse_data(line)
+                .expect("content_block_start must be recognized")
+                .expect("decode must succeed")
+        };
+
+        let event = decode(
+            r#"{"type":"content_block_start","index":1,"content_block":{"type":"redacted_thinking","data":"ENC"}}"#,
+        );
+        match event {
+            StreamEvent::ContentBlockStart {
+                index,
+                content_block: ContentBlockStart::RedactedThinking { data },
+            } => {
+                assert_eq!(index, 1);
+                assert_eq!(data, "ENC");
+            }
+            other => panic!("unexpected event for redacted start: {other:?}"),
+        }
+
+        let malformed = decode(
+            r#"{"type":"content_block_start","index":2,"content_block":{"type":"redacted_thinking"}}"#,
+        );
+        match malformed {
+            StreamEvent::ContentBlockStart {
+                content_block: ContentBlockStart::RedactedThinking { data },
+                ..
+            } => assert_eq!(data, "", "missing data must default to an empty payload"),
+            other => panic!("unexpected event for malformed redacted start: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn non_stream_redacted_thinking_blocks_decode_into_redacted_data() {
+        let payload = json!({
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "content": [
+                { "type": "redacted_thinking", "data": "ENC_FROM_API" },
+                { "type": "text", "text": "answer" }
+            ],
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 1,
+                "output_tokens": 1
+            }
+        });
+
+        // An unknown block tag used to fail the whole response decode; the
+        // shim must rewrite it into the provider-neutral shape instead.
+        let mut value = payload;
+        if let Some(usage) = value.get_mut("usage") {
+            *usage = json!(parse_anthropic_usage(usage));
+        }
+        normalize_redacted_thinking_blocks(&mut value);
+        let response: MessageResponse = serde_json::from_value(value)
+            .expect("redacted_thinking must not fail the response decode");
+        assert_eq!(response.content.len(), 2);
+        match &response.content[0] {
+            ContentBlock::Thinking {
+                thinking,
+                redacted_data,
+                ..
+            } => {
+                assert_eq!(redacted_data.as_deref(), Some("ENC_FROM_API"));
+                assert!(thinking.is_empty());
+            }
+            other => panic!("expected thinking block, got {other:?}"),
+        }
     }
 
     #[test]

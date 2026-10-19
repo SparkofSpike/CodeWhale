@@ -141,6 +141,7 @@ pub struct SessionPickerView {
     preview_generation: u64,
     pending_preview: Option<PendingPreview>,
     confirm_delete: bool,
+    delete_target: Option<String>,
     rename_mode: bool,
     rename_input: String,
     status: Option<String>,
@@ -275,6 +276,7 @@ impl SessionPickerView {
             preview_generation: 0,
             pending_preview: None,
             confirm_delete: false,
+            delete_target: None,
             rename_mode: false,
             rename_input: String::new(),
             status: None,
@@ -905,6 +907,9 @@ impl ModalView for SessionPickerView {
     }
 
     fn handle_mouse(&mut self, mouse: MouseEvent) -> ViewAction {
+        if self.confirm_delete {
+            return ViewAction::None;
+        }
         match mouse.kind {
             MouseEventKind::ScrollUp => {
                 self.apply_motion(crate::tui::list_nav::Motion::Prev);
@@ -965,6 +970,15 @@ impl ModalView for SessionPickerView {
             match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => {
                     self.confirm_delete = false;
+                    let target = self.delete_target.take();
+                    if target.is_none()
+                        || self.selected_session().map(|session| session.id.as_str())
+                            != target.as_deref()
+                    {
+                        self.status =
+                            Some(tr(self.locale, MessageId::SessionsDeleteCancelled).into_owned());
+                        return ViewAction::None;
+                    }
                     if let Some(event) = self.delete_selected() {
                         return ViewAction::Emit(event);
                     }
@@ -972,6 +986,7 @@ impl ModalView for SessionPickerView {
                 }
                 KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                     self.confirm_delete = false;
+                    self.delete_target = None;
                     self.status =
                         Some(tr(self.locale, MessageId::SessionsDeleteCancelled).into_owned());
                     return ViewAction::None;
@@ -1059,6 +1074,7 @@ impl ModalView for SessionPickerView {
             }
             KeyCode::Char('d') | KeyCode::Char('D') => {
                 self.confirm_delete = true;
+                self.delete_target = self.selected_session().map(|session| session.id.clone());
                 self.status = Some(tr(self.locale, MessageId::SessionsDeletePrompt).into_owned());
                 ViewAction::None
             }
@@ -1755,6 +1771,7 @@ mod tests {
             preview_generation: 0,
             pending_preview: None,
             confirm_delete: false,
+            delete_target: None,
             rename_mode: false,
             rename_input: String::new(),
             status: None,
@@ -2132,6 +2149,7 @@ mod tests {
                 thinking: "silent deliberation".to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             }],
         };
         let saved = saved_session_with_messages(vec![
@@ -2771,6 +2789,7 @@ mod tests {
             preview_generation: 0,
             pending_preview: None,
             confirm_delete: false,
+            delete_target: None,
             rename_mode: false,
             rename_input: String::new(),
             status: None,

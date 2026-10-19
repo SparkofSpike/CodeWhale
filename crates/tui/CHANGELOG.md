@@ -7,6 +7,308 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `/fork <id>` now shows the forked conversation. Before, the screen kept
+  the previous conversation while the model already had the fork's history.
+- With `/translate` on, each translated thinking block lands in its own
+  cell. Before, two translations finishing out of order could swap them.
+- Pasting text that contains an escape sequence written out, such as
+  `print("\x1b[?25l")`, keeps it as pasted. Before, part of it was removed
+  from the message box as if it were a stray mouse report.
+- A question that appears while you are typing no longer takes an Enter you
+  pressed for your message as its answer.
+- `/new` and `/clear` start without the previous conversation's goal.
+  Before, a paused goal followed you into the new conversation, where
+  `/goal resume` picked it up again. The old session keeps its saved goal.
+- After `/edit`, sending the revision with Ctrl+Enter replaces the earlier
+  message as Enter does. Before, it was appended instead, and the next
+  message then undid the wrong exchange.
+- In `/resume`, pressing `d` and then scrolling with the mouse before
+  answering `y` could delete the session you scrolled to instead of the one
+  you chose. The prompt now ignores the mouse, and `y` deletes only the
+  session `d` was pressed on.
+- Typing a stop word (`stop`, `wait`, `pause` by default) while a turn is
+  running cancels it at once. Before, Enter queued the word behind the turn
+  it was meant to stop.
+- Runtime API fixes:
+  - `POST /v1/threads/{id}/undo` accepts `{"turn_id": "turn_…"}` to
+    remove that user turn and everything after it. A client that edits a
+    message can name it, instead of counting messages back, so a turn
+    another client appends meanwhile can no longer make it edit the wrong
+    message.
+  - Goal events on a thread's event stream now follow the order the goal
+    changed in. A set and a clear racing each other could leave the stream
+    reporting an active goal after it was deleted.
+  - `PUT /v1/sessions` for a thread with a queued or running turn now
+    answers 409. Before, it waited for that turn to finish while blocking
+    new turns, steering and compaction on every thread.
+  - `PATCH /v1/threads/{id}` with a new `system_prompt` now takes effect
+    on the next turn. Before, a thread whose engine was already loaded kept
+    the old prompt. The change is refused while a turn is running.
+  - `POST /v1/threads/{id}/retry` with a blank prompt now answers 400
+    without first creating a fork.
+  - Connecting a remote computer stops reading the probe response at
+    64 KiB instead of buffering all of it first.
+  - The computer event cursor can no longer move past an event that has
+    not been published yet.
+  - `POST /v1/stream` ends when the turn's own record fails to save,
+    instead of sending keepalives forever.
+- `web_search` can use DeepSeek's new Search API: set
+  `[search] provider = "deepseek"` and give it your DeepSeek key through
+  `[search] api_key` or `DEEPSEEK_API_KEY`. It returns raw results without
+  a model round trip. DeepSeek bills $0.75 per 1,000 searches from
+  November 1, 2026.
+- In the desktop and web apps, a conversation stays compacted after
+  Codewhale restarts or unloads it. Before, reloading replayed every earlier
+  turn and then added the summary, so the next request carried everything
+  compaction had removed. Each compacting turn now stores the history the
+  model continued from, and forks, `/undo` and session exports start from
+  it as well.
+- When a provider stream fails before any content and Codewhale quietly
+  resends the request, the tokens the failed attempt reported are now added
+  to the session, goal and sub-agent totals instead of being merged away.
+  The context meter still reflects only the request that succeeded.
+- Esc, or a Runtime interrupt, now stops a `tool_call_before` hook that is
+  still running: its process tree is killed and reaped, hooks queued behind
+  it are skipped, and the turn stops at once. Before, the turn waited for the
+  hook to finish, and the hook could still change files after the turn was
+  reported as stopped.
+- With a sub-agent open in the main pane, scrolling and redraws reuse its
+  rendered transcript instead of re-rendering every message on every frame,
+  and a finished sub-agent's transcript file is no longer reread from disk
+  every 400 ms.
+- While a slash command is in the composer, the TUI rereads your command
+  folders and `config.toml` at most once a second instead of on every frame.
+  A command file you add still shows up in completion within about a second.
+- In a session long enough to fold its oldest transcript cells (past
+  5,000), tool details, expanded tool runs, sub-agent cards and a streaming
+  reply keep pointing at the right rows. Each fold had shifted them one row
+  too far, so the inspector opened the previous cell's details.
+- A sub-agent started with the parent's context that ends without writing
+  anything no longer reports the parent's last message as its own result.
+- When one reply carries several text blocks, as the Responses route sends
+  for separate message items, the conversation now keeps all of them. Before,
+  each new block replaced the previous one in the history sent back to the
+  model, so it forgot what it had just said even though you saw it. Text a
+  provider puts in a block's opening event is also shown now.
+- `codewhale serve --insecure` and `codewhale app-server --insecure-no-auth`
+  answer only requests addressed to `127.0.0.1`, `::1` or `localhost`.
+  Without auth, a website could point its own domain at 127.0.0.1 (DNS
+  rebinding) and drive the Runtime API from your browser; such requests now
+  get `421 Misdirected Request`. Servers with auth are unchanged.
+
+## [0.10.2] - 2026-10-18
+
+Codewhale v0.10.2 adds an animated pet view (`/pet on`), a live Terminal work
+dock and per-chat composer colors (`/color`). It closes three session
+data-loss paths, a sandbox escape through the Runtime daemon socket and a
+`codewhale web` session leak; holds a `curl` or `wget` that uploads a
+credential; refuses shell commands containing invisible Unicode; keeps the
+Linux sandbox working when a hidden credential directory is a symlink; and
+uses much less CPU while the TUI waits on you. `/undo` takes back a whole
+request, `/diff` works outside a Git repository, DeepSeek's Responses route no
+longer rejects replayed tool history, and contributor fixes improve token
+accounting, relay model lists, localized replies and Windows launcher
+guidance.
+
+### Latest fixes
+
+- Sandboxed commands can no longer reach Codewhale's Runtime daemon socket.
+  On Linux with bubblewrap, and on macOS with sandbox network access on, a
+  command the agent ran (a test script or a postinstall hook, say) could read
+  the owner receipt and attach to the socket that `codewhale serve`, the
+  desktop app, the VS Code extension or an ACP session holds. From there it
+  could change the sandbox mode, the approval policy or a provider's base URL
+  in your config, or start an unsandboxed turn. The daemon's default run
+  directories are now on the sandbox's default deny-list, and on macOS no
+  socket under a denied path can be connected to. Turning the default
+  deny-list off (`sandbox_read_denylist_defaults = false`) also turns this
+  off.
+- `codewhale web` no longer gives its request proof to whoever holds the
+  session cookie. The cookie is scoped to the host, not the port, so a
+  listener on another `127.0.0.1` port could receive it, and `GET /` then
+  returned the proof that unlocks the whole Runtime API. The proof now stays
+  in the tab that opened the session, which keeps working across reloads
+  when the browser allows session storage; a new tab opened by typing the
+  address needs a fresh `codewhale web`.
+- The `codewhale web` approval card shows the request summary, Codewhale's
+  reason for asking (such as a sandbox escalation) and every argument of the
+  call in full, with the model's own description below, labeled as such.
+  Before, when the model had written anything, the card showed only that
+  text and never the command, so a prompt-injected model could describe a
+  harmful command as a harmless one.
+- `/settings` choice lists that don't fit, such as Language and Theme, show
+  a scroll rail. Thanks @Lstarsky0 (#7024).
+- During an `/mcp` search that finds nothing, the status line says "No
+  matches" like the list does, instead of "Nothing on this tab". Thanks
+  @Lstarsky0 (#7023).
+- Read and list cards show a path inside the workspace relative to it
+  ("Reading src/lib.rs") instead of the full absolute path the model sent.
+- `/statusline` shows its last two items, Workspace and Git branch, without
+  scrolling. The picker had not counted its padding rows. Thanks @Lstarsky0
+  (#7022).
+- A shell or gate command that the safety check will refuse, such as one
+  spanning several lines, is refused at once instead of first asking you to
+  approve it.
+- Diffs in the TUI number each line only on its own side: a removed line
+  shows its old line number and an added line its new one. Unchanged
+  context lines keep their indentation instead of starting at the left
+  edge.
+- A shell card shows a multiline command one line per row instead of running
+  the lines together.
+- A shell card whose command is waiting on your approval now says
+  "waiting for approval" with a still mark, instead of "running (Ns)" with
+  a spinner. A command queued behind it in the same step says "queued".
+  Elapsed time starts when a command actually begins to run.
+- `/color` gives a chat's composer box its own color. Bare `/color` cycles
+  through red, orange, amber, green, cyan, blue, purple and pink; `/color
+  <name>` picks one and `/color off` returns to the theme. The color is
+  saved with that session and survives resume; other chats and the theme are
+  untouched. It shows while you are typing, so the focus signal stays.
+- Importing a session container or starting a new chat from the launch
+  screen no longer carries the previous chat's `/title` onto the new one.
+- Shell cards in the TUI:
+  - A tool card that finished inside a turn that is still running opens its
+    raw detail (tool id, input, output) with Alt-V or a click, instead of a
+    rendered message view.
+  - The work dock no longer shows a ✓ for a background job that was killed
+    or timed out. Killed jobs get a neutral mark; timed-out jobs get the
+    failure mark.
+  - The keybinding docs now say what Alt-V opens with nothing selected, and
+    that clicking a card keeps Alt-V on it while newer cards arrive.
+- The TUI uses less CPU while it waits. With an approval, elevation or
+  question prompt open, or with only background shells still running after a
+  turn, the status spinner and elapsed-time labels refresh once a second
+  instead of five times a second.
+- On Windows, Codewhale processes that start at the same moment no longer
+  lose the built-in plugins. The rename that publishes the built-in plugin
+  snapshot now retries a brief sharing or access refusal, as the other atomic
+  writers already did, instead of starting without built-in plugins.
+- Six fixes from @asto18089, several ported from the Pinvou/CodeWhale fork
+  with @zhuowp:
+  - Claude 5 models and Haiku 5.5 no longer receive `temperature`/`top_p` on
+    routes without exact catalog facts (custom or proxy base URLs, dated
+    snapshot ids, Messages-wire gateways), which those models reject with a
+    400 (#7014).
+  - Kimi keeps a tool whose schema has an empty `items`: the empty node is
+    dropped, as Moonshot's schema rules allow, instead of excluding the whole
+    tool (#7015).
+  - In a session that already has a stamped compaction checkpoint, a user turn
+    that pastes a legacy summary header stays an ordinary turn: it anchors the
+    round, is kept verbatim and no longer counts as a duplicated summary
+    (#7017).
+  - Turn-complete events carry their own `turn_id`, `submission_id` and
+    `compaction_id`. A send whose route fails to install, and a manual
+    compaction whose route is rejected, now end with a failed terminal event
+    instead of only an error, so waiting hosts no longer hang (#7018).
+  - Anthropic `redacted_thinking` blocks are captured and replayed byte-exact
+    on native Anthropic routes, so a tool loop after a redacted block no
+    longer fails with the same 400 on every retry. Other hosts withhold the
+    block (#7019).
+  - A named `[providers.<name>]` table with `wire = "responses"` or
+    `"anthropic"` now uses that wire on every turn and across model switches,
+    not only for the first request. The app-server's legacy
+    `[providers.custom]` table now refuses a non-Chat wire with
+    `provider_wire_format_unsupported` instead of forwarding a Chat body
+    (#7020; Refs #6997).
+- A background shell job that finishes while the agent is still working now
+  reaches the model before its next step, instead of only when the turn ends.
+  In `codewhale exec`, which stops at the end of the turn, that output used to
+  be lost. The background notice now says that a job still running when the
+  turn ends is stopped unseen in a headless run, so the model knows to wait
+  explicitly when its answer depends on it. Sub-agents no longer pick up the
+  parent's finished jobs, and the parent no longer consumes a sub-agent's.
+- `codewhale review --base <ref>` gives the reviewer the `base..HEAD` commit
+  messages as the author's stated intent, ahead of the diff, so it stops
+  flagging changes their commit messages already explain. The messages are
+  treated as claims to check, not instructions, and are capped at 16,000
+  characters.
+- `codewhale --resume <id>` after the TUI was killed mid-turn keeps the
+  interrupted turn. Before, the resume stamped the older saved document as
+  newer than the crash checkpoint, and the checkpoint, the only copy of
+  that turn, was then discarded as stale. `--continue` was not affected.
+- Three session data-loss paths are closed:
+  - `/load` of an older exported copy of a session no longer replaces the
+    newer saved conversation with the same id. It refuses and points to
+    `/resume`. Before, the next autosave deleted every turn made after the
+    export.
+  - A journal archive append that was cut short (disk full, or a kill)
+    is trimmed back to its last complete line before the next append.
+    Before, the next save glued new entries onto the torn line. That made
+    the whole archive unreadable, and the document had already dropped
+    those entries.
+  - Launching with a legacy crash checkpoint keeps it when migrating it to
+    the per-session format fails, instead of deleting it.
+- Sub-agents stay within a turn's tool allow-list. `exec --allowed-tools`, a
+  Runtime API `allowed_tools`, and a command's `allowed-tools:` frontmatter
+  narrowed only the parent. A sub-agent it started got the full tool
+  surface, including `bash`, `write` and `edit`.
+- A `workflow` plan written with `nodes` (the declarative shape in
+  `docs/WORKFLOW_AUTHORING.md`) is now judged for approval from its compiled
+  plan, the same one the run uses. The old reader missed fields nested inside
+  `agent` and `branch` nodes. A plan with write children could then start
+  with no approval card, the card could say "Read-only plan", and the
+  receipt recorded the run as approved.
+- The other whole-file writers now refuse to replace an existing file that
+  is unread or stale, as `write` does: `apply_patch` with `replace`, and the
+  `write_file` and `File action=write` paths that older prompts still call.
+  A successful patch counts as a read, so patch-then-write still works.
+  `fim_edit` honors the read deny-list. It also refuses to write when the
+  file changed while its completion was running, which used to overwrite
+  your edit.
+- `grep_files` (also `File search_content`) aimed at a single file, `rlm`
+  `open` with `file_path`, and the cache-maximal working set now honor the
+  read deny-list. Each read files such as `.env` past the check and returned
+  their lines to the model. A deny-listed working-set file is skipped with a
+  note.
+- A `tool_call_before` hook that answers `ask` now always shows the approval
+  prompt, as `docs/HOOKS.md` promises. Before, an earlier "approve for
+  session" or a conversation grant for the same command answered it
+  silently, so a hook could not re-gate a command the person had already
+  approved once.
+- `validate_data`, `review` and `verify` honor the read deny-list, as `read`
+  does. They read files such as a workspace `.env`, or in trust mode
+  `~/.aws/credentials`, without the check. `validate_data`'s TOML parse
+  error could quote a line of such a file back to the model, and `review`
+  and `verify` sent the whole file to the provider.
+- Commands that start outside the shell tool now get the same sandbox as
+  shell commands:
+  - `terminal_*` PTY sessions used a default sandbox with no credential
+    deny-list, so on macOS they could read `~/.ssh` or `~/.aws` while `bash`
+    could not. On Linux they skipped bubblewrap, so workspace-write refused
+    them. They now use the session's shell sandbox, and they refuse to start
+    when commands run in an external sandbox backend.
+  - Runtime API thread jobs (`POST /v1/threads/{id}/jobs`) started before the
+    thread's first turn ran without bubblewrap and without the deny-list.
+    They now get both, and they are refused when an external sandbox backend
+    is configured, since a job starts a local process.
+  - `codewhale run sandbox run` ignored `prefer_bwrap` and the deny-list.
+    When no OS sandbox could enforce the policy, it ran the command
+    unconfined. It now refuses.
+  - On Windows, `bash` with `interactive: true` skipped the read-only check
+    that every other command path applies. It is now refused like the
+    others.
+  - A sub-agent's posture line could say the local OS sandbox applied when
+    its shell did not use one. It now reports what that shell actually
+    uses.
+- `write` refuses to replace an existing file that has not been read in this
+  session, or that changed after it was read. The File `edit` action already
+  made this check. Before, a whole-file write could overwrite contents the
+  model never saw, or a change you or another agent made after the model's
+  last read. Creating a new file is unchanged, and a file Codewhale wrote
+  itself counts as read. The refusal names the recovery: read the file, then
+  write again (CW-7450).
+- `codewhale exec` warns again when the sandbox posture asks for confinement
+  but no OS sandbox can enforce it, for example on a Linux host or container
+  where bubblewrap cannot start. With no external sandbox backend configured,
+  which is the default, the check read the absent backend as present, so the
+  warning never printed and commands ran unrestricted with no notice on
+  stderr. Found while proving the #7007 fix end to end in a container.
+- The middle working mode is called Work everywhere in the TUI: the footer
+  chip, the mode name and description, the hotbar action, settings errors,
+  `/context` and exports, and the matching locale strings, which now use each
+  language pack's existing word for it. The hook contract is unchanged:
+  `DEEPSEEK_MODE` and `DEEPSEEK_PREVIOUS_MODE` still report `ACT`, and saved
+  settings still read and write `agent` (Refs #6466).
 - The model catalog now carries current models from Anthropic, Google and
   Meta. Anthropic: `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`
   and `claude-fable-5-1`; the Auto router's cheap tier and the Scout companion
@@ -244,8 +546,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/new` refused. Thanks @luestr for reporting the refusal in #6981; this is
   one way to reach it, and the report stays open until the blocker that
   0.10.2 names confirms its cause (Refs #6981).
-
-## [0.10.2] - 2026-10-13
+- DeepSeek on the Responses route (the `deepseek-flash` default) no longer
+  fails with `400 reasoning_text must be passed back` when a session replays a
+  tool call that has no stored DeepSeek reasoning: a turn that was interrupted,
+  ran with thinking off, or came from another provider. Codewhale now sends the
+  same `(reasoning omitted)` placeholder the Chat route already uses, before
+  that turn's tool calls. A live probe on 2026-10-17 returned 400 without it and
+  200 with it. On Chat, DeepSeek enforces this only for tool-call turns, which
+  were already covered (Refs CW-7450).
+- At reasoning effort `max`, the first-party DeepSeek route now asks for up to
+  131,072 output tokens, DeepSeek's documented default at that effort, instead
+  of 65,536. Every other provider and effort keeps 65,536, and explicit
+  overrides and route limits still apply (Refs CW-7450).
+- `codewhale exec --output-format stream-json` adds the provider's
+  `finish_reason` to each `turn_usage` record, so a tool-call stop can be told
+  apart from an output-limit stop or a provider abort. The field is omitted
+  when the provider reports none (Refs CW-7450).
+- The `/statusline` picker's item hints are localized in all 15 UI languages
+  instead of always showing English.
+- A custom OpenAI-compatible relay's model list is now discovered. Four
+  separate defects kept it out of `/model`: a roster answering both `data` and
+  `models` was rejected as a duplicate field; only the active route was probed;
+  `/v1/models` was authenticated with `x-api-key` whenever the route declared
+  `wire = "anthropic"`, which a relay that rejects that header answered with
+  `401 missing_api_key`; and the picker's default view then hid the relay's own
+  rows. The startup probe now covers every configured relay, a built-in
+  provider name pointed at a private endpoint (`[providers.openai]` against a
+  relay) counts as a relay, and the provider panel no longer reports its
+  catalog missing while listing it.
 
 - The footer preview in `/settings` now uses the footer's own words and
   colours, in the UI language: Startup mode Work previews `● ask   work`
@@ -302,9 +630,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remain in place. Windows Terminal IME preedit is still controlled by the
   terminal; native IME retesting remains open (#2323).
 
-- Model lists, resolution, picker controls and Runtime facts use the same
-  endpoint-scoped catalog facts. Cost estimates preserve complete price tiers,
-  calculate exact decimal amounts per request, and freeze rates at dispatch.
+- `codewhale model list`, the model picker, sub-agent model validation and
+  Runtime facts read the same endpoint-scoped catalog facts. `model resolve`
+  and `model set`, the app-server model registry and route admission still
+  read the static registry; moving them is tracked in #6396. Cost estimates
+  preserve complete price tiers, calculate exact decimal amounts per request,
+  and freeze rates at dispatch.
   Missing rates or required usage breakdowns stay unpriced; public prices do
   not establish account access. The offline seed records its source snapshot
   and keeps absent default wire IDs as dated compatibility fallbacks. Refs #6396.
@@ -457,12 +788,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Computer Use and bridge fixes and the MIT license.
 - `codewhale app-server` no longer serves `GET /jobs`, which was always empty;
   background jobs are `GET /v1/jobs` on the Runtime API (#6513).
-
-Codewhale v0.10.2 adds an animated pet view (`/pet on`) and a live Terminal work
-dock, and improves recovery, plugin approval and provider reliability. `/undo`
-takes back a whole request, `/diff` works outside a Git repository, and
-contributor fixes improve token accounting, localized replies and Windows
-launcher guidance.
+- `codewhale app-server` started inside a project no longer writes
+  `.deepseek/events.jsonl` there; with no configured path the hook log sits
+  beside the state database in the Codewhale home. Thanks @Lstarsky0 (#6921,
+  Refs #6513).
 
 ### Added
 
@@ -847,6 +1176,25 @@ launcher guidance.
 
 ### Known limits
 
+- From a pre-release security review of the local network surfaces, not yet
+  fixed: `codewhale serve --insecure` and `codewhale app-server
+  --insecure-no-auth` do not check the `Origin` header, so with either flag
+  a page on an allowed development origin (`localhost:3000`, `:1420`) can
+  drive the Runtime API; use them only on a machine you trust. The one-time
+  `codewhale web` and `--mobile` bootstrap capability passes through the
+  browser launcher's arguments, where another local OS user can read it. The
+  opt-in control socket (`[control_socket] enabled = true`) does not check
+  the connecting user and can be reached from sandboxed commands. OAuth
+  loopback callbacks end a sign-in on the first malformed request, so a page
+  or local process can make one fail.
+- The sandbox deny-list for the Runtime daemon socket covers its default
+  locations as this process sees them. It does not cover a daemon started
+  with `--socket-path` or with a different `XDG_RUNTIME_DIR` or
+  `CODEWHALE_HOME`; a run directory created after a long-running sandboxed
+  command started is not hidden from that command; and on macOS, when the
+  workspace is your home directory or another folder above the daemon's
+  directory, a sandboxed command can still move that directory out of the
+  denied path.
 - Ambiguous current-quota 429s without a body retry delay of at most 120 s
   still end the turn; a header alone does not change that classification.
   Explicit exhausted account, billing and subscription limits remain terminal
@@ -889,7 +1237,7 @@ launcher guidance.
 - **[@SparkofSpike](https://github.com/SparkofSpike)** — live network-policy updates and goal milestone hand-back ([#6928](https://github.com/codewhale-hq/Codewhale/pull/6928), [#6930](https://github.com/codewhale-hq/Codewhale/pull/6930)), Windows ampersand classification ([#6929](https://github.com/codewhale-hq/Codewhale/pull/6929)), and a relocated Codewhale home including sub-agent state ([#6947](https://github.com/codewhale-hq/Codewhale/issues/6947), [#6949](https://github.com/codewhale-hq/Codewhale/pull/6949)).
 - **[@dajiaohuang](https://github.com/dajiaohuang)** — cache-write token accounting ([#6913](https://github.com/codewhale-hq/Codewhale/pull/6913)).
 - **[@gaord](https://github.com/gaord)** — embedder telemetry surface support ([#6916](https://github.com/codewhale-hq/Codewhale/pull/6916)) and the DeepSeek saved-key marker diagnosis and fix ([#6972](https://github.com/codewhale-hq/Codewhale/issues/6972), [#6974](https://github.com/codewhale-hq/Codewhale/pull/6974)).
-- **[@Lstarsky0](https://github.com/Lstarsky0)** — localized profile replies ([#6919](https://github.com/codewhale-hq/Codewhale/pull/6919)), workflow gates that block their own role ([#6952](https://github.com/codewhale-hq/Codewhale/pull/6952)), proxy-independent MCP loopback checks ([#6971](https://github.com/codewhale-hq/Codewhale/pull/6971), [#6975](https://github.com/codewhale-hq/Codewhale/pull/6975)), and durable steering/child-approval acceptance checks ([#6967](https://github.com/codewhale-hq/Codewhale/pull/6967), [#6966](https://github.com/codewhale-hq/Codewhale/pull/6966)).
+- **[@Lstarsky0](https://github.com/Lstarsky0)** — localized profile replies ([#6919](https://github.com/codewhale-hq/Codewhale/pull/6919)), workflow gates that block their own role ([#6952](https://github.com/codewhale-hq/Codewhale/pull/6952)), proxy-independent MCP loopback checks ([#6971](https://github.com/codewhale-hq/Codewhale/pull/6971), [#6975](https://github.com/codewhale-hq/Codewhale/pull/6975)), durable steering/child-approval acceptance checks ([#6967](https://github.com/codewhale-hq/Codewhale/pull/6967), [#6966](https://github.com/codewhale-hq/Codewhale/pull/6966)), and an app-server hook log that no longer lands in the project directory ([#6921](https://github.com/codewhale-hq/Codewhale/pull/6921)).
 - **[@jayanthvee](https://github.com/jayanthvee)** — Windows npm launcher guidance ([#6906](https://github.com/codewhale-hq/Codewhale/pull/6906)).
 - **[@asto18089](https://github.com/asto18089)** — callback-window reference fix for longer browser sign-in waits ([#6865](https://github.com/codewhale-hq/Codewhale/issues/6865)).
 - **[@BX166](https://github.com/BX166)** — reported three provider failure modes measured on AICraft's own traffic: a cold model that reads as a dead connection, a listed model that fails on every call, and a response cut at the output ceiling that reports `stop` ([#6889](https://github.com/codewhale-hq/Codewhale/issues/6889)).

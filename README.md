@@ -5,10 +5,13 @@
   <img src="brand/wordmark.svg" alt="Codewhale" width="320">
 </picture>
 
-**The open-source coding agent that works with any model.**
+**An open-source coding agent for your terminal that works with any model.**
 
-Codewhale reads your project, edits files, runs commands, and checks its own
-work — in your terminal, with a hosted or local model you choose.
+Give Codewhale a task and it reads the repository, edits files, and runs
+commands until the task is done or it needs input from you. It works with more
+than 40 built-in providers, DeepSeek V4.1 Flash by default, and with models running on
+your own machine. `/receipts` lists the files it changed, the commands it ran,
+and the web and MCP calls it made.
 
 [![CI](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml/badge.svg)](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/codewhale-cli?label=crates.io)](https://crates.io/crates/codewhale-cli)
@@ -22,7 +25,7 @@ work — in your terminal, with a hosted or local model you choose.
 
 <img src="web/public/codewhale-tui-0102-demo.png" alt="A Codewhale terminal session" width="760">
 
-<sub>Real Codewhale terminal capture from a configured local demo session.</sub>
+<sub>A 0.10.2 development build with a scripted test model, in Full Access inside a throwaway workspace. The edit, three tests and a sub-agent review ran for real.</sub>
 
 </div>
 
@@ -34,121 +37,203 @@ macOS and Linux:
 curl -fsSL https://codewhale.net/install.sh | sh
 ```
 
-The installer downloads checksum-verified binaries into `~/.local/bin`. If
-`codewhale` then says "command not found", run the one PATH line the installer
-prints, or see [Put it on your PATH](docs/INSTALL.md#put-it-on-your-path).
-Upgrade any time with `codewhale update`.
+The installer puts checksum-verified `codewhale` and its short alias `codew`
+in `~/.local/bin`. If your shell then says `command not found`, run the PATH
+line the installer prints ([details](docs/INSTALL.md#put-it-on-your-path)).
+`codewhale update` upgrades it. These commands install the latest release.
+This page follows `main`, so a feature marked with a version arrives in that
+release; the [changelog](CHANGELOG.md) lists what each release adds.
 
 <details>
-<summary><b>Windows, npm, Cargo, and other routes</b></summary>
+<summary><b>Windows, npm, Cargo, and other ways to install</b></summary>
 
 ```bash
 winget install HunterBown.CodeWhale  # Windows x64 (or Scoop, or the installer from GitHub Releases)
 npm install -g codewhale            # wraps the same release binaries
-cargo install codewhale-cli --locked  # build from crates.io
+cargo install codewhale-cli --locked  # crates.io; can trail GitHub Releases
 ```
 
-Docker, Nix, Homebrew on Linux, Android/Termux, manual downloads with checksum
-verification, and the optional CNB mirror are covered in the
-[installation guide](docs/INSTALL.md). Pick one route: several installs on one
-machine end up fighting over `PATH`.
+Prebuilt binaries cover Linux, macOS, and Windows on x64 and arm64. Nix,
+Homebrew on Linux, Android/Termux (preview), and manual downloads are in the
+[installation guide](docs/INSTALL.md), and containers in
+[Docker](docs/DOCKER.md). Stick to one install method per machine; otherwise
+two copies end up on `PATH` and whichever comes first wins.
 
 </details>
 
 ## Quickstart
 
-**Your provider keys, managed in one place.** [Create a Codewhale account](https://app.codewhale.net/register)
-or run `codewhale login` to sign in. Save and update your API keys in your
-account, then use them through the Codewhale model route on your signed-in
-devices. [Set up account keys](docs/CONFIGURATION.md#account-provider-keys).
-Signing in does not upload existing local keys; local use remains available
-without an account.
-
-1. **Open your project.** Run `codewhale` in the folder you want to work on.
-2. **Connect a model.** Run `/provider` (or press `F3`) to add a hosted key or
-   pick a local runtime. If Ollama is already running with a chat model,
-   Codewhale switches to it on its own. Use `/model` to change models.
-3. **Give it a concrete task.**
+1. Commit or stash your work, then run `codewhale` from the root of a git
+   repository. By default it applies file edits there without asking and
+   shows you the diff.
+2. Run `/provider` (or press `F3`), pick a provider, paste its API key, and
+   choose a model. DeepSeek is the default provider. With no key, pick a local
+   runtime instead. If no provider is configured and Ollama is already serving
+   a chat model, Codewhale uses it automatically; from 0.10.2 it offers it when
+   you send your first message.
+3. Type a task:
 
 ```text
 Fix the failing tests and explain what changed.
 ```
 
-The same task runs headless from a script or CI job:
+Read-only commands run straight away. For any other shell command Codewhale
+asks first: `y` runs it once, `a` allows commands like it for the rest of the
+conversation, `n` refuses. `/undo` takes back your last request and its file
+changes (in 0.10.1, run `/trust on` first). `/help` lists commands and keys.
+
+For scripts and CI, `codewhale exec` runs one task without the interface. With
+`--auto` it edits files and runs shell commands without asking, so give it a
+container or a throwaway checkout:
 
 ```bash
 codewhale exec --auto "fix the failing tests and explain what changed"
 ```
 
-Run `/help` for commands and keyboard shortcuts.
+## Modes and permissions
 
-## Ways to run it
+A fresh install starts in Work mode with the Ask permission.
 
-Every client drives the same local [Codewhale Engine](docs/ARCHITECTURE.md), so
-sessions, tools, and permissions behave the same everywhere.
+| | Switch with | Options |
+| --- | --- | --- |
+| Mode | `Tab` (when the input is empty) or `/mode` | **Plan** reads and searches but changes nothing. **Work** edits files and runs commands. **Operate** has the same access as Work, treats your request as a goal, and keeps going until the goal is verified or it needs input from you. |
+| Permission | `Shift+Tab` | **Ask** applies file edits in your repository without asking and asks before shell commands that are not read-only. **Auto-Review** lets rules and a reviewer model approve routine calls and refuses high-risk ones; switch to Ask to approve those yourself. **Full Access** never asks and turns off Codewhale's sandbox; repository rules and managed policy still apply. |
 
-| Command | What it does |
-| --- | --- |
-| `codewhale` | The interactive terminal interface |
-| `codewhale exec "…"` | One headless turn from a script or CI; `--auto` allows file and shell tools, `--output-format stream-json` streams JSON |
-| `codewhale web` | The bundled [local browser client](docs/WEB.md) on `127.0.0.1` |
-| `codewhale review --pr N` | An advisory [pull request review](docs/GITHUB_ACTION.md); posting is opt-in |
-| Runtime API | A [local HTTP API](docs/RUNTIME_API.md) for threads, events, and approvals |
-
-A native desktop app (GPUI) is being built as the signed-in product client; see
-the [product page](https://codewhale.net/en/product) for availability. The
-community-maintained [VS Code extension](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
-connects to the same Engine from a sidebar ([source](https://github.com/HengQuWorld/CodeWhale-VSCode)).
+See the [modes and permissions guide](docs/MODES.md) for the details.
 
 ## What it does
 
-- **Any model, no lock-in.** Over 40 built-in provider routes — Anthropic,
-  DeepSeek, Google, Mistral, Moonshot, OpenAI, OpenRouter, xAI and more — plus
-  any OpenAI-compatible endpoint and local models through Ollama, vLLM, or
-  SGLang. [Providers](docs/PROVIDERS.md)
-- **You stay in control.** Plan mode explores without changing anything; Work
-  and Operate make changes. Approval postures decide when a tool call needs your
-  OK, `/undo` and `/restore` recover workspace changes, and `/receipts` lists
-  every file, command, and approval in a session. [Modes](docs/MODES.md) ·
-  [Receipts](docs/RECEIPTS.md)
-- **Built for long jobs.** Set a durable `/goal`, delegate bounded work to
-  [sub-agents](docs/SUBAGENTS.md), run supervised [agent teams](docs/FLEET.md)
-  with a pre-spend check, or script them as checked-in
-  [workflows](docs/WORKFLOW_AUTHORING.md).
-- **Extend what you already use.** Connect [MCP servers](docs/MCP.md), install
-  [skills](docs/SKILLS.md) and [plugins](docs/PLUGINS.md), run
-  [hooks](docs/HOOKS.md) on session and tool events, and load existing
-  [Claude Code plugins](docs/CLAUDE_PLUGIN_COMPAT.md).
-- **Computer Use.** An included plugin adds tools for observing and operating
-  other applications. Review its access and enable it before use.
-  [Guide](crates/tui/plugins/computer-use/README.md)
+### Coming in 0.10.2
 
-## Modes and permissions
+These are merged on `main` and not in a published release yet;
+[build `main`](docs/INSTALL.md#test-and-contribute-to-current-source) to try
+them now.
 
-| | Choose with | Options |
-| --- | --- | --- |
-| **Mode** — what the agent is doing | `Tab` or `/mode` | Plan (explore, no changes) · Work (edit and run) · Operate (drive a goal through planned, verified steps) |
-| **Posture** — when it asks first | `Shift+Tab` | Ask · Auto-Review · Full Access |
+- `/pet on` turns your terminal into an animated whale that shows what the
+  agent is doing, while the message box stays live. Its 980 particles spell
+  the current step in English, Chinese or Japanese.
+- `/workbar terminal` shows the shells the agent is running as they run. Type
+  into one, or press `Ctrl+N` for a shell of your own (macOS and Linux).
+- `/undo` takes back your whole last request in one step, including every file
+  it changed, and `/diff` works in folders without Git.
+- When a plan ends with open steps, Codewhale asks whether to start Work with
+  Ask or Auto-Review, or keep planning.
+- `/color` gives each chat its own composer color, saved with the session.
+- `web_search` can use DeepSeek's new Search API: set
+  `[search] provider = "deepseek"` with a DeepSeek key.
+- Outside Full Access, a `curl` or `wget` that would upload a credential never
+  runs without your approval, and a command that hides invisible Unicode is
+  refused. `write` no longer replaces a file the agent has not read, or one
+  that changed after it read it.
 
-Full Access still respects hard policy boundaries. The
-[modes and permissions guide](docs/MODES.md) explains each option.
+### Models
 
-## Safety
+More than 40 providers are built in, including Anthropic, OpenAI, DeepSeek,
+Google, Mistral, Moonshot, OpenRouter, and xAI. Any OpenAI-compatible endpoint
+works, and so do local models through Ollama, vLLM, or SGLang. The default is
+DeepSeek's `deepseek-flash`, which DeepSeek moved to DeepSeek-V4.1-Flash-1017
+on 2026-10-17; 0.10.1 runs it without an update
+([details](docs/PROVIDERS.md#deepseek-v41-flash)).
 
-Codewhale runs on your machine with the access you grant it. Approval postures
-and repository rules limit what the agent may do, and commands run inside an OS
-sandbox where supported (Seatbelt on macOS; bubblewrap on Linux when installed and working).
-`/preview-request` shows the exact redacted request before anything is sent.
-Unknown model prices stay unknown instead of being reported as free.
+`/model` switches models between turns, and `/model auto` picks one for each
+turn (`/router` sets up how). `/turn inspect` shows which model a turn used,
+what it cost and how long it took. `codewhale auth chatgpt` lets you use a
+ChatGPT plan instead of an API key (experimental). See
+[Providers](docs/PROVIDERS.md).
 
-See [authorization order](docs/AUTHORIZATION_ORDER.md),
-[sandboxing](docs/SANDBOX.md), and [telemetry](docs/TELEMETRY.md) — usage
-counts are on by default and `codewhale config set telemetry false` turns them
-off.
+### Receipts and undo
+
+`/receipts`, or `codewhale receipts --last` after you quit, lists the files
+changed, commands run, web and MCP calls, agents started, approvals and who
+gave them, and failures. `/undo` takes back your last request; in 0.10.1 it
+needs `/trust on` for files and steps back one tool call at a time. `/restore`
+rolls the whole workspace back to an earlier snapshot; because that overwrites
+later edits, it needs `/trust on` or Full Access. See [Receipts](docs/RECEIPTS.md).
+
+### Longer work
+
+`/goal` sets an objective that carries across turns. Codewhale can split work
+across [sub-agents](docs/SUBAGENTS.md), run a [fleet](docs/FLEET.md) of agents,
+or follow a [workflow](docs/WORKFLOW_AUTHORING.md) checked into the
+repository.
+
+### Coming from another agent
+
+Codewhale reads `AGENTS.md` on its own. Instruction files written for other
+tools, such as `CLAUDE.md`, `.cursorrules`, or
+`.github/copilot-instructions.md`, load only when you opt in with
+`project_instruction_imports = ["claude"]` (or `"cursor"`, `"cline"`,
+`"windsurf"`, `"copilot"`, `"all"`) in your config; see
+[config.example.toml](config.example.toml). Codewhale warns when it finds one
+it did not load.
+
+`/import-claude` prepares an import of your Claude Code settings and MCP
+servers for you to review. `/plugin install` accepts Claude Code plugins
+containing skills, commands, agent profiles, and MCP servers, and refuses
+plugins that need hooks or LSP servers
+([details](docs/CLAUDE_PLUGIN_COMPAT.md)).
+
+### Extensions
+
+Connect [MCP servers](docs/MCP.md), add [skills](docs/SKILLS.md) and
+[plugins](docs/PLUGINS.md), and run [hooks](docs/HOOKS.md) on session and tool
+events. Code mode (experimental, on by default) lets the model write one
+`execute_tools` program that calls several MCP and plugin tools; each call
+still meets your approval rules and keeps its receipt. The bundled Computer
+Use plugin (experimental, macOS only) can observe
+and operate other apps. It stays off until you review its access and enable it
+([guide](crates/tui/plugins/computer-use/README.md)).
+
+## Ways to run it
+
+| Command | What it does |
+| --- | --- |
+| `codewhale` | The interactive terminal app |
+| `codewhale exec "…"` | One task without the interface. On its own it answers without using tools; `--auto` lets it edit files and run commands, and `--output-format stream-json` streams events as JSON |
+| `codewhale web` | A local web UI on `127.0.0.1` ([guide](docs/WEB.md)) |
+| `codewhale review --pr N` | An advisory review of a GitHub pull request. It posts nothing unless you add `--post`; the [GitHub Action](docs/GITHUB_ACTION.md) runs the same review in CI |
+| `codewhale app-server --http` | The [Runtime API](docs/RUNTIME_API.md), a local HTTP API for threads, events, approvals, and each turn's file changes |
+| `codewhale serve --acp` | The Agent Client Protocol over stdio, for editors such as Zed |
+
+The terminal app, `exec`, `web`, and the Runtime API share one engine
+([architecture](docs/ARCHITECTURE.md)). A community-maintained
+[VS Code extension](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
+connects to it from the sidebar ([source](https://github.com/HengQuWorld/CodeWhale-VSCode)).
+A native desktop app built on the Runtime API is in development; it has no
+public download yet.
+
+## Cost and accounts
+
+Codewhale is free and MIT licensed. With your own API key you pay the provider
+directly; local models need no key. The footer and `/cost` show what a session
+has cost when the price is known, and an unknown price is shown as unknown,
+never as free.
+
+You don't need an account. Keys you add with `/provider` stay on your machine.
+
+## Safety and privacy
+
+In Ask and Auto-Review, commands run in an OS sandbox where the system has
+one: Seatbelt on macOS, and bubblewrap on Linux when it is installed.
+Windows has no OS sandbox yet, and Full Access turns the sandbox off. Inside
+the sandbox, shell commands cannot read credential stores such as `~/.ssh`,
+`~/.aws` and `.env` files; from 0.10.2 the same rule covers terminal sessions
+and more file tools. `/preview-request` shows a redacted preview of the next
+request without sending it.
+
+Telemetry is on by default. It sends aggregate counts (version and platform,
+session length and outcome, which built-in providers you used, feature and
+error counts) with a random install ID that rotates every 90 days, and never
+conversations, code, prompts, model names, file or repository names, or
+credentials. `codewhale config set telemetry false` turns
+it off. At startup Codewhale also
+checks GitHub for a new release; set `CODEWHALE_NO_UPDATE_CHECK=1` to skip
+that. More in [authorization order](docs/AUTHORIZATION_ORDER.md),
+[sandboxing](docs/SANDBOX.md), and [telemetry](docs/TELEMETRY.md).
 
 ## Documentation
 
-| Start here | Go deeper |
+| Start here | Reference |
 | --- | --- |
 | [Installation](docs/INSTALL.md) | [Configuration](docs/CONFIGURATION.md) |
 | [Providers and local models](docs/PROVIDERS.md) | [Architecture](docs/ARCHITECTURE.md) |
@@ -158,24 +243,23 @@ off.
 
 ## Community
 
-Bug reports, feature ideas, and pull requests are welcome — whether you have
-used Codewhale for months or are trying it for the first time. If a provider is
-missing or a workflow is awkward,
+If a provider is missing or a workflow is awkward,
 [open an issue](https://github.com/codewhale-hq/CodeWhale/issues/new/choose) or
-[send a pull request](CONTRIBUTING.md). First contributions are welcome, and
-contributors keep credit for the work that lands. The
-[repository layout](CONTRIBUTING.md#project-structure) is a good place to start.
+[send a pull request](CONTRIBUTING.md). Contributors keep credit for the work
+that lands, and the [repository layout](CONTRIBUTING.md#project-structure)
+shows where things live.
 
-Join the [Discord](https://discord.gg/37gfS3ksug), or add Hunter on WeChat
-(`hunterbown`) and ask to join the Whale Brothers group.
+Chat on [Discord](https://discord.gg/37gfS3ksug), or add the maintainer,
+Hunter, on WeChat (`hunterbown`) and ask to join the Whale Brothers group.
 
 ## History and license
 
-Codewhale began as `deepseek-tui` and still reads that project's configuration
-and sessions. It is now provider-neutral and independently maintained, and is
-not affiliated with any model provider. Thanks to
-[every contributor](docs/CONTRIBUTORS.md) and to the open-source communities
-that helped it grow.
+Codewhale started as `deepseek-tui` and still reads that project's
+configuration and sessions. It is independently maintained and not affiliated
+with DeepSeek or any other model provider. Thanks to
+[everyone who has contributed](docs/CONTRIBUTORS.md).
 
-[MIT](LICENSE). Portions adapted from other open-source projects are recorded
-in [third-party notices](docs/THIRD_PARTY_NOTICES.md).
+[![Codewhale contributors](docs/assets/contributors.png)](docs/CONTRIBUTORS.md#everyone)
+
+[MIT](LICENSE). Code adapted from other open-source projects is listed in the
+[third-party notices](docs/THIRD_PARTY_NOTICES.md).

@@ -53,7 +53,7 @@ message:
       },
       {
         "source_kind": "context_management",
-        "label": "ACT runtime mode",
+        "label": "WORK runtime mode",
         "source_path": null,
         "activation_reason": "omitted",
         "estimated_tokens": 0,

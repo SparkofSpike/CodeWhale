@@ -406,8 +406,18 @@ pub(crate) fn route_is_valid_for_model(
         saved_provider_model: None,
         base_url_override: Some(config.base_url_for_route(identity)),
         limit_overrides: Vec::new(),
+        // Readiness validates the route the turn would mint, so a custom
+        // table's wire dialect rides here exactly as it does at runtime.
+        wire_override: (kind == ProviderKind::Custom)
+            .then(|| {
+                codewhale_config::provider::wire_dialect_override(
+                    identity.key.as_str(),
+                    config.provider_wire_dialect(identity),
+                )
+            })
+            .flatten(),
     };
-    RouteResolver::new()
+    RouteResolver::bundled()
         .resolve(&request)
         .is_ok_and(|candidate| candidate.validation().ok)
 }
@@ -745,12 +755,56 @@ pub(crate) fn resolve_for_model(
     model: &str,
     checks: &ProviderReadinessSnapshot,
 ) -> ResolvedProviderReadiness {
-    resolve_with_identity(
-        &route_identity_for_model(config, identity, model),
-        credential_state_for_provider(config, identity),
-        route_is_valid_for_model(config, identity, Some(model)),
-        checks,
-    )
+    RouteReadinessScope::for_route(config, identity).resolve(config, model, checks)
+}
+
+/// Route-scoped readiness facts that do not change per model.
+///
+/// [`resolve_for_model`] re-resolves the credential source and the auth class
+/// for every model it is asked about. A caller that asks once per model on one
+/// route walks the credential resolver, secret store included, once per model
+/// for an answer that cannot change between them.
+#[derive(Debug, Clone)]
+pub(crate) struct RouteReadinessScope {
+    identity: ProviderIdentity,
+    endpoint: String,
+    credentials: CredentialState,
+    auth_class: ProviderAuthClass,
+    credential_generation: Option<crate::route_receipt::CredentialGeneration>,
+}
+
+impl RouteReadinessScope {
+    pub(crate) fn for_route(config: &crate::config::Config, identity: &ProviderIdentity) -> Self {
+        Self {
+            identity: identity.clone(),
+            endpoint: crate::route_receipt::endpoint_identity(&config.base_url_for_route(identity)),
+            credentials: credential_state_for_provider(config, identity),
+            auth_class: auth_class_for_provider(config, identity),
+            credential_generation: config.readonly_health_credential_generation(identity),
+        }
+    }
+
+    /// The single-model answer, with the route-scoped facts reused.
+    pub(crate) fn resolve(
+        &self,
+        config: &crate::config::Config,
+        model: &str,
+        checks: &ProviderReadinessSnapshot,
+    ) -> ResolvedProviderReadiness {
+        let route = ProviderRouteIdentity {
+            identity: self.identity.clone(),
+            endpoint: self.endpoint.clone(),
+            model: model.trim().to_string(),
+            auth_class: self.auth_class,
+            credential_generation: self.credential_generation.clone(),
+        };
+        resolve_with_identity(
+            &route,
+            self.credentials,
+            route_is_valid_for_model(config, &self.identity, Some(model)),
+            checks,
+        )
+    }
 }
 
 fn provider_owned_failure(envelope: &ErrorEnvelope) -> bool {

@@ -1094,8 +1094,8 @@ test("web session fetch keeps request proof outside cookies and strips bootstrap
   assert.equal(calls.at(-1).options.headers.get("x-codewhale-web-request"), "memory-proof");
 });
 
-test("web session recovers from the page in an independent tab or without storage", async () => {
-  for (const storedProof of [null, "old-process-proof", "unavailable"]) {
+test("web session uses only its fragment or this tab's stored proof", async () => {
+  for (const storedProof of [null, "this-tab-proof", "unavailable"]) {
     const stored = new Map([["codewhale_web_request_proof", storedProof]]);
     const calls = [];
     const request = createWebSessionFetch({
@@ -1105,17 +1105,14 @@ test("web session recovers from the page in an independent tab or without storag
         if (storedProof === "unavailable") throw new Error("storage unavailable");
         return { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) };
       },
-      pageProof: "current-page-proof",
       fetch: async (_path, options) => { calls.push(options); return { ok: true }; },
     });
     await request("/v1/threads");
     await request("/__codewhale/web/stream-ticket", { method: "POST" });
     assert.equal(calls.length, 2);
+    const expected = storedProof === "this-tab-proof" ? "this-tab-proof" : "";
     for (const options of calls) {
-      assert.equal(options.headers.get("x-codewhale-web-request"), "current-page-proof");
-    }
-    if (storedProof !== "unavailable") {
-      assert.equal(stored.get("codewhale_web_request_proof"), "current-page-proof");
+      assert.equal(options.headers.get("x-codewhale-web-request"), expected);
     }
   }
 });

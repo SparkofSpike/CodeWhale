@@ -5,8 +5,8 @@ import type { HomeDict } from "../types";
 export const home: HomeDict = {
   metaTitle: "Codewhale: agent de programació de codi obert",
   metaDescription: "Codewhale és un agent de programació de codi obert per al terminal. Llegeix, edita i prova projectes amb els teus models allotjats o locals.",
-  heroTitle: "Crea aplicacions i automatitza la teva feina.",
-  heroIntro: "{brand} és un agent de programació de codi obert que llegeix fitxers, escriu codi i executa ordres al terminal. Connecta la teva API de models o un model local i tria quines accions necessiten aprovació.",
+  heroTitle: "L’agent de programació de codi obert per a qualsevol model",
+  heroIntro: "{brand} llegeix el teu projecte, edita fitxers i executa les teves proves des del terminal. Connecta un model allotjat o local i tria quines accions necessiten la teva aprovació.",
   getCodewhale: "Instal·lar Codewhale",
   heroInstallAria: "Ordre d'instal·lació",
   exploreProduct: "Explora Codewhale",
@@ -18,7 +18,7 @@ export const home: HomeDict = {
   currentSource: "Font",
   sourceCandidate: "Sense publicar",
   publishedRelease: "publicada",
-  gainHeading: "Què pots fer",
+  gainHeading: "Crea i automatitza des del terminal",
   gainLede:
     "Descriu què vols crear o automatitzar. Codewhale pot editar fitxers, executar ordres i comprovar el resultat, amb un accés que tu controles.",
   gain: [
@@ -42,7 +42,7 @@ export const home: HomeDict = {
   modelsFacts: [
     [
       "Els teus comptes d’API",
-      "Connecta OpenAI, Anthropic, Google o DeepSeek amb les teves pròpies claus."
+      "Connecta proveïdors com DeepSeek, OpenAI, Anthropic o Google amb les teves pròpies claus. El model predeterminat, deepseek-flash, ara executa DeepSeek-V4.1-Flash."
     ],
     [
       "La teva passarel·la",
@@ -51,6 +51,10 @@ export const home: HomeDict = {
     [
       "La teva inferència",
       "Executa models locals o autoallotjats amb Ollama, vLLM o SGLang."
+    ],
+    [
+      "El teu pla de ChatGPT",
+      "Inicia sessió amb codewhale auth chatgpt per utilitzar un pla de ChatGPT en lloc d’una clau d’API. Experimental."
     ]
   ],
   modelsLink: "Consulta els models i els proveïdors",
@@ -77,23 +81,17 @@ export const home: HomeDict = {
     ],
     [
       "Aplicació web allotjada",
-      "Vista prèvia de desenvolupament",
-      "S’està reconstruint per igualar l’aplicació d’escriptori. Avui pots iniciar sessió i després escriure /rc en una sessió de terminal en execució per continuar-la al web; l’execució de tasques allotjades encara s’està validant."
+      "En desenvolupament",
+      "S’està reconstruint per igualar l’aplicació d’escriptori i encara no està oberta. Per utilitzar-la al navegador ara, executa codewhale web al teu ordinador."
     ],
     [
       "Escriptori",
       "Build de desenvolupament",
-      "L’aplicació nativa que s’està convertint en el client principal de Codewhale: carpetes, converses i connexions de models en una sola finestra. Encara no hi ha cap descàrrega pública."
-    ],
-    [
-      "Ordinadors al núvol",
-      "En desenvolupament",
-      "Ordinadors allotjats que executen les teves tasques."
+      "Una aplicació nativa amb el mateix motor. Revisa i confirma canvis, segueix la feina entre projectes i edita un missatge per tornar-lo a enviar com una branca nova. Encara no hi ha cap descàrrega pública."
     ]
   ],
   availabilityNote:
-    "El terminal, el navegador local i la GUI no necessiten cap compte de Codewhale. La web allotjada i l’aplicació d’escriptori fan servir un compte. Si fas servir la teva pròpia clau de proveïdor, aquest et factura l’ús.",
-  accountLink: "Crear un compte",
+    "El terminal, el navegador local i la GUI no necessiten cap compte de Codewhale. Si fas servir la teva pròpia clau de proveïdor, aquest et factura l’ús.",
   surfacesHeading: "Treballa amb fitxers i eines",
   surfaces: [
     [
@@ -126,7 +124,7 @@ export const home: HomeDict = {
   installGuideLink: "Llegeix la guia d’instal·lació",
   communityHeading: "Contribueix a Codewhale",
   communityBody:
-    "Informa d’un error, millora la documentació o contribueix amb codi a GitHub. També pots crear plugins i compartir fluxos de treball amb altres usuaris.",
+    "{count} persones han contribuït a crear Codewhale. Informa d’un error, millora la documentació o contribueix amb codi a GitHub.",
   communityLinksAria: "Enllaços de la comunitat",
   contribute: "Contribueix a GitHub",
 };

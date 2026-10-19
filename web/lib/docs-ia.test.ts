@@ -97,11 +97,11 @@ describe("sitemap and hreflang preservation", () => {
     const existingEntries = sitemapEntries.filter(
       (entry) => new URL(entry.url).pathname.split("/")[2] !== "ratatui",
     );
-    expect(existingEntries).toHaveLength(114);
+    expect(existingEntries).toHaveLength(110);
     expect(sitemapEntries.filter(entry => entry.url.endsWith("/install")).map(entry => entry.url))
       .toEqual([`${SITE_URL}/en/install`]);
     expect(sitemapEntries.some(entry => entry.url.endsWith("/pricing"))).toBe(false);
-    for (const path of ["/product", "/plugins", "/computer-use", "/signin", "/signup", "/legal/terms", "/legal/privacy"]) {
+    for (const path of ["/product", "/plugins", "/computer-use", "/signin", "/legal/terms", "/legal/privacy"]) {
       expect(
         sitemapEntries.some((entry) => entry.url === `${SITE_URL}/en${path}`),
         path,
@@ -150,8 +150,8 @@ describe("sitemap and hreflang preservation", () => {
     }
   });
 
-  it("indexes public sign-in and create-account routes", () => {
-    for (const path of ["/signin", "/signup"]) {
+  it("indexes sign-in and redirects account creation", () => {
+    for (const path of ["/signin"]) {
       expect(
         sitemapEntries.some((entry) => entry.url === `${SITE_URL}/en${path}`),
         path,
@@ -161,11 +161,12 @@ describe("sitemap and hreflang preservation", () => {
     const entry = webText("components/public-account-entry.tsx");
     expect(entry).toContain("<WhalePose");
     expect(entry).toContain("installLocally");
-    expect(webText("app/[locale]/signin/page.tsx")).toContain('kind="sign-in"');
-    expect(webText("app/[locale]/signup/page.tsx")).toContain('kind="sign-up"');
-    // One identity door in the header; the sign-in page links onward to
-    // account creation.
-    expect(nav).toContain("APP_LOGIN_URL");
+    expect(webText("app/[locale]/signin/page.tsx")).toContain("<PublicAccountEntry locale={locale} />");
+    expect(webText("app/[locale]/signup/page.tsx")).toContain('permanentRedirect(`/${locale}/signin`)');
+    expect(sitemapEntries.some((entry) => entry.url.endsWith("/signup"))).toBe(false);
+    expect(sitemapEntries.some((entry) => entry.url.endsWith("/docs/computers"))).toBe(false);
+    expect(webText("app/[locale]/docs/computers/page.tsx")).toContain('permanentRedirect(`/${locale}/docs/fleet`)');
+    expect(nav).not.toContain("APP_LOGIN_URL");
     expect(nav).not.toContain("APP_SIGNUP_URL");
   });
 });

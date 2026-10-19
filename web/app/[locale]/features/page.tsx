@@ -1,8 +1,8 @@
 import { PageHeader } from "@/components/page-header";
 import { Status, type StatusTone } from "@/components/status-badge";
 import { BUILD_FACTS } from "@/lib/facts";
-import { FEATURE_CATALOGUE, featureDocsHref, type FeatureStatus, type SurfaceStatus } from "@/lib/features";
-import { fill, getFeatures } from "@/lib/i18n/dictionaries";
+import { FEATURE_CATALOGUE, compareVersions, featureDocsHref, type FeatureStatus, type SurfaceStatus } from "@/lib/features";
+import { fill, getFeatures, getHome } from "@/lib/i18n/dictionaries";
 import { buildPageMetadata } from "@/lib/page-meta";
 
 const TONES: Record<FeatureStatus | SurfaceStatus, StatusTone> = {
@@ -32,7 +32,9 @@ export default async function FeaturesPage({ params }: { params: Promise<{ local
             <Status tone={TONES[feature.status]}>{t[feature.status]}</Status>
             {Object.entries(feature.surfaces).map(([surface, state]) => <Status key={surface} tone={TONES[state]}><bdi>{surface.toUpperCase()}</bdi>: {t[state]}</Status>)}
             {feature.flag && <code dir="ltr">{feature.flag}</code>}
-            {feature.since && <code dir="ltr">v{feature.since}</code>}
+            {feature.since && (BUILD_FACTS.latestPublishedRelease && (compareVersions(feature.since, BUILD_FACTS.latestPublishedRelease.version) ?? 0) > 0
+              ? <Status tone="idle">{getHome(locale).sourceCandidate} <bdi>v{feature.since}</bdi></Status>
+              : <code dir="ltr">v{feature.since}</code>)}
           </div>
           <a className="section-link" href={featureDocsHref(feature)}>{feature.docs ? t.docs : t.source}</a>
         </article>)}

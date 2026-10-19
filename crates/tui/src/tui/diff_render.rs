@@ -100,7 +100,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
         }
 
         if is_added(raw) {
-            let content = raw.trim_start_matches('+');
+            let content = &raw[1..];
             collector.extend(render_diff_line(
                 content,
                 width,
@@ -120,7 +120,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
             // A deleted run followed by an added run of the same length is a
             // set of replaced lines: emphasise the words that changed within
             // each pair. Any other shape renders line by line as before.
-            let mut removed = vec![raw.trim_start_matches('-')];
+            let mut removed = vec![&raw[1..]];
             let mut added: Vec<&str> = Vec::new();
             let mut removed_markers: Vec<(usize, &str)> = Vec::new();
             let mut added_markers: Vec<(usize, &str)> = Vec::new();
@@ -135,7 +135,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
                     && let Some(next) = lines.next_if(|next| is_deleted(next))
                 {
                     if removed.len() < INTRALINE_MAX_RUN {
-                        removed.push(next.trim_start_matches('-'));
+                        removed.push(&next[1..]);
                     } else {
                         flush_plain_run(
                             &mut collector,
@@ -148,7 +148,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
                         );
                         render_plain_diff_line(
                             &mut collector,
-                            next.trim_start_matches('-'),
+                            &next[1..],
                             width,
                             &mut old_line,
                             &mut new_line,
@@ -158,7 +158,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
                     }
                 } else if let Some(next) = lines.next_if(|next| is_added(next)) {
                     if added.len() < INTRALINE_MAX_RUN {
-                        added.push(next.trim_start_matches('+'));
+                        added.push(&next[1..]);
                     } else {
                         flush_plain_run(
                             &mut collector,
@@ -180,7 +180,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
                         );
                         render_plain_diff_line(
                             &mut collector,
-                            next.trim_start_matches('+'),
+                            &next[1..],
                             width,
                             &mut old_line,
                             &mut new_line,
@@ -251,8 +251,7 @@ pub fn render_diff_body_bounded(diff: &str, width: u16, max_rows: usize) -> Boun
             continue;
         }
 
-        if raw.starts_with(' ') {
-            let content = raw.trim_start_matches(' ');
+        if let Some(content) = raw.strip_prefix(' ') {
             collector.extend(render_diff_line(
                 content,
                 width,
@@ -712,9 +711,11 @@ fn render_diff_line(
 
 fn format_line_numbers(old_line: Option<usize>, new_line: Option<usize>, marker: char) -> String {
     let old = old_line
+        .filter(|_| marker != '+')
         .map(|value| format!("{value:>LINE_NUMBER_WIDTH$}"))
         .unwrap_or_else(|| " ".repeat(LINE_NUMBER_WIDTH));
     let new = new_line
+        .filter(|_| marker != '-')
         .map(|value| format!("{value:>LINE_NUMBER_WIDTH$}"))
         .unwrap_or_else(|| " ".repeat(LINE_NUMBER_WIDTH));
     format!("{old} {new} {marker} ")

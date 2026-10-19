@@ -67,6 +67,8 @@ pub struct AgentFocus {
     /// on an unchanged message count still triggers a rebuild.
     receipt_count: usize,
     last_refresh: Instant,
+    settled_refreshed: bool,
+    wrapped: Option<(u16, codewhale_palette::UiTheme, Vec<Line<'static>>)>,
 }
 
 impl AgentFocus {
@@ -84,6 +86,8 @@ impl AgentFocus {
             last_total: 0,
             receipt_count: 0,
             last_refresh: Instant::now() - REFRESH_INTERVAL,
+            settled_refreshed: false,
+            wrapped: None,
         }
     }
 
@@ -389,6 +393,14 @@ pub(crate) fn refresh_focus(app: &mut App) {
         return;
     }
     let agent_id = focus.agent_id.clone();
+    let settled = app
+        .subagent_cache
+        .iter()
+        .find(|agent| agent.agent_id == agent_id)
+        .is_some_and(|agent| !matches!(agent.status, SubAgentStatus::Running));
+    if settled && focus.settled_refreshed {
+        return;
+    }
     let (messages, omitted) = resolve_agent_transcript_messages(app, &agent_id);
     let receipts = child_receipts(app, &agent_id).to_vec();
     // The result lands when the agent settles, often with no new message.
@@ -397,8 +409,10 @@ pub(crate) fn refresh_focus(app: &mut App) {
         return;
     };
     focus.last_refresh = Instant::now();
+    focus.settled_refreshed = settled;
     if focus.result != result {
         focus.result = result;
+        focus.wrapped = None;
         app.needs_redraw = true;
     }
     let Some(focus) = app.agent_focus.as_mut() else {
@@ -411,6 +425,7 @@ pub(crate) fn refresh_focus(app: &mut App) {
         return;
     }
     let previous_count = focus.source_message_count;
+    focus.wrapped = None;
     focus.cells = cells_for_messages(&messages, &receipts);
     focus.receipt_count = receipts.len();
     focus.source_message_count = messages.len();
@@ -449,6 +464,7 @@ pub(crate) fn echo_user_follow_up(app: &mut App, text: &str) {
         focus.local_cells.push(HistoryCell::User {
             content: text.to_string(),
         });
+        focus.wrapped = None;
         focus.scroll_top = None;
         app.needs_redraw = true;
     }
@@ -482,6 +498,7 @@ pub(crate) fn apply_follow_up_receipt(
                 focus_agent(app, &receipt.target_agent_id);
                 if let Some(focus) = app.agent_focus.as_mut() {
                     focus.local_cells = carried;
+                    focus.wrapped = None;
                 }
             }
             app.tr(MessageId::AgentFocusFollowUpContinued)
@@ -520,6 +537,7 @@ pub(crate) fn apply_follow_up_receipt(
         focus.local_cells.push(HistoryCell::System {
             content: note.clone(),
         });
+        focus.wrapped = None;
         focus.scroll_top = None;
     }
     app.status_message = Some(note.clone());
@@ -730,14 +748,32 @@ pub(crate) fn render_focus(app: &mut App, area: Rect, buf: &mut Buffer) {
             Style::default().fg(theme.text_muted),
         )));
     }
-    for cell in focus
-        .cells
-        .iter()
-        .chain(result_cells.iter())
-        .chain(focus.local_cells.iter())
+    if !focus
+        .wrapped
+        .as_ref()
+        .is_some_and(|(cached_width, cached_theme, _)| {
+            *cached_width == width && *cached_theme == theme
+        })
     {
-        lines.extend(cell.transcript_lines(width));
-        lines.push(Line::default());
+        let mut body = Vec::new();
+        for cell in focus
+            .cells
+            .iter()
+            .chain(result_cells.iter())
+            .chain(focus.local_cells.iter())
+        {
+            body.extend(cell.transcript_lines(width));
+            body.push(Line::default());
+        }
+        if let Some(focus) = app.agent_focus.as_mut() {
+            focus.wrapped = Some((width, theme, body));
+        }
+    }
+    let Some(focus) = app.agent_focus.as_ref() else {
+        return;
+    };
+    if let Some((_, _, body)) = focus.wrapped.as_ref() {
+        lines.extend(body.iter().cloned());
     }
     let visible = usize::from(area.height.saturating_sub(1)).max(1);
     let total = lines.len();

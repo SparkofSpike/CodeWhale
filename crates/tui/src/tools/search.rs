@@ -181,7 +181,8 @@ impl ToolSpec for GrepFilesTool {
             .map_err(|e| ToolError::invalid_input(format!("Invalid regex pattern: {e}")))?;
 
         // Resolve search path
-        let search_path = context.resolve_path(path_str)?;
+        let search_path =
+            crate::tools::file::resolve_guarded_read_path(context, path_str, "grep_files")?;
 
         let workspace = context.workspace.clone();
         let cancel_token = context.cancel_token.clone();

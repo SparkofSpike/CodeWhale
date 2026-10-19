@@ -539,6 +539,7 @@ mod tests {
                     .to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
         );
         mock.push_message_response(response);

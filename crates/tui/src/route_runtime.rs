@@ -550,6 +550,31 @@ pub(crate) fn resolve_declared_model_candidate(
     model_context_windows: Option<&BTreeMap<String, u32>>,
     models: &[codewhale_config::catalog::configured::ConfiguredModel],
 ) -> Result<RouteCandidateResolution, String> {
+    resolve_declared_model_candidate_with_wire_override(
+        provider,
+        identity,
+        model,
+        base_url,
+        context_window,
+        model_context_windows,
+        models,
+        None,
+    )
+}
+
+/// The picker-facing variant: a browsing row of a custom table passes the
+/// row's own `wire` dialect so the receipt's protocol label matches the wire
+/// a turn would mint.
+pub(crate) fn resolve_declared_model_candidate_with_wire_override(
+    provider: ProviderKind,
+    identity: &str,
+    model: &str,
+    base_url: &str,
+    context_window: Option<u32>,
+    model_context_windows: Option<&BTreeMap<String, u32>>,
+    models: &[codewhale_config::catalog::configured::ConfiguredModel],
+    wire_override: Option<codewhale_config::provider::WireFormat>,
+) -> Result<RouteCandidateResolution, String> {
     let resolver =
         RouteResolver::new().with_configured_models(models, identity, provider, base_url);
     resolve_route_candidate_with_catalog_resolver(
@@ -564,6 +589,7 @@ pub(crate) fn resolve_declared_model_candidate(
         &resolver,
         false,
         false,
+        wire_override,
     )
 }
 
@@ -575,6 +601,30 @@ pub(crate) fn resolve_route_candidate_with_context_metadata(
     context_window_override: Option<u32>,
     model_context_windows: Option<&BTreeMap<String, u32>>,
     provider_reported_context: Option<ProviderReportedKimiCodeContext>,
+) -> Result<RouteCandidateResolution, String> {
+    resolve_route_candidate_with_context_metadata_and_wire_override(
+        provider,
+        model_selector,
+        saved_provider_model,
+        base_url_override,
+        context_window_override,
+        model_context_windows,
+        provider_reported_context,
+        None,
+    )
+}
+
+/// Snapshot variant carrying a custom table's wire dialect (see
+/// [`resolve_declared_model_candidate_with_wire_override`]).
+pub(crate) fn resolve_route_candidate_with_context_metadata_and_wire_override(
+    provider: ProviderKind,
+    model_selector: Option<&str>,
+    saved_provider_model: Option<&str>,
+    base_url_override: Option<String>,
+    context_window_override: Option<u32>,
+    model_context_windows: Option<&BTreeMap<String, u32>>,
+    provider_reported_context: Option<ProviderReportedKimiCodeContext>,
+    wire_override: Option<codewhale_config::provider::WireFormat>,
 ) -> Result<RouteCandidateResolution, String> {
     resolve_route_candidate_with_catalog_resolver(
         provider,
@@ -588,6 +638,7 @@ pub(crate) fn resolve_route_candidate_with_context_metadata(
         &RouteResolver::new(),
         false,
         false,
+        wire_override,
     )
 }
 
@@ -614,6 +665,7 @@ fn route_error_text(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn resolve_route_candidate_with_catalog_resolver(
     provider: ProviderKind,
     model_selector: Option<&str>,
@@ -626,6 +678,7 @@ fn resolve_route_candidate_with_catalog_resolver(
     resolver: &RouteResolver,
     endpoint_catalog_authoritative: bool,
     resolver_reads_models_dev: bool,
+    wire_override: Option<codewhale_config::provider::WireFormat>,
 ) -> Result<RouteCandidateResolution, String> {
     let effective_base_url = base_url_override
         .as_deref()
@@ -640,6 +693,7 @@ fn resolve_route_candidate_with_catalog_resolver(
             .map(|model| WireModelId::from(model.to_string())),
         base_url_override,
         limit_overrides: Vec::new(),
+        wire_override,
     };
     // First pass: resolve the route without overrides to learn the effective
     // endpoint, wire model id, and catalog limits. Candidates are immutable, so
@@ -669,6 +723,7 @@ fn resolve_route_candidate_with_catalog_resolver(
     } else {
         resolve(&RouteRequest {
             limit_overrides: plan.overrides,
+            wire_override: base_request.wire_override,
             ..base_request
         })
         .map_err(route_error)?
@@ -943,6 +998,19 @@ pub(crate) fn resolve_runtime_route_for_identity(
     .flatten();
     let model_selector = model_selector.or(roster_preferred.as_deref());
     let base_url = route_config.active_route_base_url();
+    // A named `[providers.<name>]` table's `wire` dialect rides the resolved
+    // identity's scoped config into the resolver, so the minted candidate is
+    // wire-true for custom tables instead of Custom's backward-compatible
+    // static Chat policy (`wire_dialect_override` degrades unknown values to
+    // that same policy).
+    let wire_override = (provider == ProviderKind::Custom)
+        .then(|| {
+            codewhale_config::provider::wire_dialect_override(
+                identity.key.as_str(),
+                route_config.provider_wire_dialect(&identity),
+            )
+        })
+        .flatten();
     // Every refreshed provider shares the same exact identity/endpoint gate.
     // Codex keeps its separate authenticated account roster and protocol seam.
     let resolution = if provider != ProviderKind::OpenaiCodex {
@@ -999,6 +1067,7 @@ pub(crate) fn resolve_runtime_route_for_identity(
             &catalog.resolver,
             catalog.endpoint_catalog_authoritative,
             true,
+            wire_override,
         )?
     } else {
         resolve_route_candidate_with_catalog_resolver(
@@ -1013,6 +1082,7 @@ pub(crate) fn resolve_runtime_route_for_identity(
             &RouteResolver::new(),
             false,
             false,
+            wire_override,
         )?
     };
     let candidate = resolution.candidate;

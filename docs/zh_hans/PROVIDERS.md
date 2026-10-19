@@ -65,6 +65,16 @@ ID `deepseek-cn`、配置叶子 `deepseek_cn`。固有 kind 是 DeepSeek，表�
 
 没有已保存的模型、没有 `default_text_model`，也没有 `CODEWHALE_MODEL` 或提供商专用的模型环境变量时，全新安装会在 DeepSeek 提供商上运行 `deepseek-flash`。优先级依次是：当前提供商已配置的默认值，然后是它的目录默认值——因此显式设置的 `default_text_model` 不会被随附目录中排在最前的模型悄悄覆盖。
 
+### DeepSeek V4.1 Flash
+
+`deepseek-flash` 是 DeepSeek 最新 Flash 模型的 ID。2026-10-17 起，DeepSeek 把它指向 DeepSeek-V4.1-Flash-1017，调用方式和价格不变。Codewhale 0.10.1 及以后的版本默认就用 `deepseek-flash`，所以无需升级即可使用新模型：
+
+1. 在 <https://platform.deepseek.com/api_keys> 创建 API 密钥。
+2. 运行 `codewhale`，打开 `/provider`（或按 `F3`），选择 DeepSeek 并粘贴密钥。也可以设置 `DEEPSEEK_API_KEY`。
+3. 直接开始任务。想显式指定模型时，运行 `codewhale --provider deepseek --model deepseek-flash`，或在会话中输入 `/model deepseek-flash`。
+
+`deepseek-v4-pro` 是 DeepSeek 更大的模型。已退役的 `deepseek-v4-flash` 和 `deepseek-v4-flash-vision-exp` 仍可调用，DeepSeek 用同一个 Flash 模型响应。在这条路由上，`web_search` 会优先使用 DeepSeek 自己的搜索。
+
 无需安装新的 Codewhale 版本即可刷新模型目录：
 
 ```sh

@@ -234,6 +234,8 @@ impl Engine {
                 .await;
         }
 
+        self.deliver_shell_completions("").await;
+
         // A successful tool step is productive progress, not a runaway
         // synthetic resume. Declared per-task tool budgets and max_steps
         // remain the explicit limits for tool-driven work.

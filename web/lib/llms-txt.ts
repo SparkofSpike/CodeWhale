@@ -91,13 +91,7 @@ const EXTRA_PAGES: readonly { path: string; title: string; description: string }
     path: "/signin",
     title: "Sign in",
     description:
-      "Access your Codewhale account and the app’s development preview. Connect to a terminal session from your browser with /rc.",
-  },
-  {
-    path: "/signup",
-    title: "Create account",
-    description:
-      "Create a Codewhale account to keep your conversations and connected providers together. Using the terminal needs no account.",
+      "Sign in to an existing Codewhale account. New accounts are not open; the terminal needs no account.",
   },
   {
     path: "/legal/terms",

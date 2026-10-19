@@ -612,7 +612,7 @@ pub(crate) fn config_editability_audit(
             "runtime",
             "Shift+Tab",
             codewhale_command_contract::config::ConfigMessage::literal(
-                "Shows the effective Act permission posture; Plan remains Read Only.",
+                "Shows the effective Work permission posture; Plan remains Read Only.",
             ),
         ),
         (

@@ -107,6 +107,7 @@ fn exec_tool(command: &str, status: ToolStatus) -> ExecCell {
         started_at: None,
         duration_ms: None,
         stale_elapsed_since_output_ms: None,
+        waiting: None,
         source: ExecSource::Assistant,
         description: None,
         interaction: None,
@@ -2248,11 +2249,13 @@ fn restored_history_drops_the_wire_reasoning_placeholder() {
                 thinking: "(reasoning omitted)".to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
             ContentBlock::Thinking {
                 thinking: "Actual model reasoning".to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
         ],
     };

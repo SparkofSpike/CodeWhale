@@ -32,8 +32,6 @@ export const chrome: ChromeDict = {
 
   installCta: "Cài đặt →",
 
-  authSignIn: "Đăng nhập",
-
   dateLocale: "vi-VN",
 
   menuOpen: "Mở menu",
@@ -46,7 +44,7 @@ export const chrome: ChromeDict = {
   themeTitle: "Giao diện · tự động / sáng / tối",
 
   footerTagline:
-    "Tạo ứng dụng và tự động hóa công việc với mô hình riêng và công cụ đã kết nối.",
+    "Tác nhân lập trình mã nguồn mở cho terminal và những mô hình bạn chọn.",
   footerProduct: "Sản phẩm",
   footerProject: "Dự án",
   footerDocs: "Tài liệu",

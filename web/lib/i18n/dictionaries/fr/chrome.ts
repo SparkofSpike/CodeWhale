@@ -37,8 +37,6 @@ export const chrome: ChromeDict = {
 
   installCta: "Installer →",
 
-  authSignIn: "Se connecter",
-
   dateLocale: "fr-FR",
 
   menuOpen: "Ouvrir le menu",
@@ -51,7 +49,7 @@ export const chrome: ChromeDict = {
   themeTitle: "Thème · auto / clair / sombre",
 
   footerTagline:
-    "Créez des applications et automatisez le travail avec vos modèles et vos outils connectés.",
+    "L’agent de programmation open source pour votre terminal et les modèles de votre choix.",
   footerProduct: "Produit",
   footerProject: "Projet",
   footerDocs: "Documentation",

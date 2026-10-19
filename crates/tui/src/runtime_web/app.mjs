@@ -495,11 +495,25 @@ export function eventStreamUrl(threadId, latestSeq, ticket = "") {
   return ticket ? `${url}&web_stream_ticket=${encodeURIComponent(ticket)}` : url;
 }
 
-export function createWebSessionFetch({ location, history, storage, fetch, pageProof = "" }) {
+export function approvalRequestText(input) {
+  if (input == null) return "";
+  if (typeof input === "string") return input;
+  if (typeof input !== "object") return String(input);
+  const { command, ...rest } = input;
+  const parts = [];
+  if (typeof command === "string") parts.push(command);
+  const restKeys = Object.keys(rest);
+  if (restKeys.length > 0 || typeof command !== "string") {
+    parts.push(JSON.stringify(typeof command === "string" ? rest : input, null, 2));
+  }
+  return parts.join("\n\n");
+}
+
+export function createWebSessionFetch({ location, history, storage, fetch }) {
   const key = "codewhale_web_request_proof";
   const fragmentProof = new URLSearchParams(location.hash.slice(1)).get("p");
   if (fragmentProof) history.replaceState(null, "", location.pathname + location.search);
-  let proof = pageProof || fragmentProof || "";
+  let proof = fragmentProof || "";
   if (proof) {
     try { storage().setItem(key, proof); } catch (_) { /* Memory-only session. */ }
   } else {
@@ -1081,7 +1095,6 @@ function startBrowserClient() {
     location: window.location,
     history: window.history,
     storage: () => window.sessionStorage,
-    pageProof: document.querySelector('meta[name="codewhale-web-request"]')?.content,
     fetch: (...args) => fetch(...args),
   });
 
@@ -1743,7 +1756,15 @@ function startBrowserClient() {
     const title = element("h2", "", approval.tool_name || "Tool request");
     title.id = titleId;
     card.append(title);
-    card.append(element("p", "", approval.intent_summary || approval.description || "Codewhale is waiting for permission."));
+    card.append(element("p", "", approval.summary || approval.description || "Codewhale is waiting for permission."));
+    if (approval.summary && approval.description && approval.description !== approval.summary) {
+      card.append(element("p", "approval-reason", approval.description));
+    }
+    const request = approvalRequestText(approval.input);
+    if (request) card.append(element("pre", "approval-request", request));
+    if (approval.intent_summary) {
+      card.append(element("p", "approval-claim", `The model says: ${approval.intent_summary}`));
+    }
     const actions = element("div", "attention-actions");
     const rememberLabel = element("label", "remember-field");
     const remember = document.createElement("input");

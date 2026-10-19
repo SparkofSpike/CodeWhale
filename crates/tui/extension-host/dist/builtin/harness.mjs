@@ -671,6 +671,16 @@ function ordered(value) {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, value2]) => [key, ordered(value2)]));
   return value;
 }
+function intent(value) {
+  const commits = value === void 0 ? "" : text3(value);
+  return commits.trim() ? `The author's commit messages for this range follow. They state what the change is meant to do; check them against the diff rather than trusting them.
+
+${commits}
+
+End of commit messages.
+
+` : "";
+}
 function source(input) {
   const kind = text3(input.kind);
   if (kind === "file") {
@@ -687,7 +697,7 @@ End of file.`;
 ${text3(input.diff)}
 
 End of diff.`;
-  if (kind === "cli_diff") return `Review the following diff and provide feedback:
+  if (kind === "cli_diff") return `${intent(input.commits)}Review the following diff and provide feedback:
 
 ${text3(input.diff)}
 

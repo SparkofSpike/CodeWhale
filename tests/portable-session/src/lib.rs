@@ -14,6 +14,7 @@ mod tests {
             [
                 "rename",
                 "title",
+                "color",
                 "save",
                 "fork",
                 "new",

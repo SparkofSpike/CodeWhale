@@ -177,7 +177,12 @@ fn analyze_workflow_launch(
     config: &WorkflowConfigToml,
 ) -> WorkflowPlanApprovalSummary {
     if let Some(plan) = input.get("plan").filter(|v| v.is_object()) {
-        return analyze_plan_object(plan, optional_u64(input, "token_budget"), config);
+        if plan.get("nodes").is_none() {
+            return analyze_plan_object(plan, optional_u64(input, "token_budget"), config);
+        }
+        if let Ok(spec) = crate::tools::workflow::structured_plan_to_workflow_spec(plan) {
+            return analyze_workflow_spec(&spec, optional_u64(input, "token_budget"), config);
+        }
     }
 
     // script / source_path — conservative elevated unless clearly status-only.
@@ -428,21 +433,6 @@ fn analyze_plan_object(
         &mut worktree,
         default_mode_is_write,
     );
-    // IR nodes escape hatch
-    if let Some(nodes) = plan.get("nodes").and_then(Value::as_array) {
-        walk_nodes(
-            nodes,
-            &mut child_labels,
-            &mut child_count,
-            &mut phase_count,
-            &mut writes,
-            &mut shell,
-            &mut network,
-            &mut secrets,
-            &mut worktree,
-            default_mode_is_write,
-        );
-    }
 
     if default_mode_is_write {
         writes = true;
@@ -725,83 +715,6 @@ fn script_tool_authority(script: &str) -> ToolAuthority {
         }
     }
     authority
-}
-
-#[allow(clippy::too_many_arguments)]
-fn walk_nodes(
-    nodes: &[Value],
-    labels: &mut Vec<String>,
-    count: &mut usize,
-    phase_count: &mut usize,
-    writes: &mut bool,
-    shell: &mut bool,
-    network: &mut bool,
-    secrets: &mut bool,
-    worktree: &mut bool,
-    default_mode_is_write: bool,
-) {
-    for node in nodes {
-        if let Some(agent) = node.get("agent") {
-            collect_children(
-                Some(&vec![agent.clone()]),
-                labels,
-                count,
-                writes,
-                shell,
-                network,
-                secrets,
-                worktree,
-                default_mode_is_write,
-            );
-        }
-        if let Some(branch) = node.get("branch") {
-            *phase_count += 1;
-            collect_children(
-                branch.get("children").and_then(Value::as_array),
-                labels,
-                count,
-                writes,
-                shell,
-                network,
-                secrets,
-                worktree,
-                default_mode_is_write,
-            );
-        }
-        if let Some(seq) = node.get("sequence") {
-            *phase_count += 1;
-            if let Some(children) = seq.get("children").and_then(Value::as_array) {
-                walk_nodes(
-                    children,
-                    labels,
-                    count,
-                    phase_count,
-                    writes,
-                    shell,
-                    network,
-                    secrets,
-                    worktree,
-                    default_mode_is_write,
-                );
-            }
-        }
-        if let Some(kind) = node.get("kind").and_then(Value::as_str)
-            && kind == "leaf"
-            && let Some(spec) = node.get("spec")
-        {
-            collect_children(
-                Some(&vec![spec.clone()]),
-                labels,
-                count,
-                writes,
-                shell,
-                network,
-                secrets,
-                worktree,
-                default_mode_is_write,
-            );
-        }
-    }
 }
 
 fn script_suggests_writes(script: &str) -> bool {

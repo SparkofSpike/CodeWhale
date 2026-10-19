@@ -177,12 +177,12 @@ jobs:
           ref: ${{ needs.resolve.outputs.sha }}
           path: infra
       - name: Download Codewhale release binary
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ${{ matrix.cli_artifact }}
           path: docker-context/bin
       - name: Download codew release alias
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ${{ matrix.shim_artifact }}
           path: docker-context/bin
@@ -292,7 +292,7 @@ jobs:
           ref: ${{ needs.resolve.outputs.sha }}
           path: infra
       - name: Download native image digests
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: digests
           pattern: docker-digest-*
@@ -398,7 +398,7 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: codewhale-release-assets
           path: artifacts

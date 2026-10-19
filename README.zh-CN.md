@@ -1,4 +1,4 @@
-<!-- source: README.md sha256:75bb6a506af5 -->
+<!-- source: README.md sha256:eefdc9e645b6 -->
 <div align="center">
 
 <picture>
@@ -6,10 +6,11 @@
   <img src="brand/wordmark.svg" alt="Codewhale" width="320">
 </picture>
 
-**支持任意模型的开源编码智能体。**
+**在终端中运行、可搭配任意模型的开源编程智能体。**
 
-Codewhale 会读取你的项目、编辑文件、运行命令并检查自己的工作——
-在你的终端中，使用你选择的托管模型或本地模型。
+给 Codewhale 一个任务，它会读取仓库、编辑文件、运行命令，直到任务完成或需要你提供输入为止。
+它支持超过 40 个内置提供商（默认使用 DeepSeek V4.1 Flash），也支持在你自己机器上运行的模型。
+`/receipts` 会列出它修改过的文件、运行过的命令，以及它发起的 Web 和 MCP 调用。
 
 [![CI](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml/badge.svg)](https://github.com/codewhale-hq/CodeWhale/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/codewhale-cli?label=crates.io)](https://crates.io/crates/codewhale-cli)
@@ -23,7 +24,7 @@ Codewhale 会读取你的项目、编辑文件、运行命令并检查自己的�
 
 <img src="web/public/codewhale-tui-0102-demo.png" alt="一次 Codewhale 终端会话" width="760">
 
-<sub>已配置的本地演示会话中的真实 Codewhale 终端截图。</sub>
+<sub>一个使用脚本化测试模型的 0.10.2 开发版本，在一次性工作区中以“完全访问”权限运行。其中的编辑、三个测试和一次子智能体审查都是真实运行的。</sub>
 
 </div>
 
@@ -35,10 +36,10 @@ macOS 和 Linux：
 curl -fsSL https://codewhale.net/install.sh | sh
 ```
 
-安装器会将经过校验和验证的二进制文件下载到 `~/.local/bin`。如果之后运行
-`codewhale` 提示 "command not found"，请运行安装器打印出的那一行 PATH 命令，或参阅
-[将它加入 PATH](docs/INSTALL.md#put-it-on-your-path)。
-随时可以通过 `codewhale update` 升级。
+安装器会把经过校验和验证的 `codewhale` 及其简短别名 `codew` 放到 `~/.local/bin`。
+如果之后 shell 提示 `command not found`，请运行安装器打印出的那行 PATH 命令
+（[详情](docs/INSTALL.md#put-it-on-your-path)）。使用 `codewhale update` 升级。这些命令安装的是最新发布版本。
+本页跟随 `main` 更新，因此标注了版本号的功能会在该版本中推出；[更新日志](CHANGELOG.md)列出了每个版本新增的内容。
 
 <details>
 <summary><b>Windows、npm、Cargo 及其他安装方式</b></summary>
@@ -46,98 +47,164 @@ curl -fsSL https://codewhale.net/install.sh | sh
 ```bash
 winget install HunterBown.CodeWhale  # Windows x64 (or Scoop, or the installer from GitHub Releases)
 npm install -g codewhale            # wraps the same release binaries
-cargo install codewhale-cli --locked  # build from crates.io
+cargo install codewhale-cli --locked  # crates.io; can trail GitHub Releases
 ```
 
-Docker、Nix、Linux 上的 Homebrew、Android/Termux、带校验和验证的手动下载，
-以及可选的 CNB 镜像，都在[安装指南](docs/INSTALL.md)中说明。请只选择一种方式：
-同一台机器上安装多份，最终会在 `PATH` 上互相冲突。
+预编译二进制文件覆盖 Linux、macOS 和 Windows 的 x64 与 arm64 架构。Nix、Linux 上的
+Homebrew、Android/Termux（预览版）以及手动下载见[安装指南](docs/INSTALL.md)，容器见
+[Docker](docs/DOCKER.md)。每台机器只使用一种安装方式；否则 `PATH` 上会出现两份副本，
+排在前面的那一份生效。
 
 </details>
 
 ## 快速开始
 
-**在一个地方管理你的模型 API 密钥。** [注册 Codewhale 账号](https://app.codewhale.net/register)，
-或运行 `codewhale login` 登录。将密钥保存到账号后，可以集中更新，并在已登录的设备上
-通过 Codewhale 模型通道使用。[设置账号密钥](docs/zh_hans/CONFIGURATION.md#账号提供商密钥)（[英文版](docs/CONFIGURATION.md#account-provider-keys)）。
-登录不会自动上传已有的本地密钥；不注册账号也可以继续在本地使用。
-
-1. **打开你的项目。** 在要处理的文件夹中运行 `codewhale`。
-2. **连接模型。** 运行 `/provider`（或按 `F3`）添加托管服务的密钥，或选择本地运行时。
-   如果 Ollama 已在运行并带有聊天模型，Codewhale 会自动切换到它。使用 `/model` 更换模型。
-3. **给它一个具体的任务。**
+1. 先提交或 stash 你的改动，然后在 git 仓库的根目录运行 `codewhale`。默认情况下，
+   它会直接在这里应用文件编辑而不询问，并向你展示 diff。
+2. 运行 `/provider`（或按 `F3`），选择一个提供商，粘贴它的 API 密钥，然后选择模型。
+   默认提供商是 DeepSeek。没有密钥时，可以改选本地运行时。如果尚未配置任何提供商，
+   而 Ollama 已经在提供聊天模型，Codewhale 会自动使用它；
+   从 0.10.2 起，它会在你发送第一条消息时提议使用它。
+3. 输入一个任务：
 
 ```text
 Fix the failing tests and explain what changed.
 ```
 
-同一任务也可以在脚本或 CI 作业中以无界面方式运行：
+只读命令会直接运行。其他任何 shell 命令，Codewhale 都会先询问：`y` 运行这一次，
+`a` 在本次对话接下来的时间里允许类似的命令，`n` 拒绝。`/undo` 会撤销你的上一个请求及其
+文件改动（在 0.10.1 中，需先运行 `/trust on`）。`/help` 列出命令和按键。
+
+在脚本和 CI 中，`codewhale exec` 不启动界面，只运行一个任务。加上 `--auto` 后，
+它会不经询问就编辑文件和运行 shell 命令，所以请在容器或一次性的检出副本中运行它：
 
 ```bash
 codewhale exec --auto "fix the failing tests and explain what changed"
 ```
 
-运行 `/help` 查看命令和键盘快捷键。
-
-## 运行方式
-
-所有客户端都驱动同一个本地 Codewhale Runtime，因此会话、工具和权限在各处的行为一致。
-
-| 命令 | 作用 |
-| --- | --- |
-| `codewhale` | 交互式终端界面 |
-| `codewhale exec "…"` | 在脚本或 CI 中执行一次无界面对话轮次；`--auto` 允许使用文件和 shell 工具，`--output-format stream-json` 以流式输出 JSON |
-| `codewhale web` | 内置的[本地浏览器客户端](docs/WEB.md)，监听 `127.0.0.1` |
-| `codewhale review --pr N` | 仅供参考的[拉取请求审查](docs/GITHUB_ACTION.md)；是否发布评论需主动开启 |
-| Runtime API | 用于线程、事件和审批的[本地 HTTP API](docs/RUNTIME_API.md) |
-
-原生桌面应用（GPUI）正在作为需登录的产品客户端开发中；开放情况见
-[产品页面](https://codewhale.net/en/product)。由社区维护的
-[VS Code 扩展](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
-可在侧边栏中连接同一个 Runtime（[源码](https://github.com/HengQuWorld/CodeWhale-VSCode)）。
-
-## 功能
-
-- **任意模型，不被锁定。** 内置超过 40 条提供商路由——Anthropic、DeepSeek、Google、
-  Mistral、Moonshot、OpenAI、OpenRouter、xAI 等——还支持任何兼容 OpenAI 的端点，
-  以及通过 Ollama、vLLM 或 SGLang 运行的本地模型。[提供商](docs/PROVIDERS.md)
-- **由你掌控。** Plan 模式只探索、不做任何改动；Work 和 Operate 会进行修改。
-  审批姿态决定工具调用何时需要你的确认，`/undo` 和 `/restore` 可恢复工作区改动，
-  `/receipts` 会列出一次会话中的每个文件、命令和审批。[模式](docs/MODES.md) ·
-  [回执](docs/RECEIPTS.md)
-- **为长时间任务而设计。** 设定持久的 `/goal`，把有边界的工作委派给
-  [子智能体](docs/SUBAGENTS.md)，运行带有预算检查的受监督[智能体团队](docs/FLEET.md)，
-  或将它们编写为可纳入版本库的[工作流](docs/WORKFLOW_AUTHORING.md)。
-- **扩展你已在使用的工具。** 连接 [MCP 服务器](docs/MCP.md)，安装
-  [技能](docs/SKILLS.md)和[插件](docs/PLUGINS.md)，在会话和工具事件上运行
-  [钩子](docs/HOOKS.md)，并加载现有的 [Claude Code 插件](docs/CLAUDE_PLUGIN_COMPAT.md)。
-- **Computer Use。** 内置插件提供观察和操作其他应用的工具。使用前请先查看其访问范围并启用。
-  [指南](crates/tui/plugins/computer-use/README.md)
-
 ## 模式与权限
+
+全新安装后，默认处于 Work 模式和“询问”权限。
 
 | | 切换方式 | 选项 |
 | --- | --- | --- |
-| **模式（Mode）**——智能体正在做什么 | `Tab` 或 `/mode` | Plan（探索，不做改动）· Work（编辑并运行）· Operate（通过有计划、可验证的步骤推进一个目标） |
-| **姿态（Posture）**——何时先征求同意 | `Shift+Tab` | Ask · Auto-Review · Full Access |
+| 模式 | `Tab`（输入框为空时）或 `/mode` | **Plan** 只读取和搜索，不做任何改动。**Work** 编辑文件并运行命令。**Operate** 拥有与 Work 相同的访问权限，把你的请求当作一个目标，并持续推进，直到目标得到验证或需要你提供输入为止。 |
+| 权限 | `Shift+Tab` | **询问**（Ask）在你的仓库中直接应用文件编辑而不询问，并在运行非只读的 shell 命令之前先询问。**自动审核**（Auto-Review）让规则和一个审查模型批准常规调用，并拒绝高风险调用；如需亲自批准这些调用，请切换到“询问”。**完全访问**（Full Access）从不询问，并关闭 Codewhale 的沙箱；仓库规则和受管策略仍然适用。 |
 
-Full Access 仍然遵守硬性策略边界。
-[模式与权限指南](docs/MODES.md)对每个选项都有说明。
+详情见[模式与权限指南](docs/MODES.md)。
 
-## 安全
+## 功能
 
-Codewhale 在你的机器上运行，只拥有你授予它的访问权限。审批姿态和仓库规则会限制智能体可以做的事，
-在支持的平台上，命令会在操作系统沙箱中运行（macOS 上为 Seatbelt；Linux 上的 bubblewrap 在已安装且可用时）。
-`/preview-request` 会在发送任何内容之前显示经过脱敏的完整请求。
-未知的模型价格会保持"未知"，而不会被报告为免费。
+### 即将在 0.10.2 中推出
 
-参见[授权顺序](docs/AUTHORIZATION_ORDER.md)、
-[沙箱](docs/SANDBOX.md)和[遥测](docs/TELEMETRY.md)——使用量计数默认开启，
-运行 `codewhale config set telemetry false` 即可关闭。
+这些功能已合并到 `main`，但尚未包含在任何已发布的版本中；
+[构建 `main`](docs/INSTALL.md#test-and-contribute-to-current-source) 即可立即试用。
+
+- `/pet on` 会把你的终端变成一头动画鲸鱼，展示智能体正在做什么，同时消息框仍可正常使用。
+  它的 980 个粒子会用英文、中文或日文拼出当前步骤。
+- `/workbar terminal` 会实时显示智能体正在运行的 shell。你可以在其中输入，
+  也可以按 `Ctrl+N` 打开一个你自己的 shell（macOS 和 Linux）。
+- `/undo` 一步撤销你的整个上一个请求，包括它修改过的每个文件；`/diff` 也可以在没有 Git
+  的文件夹中使用。
+- 当一个计划结束时仍有未完成的步骤，Codewhale 会询问你是以“询问”还是“自动审核”权限开始
+  Work，还是继续规划。
+- `/color` 为每个对话设置各自的输入框颜色，并随会话一起保存。
+- `web_search` 可以使用 DeepSeek 新推出的 Search API：在拥有 DeepSeek 密钥的情况下设置
+  `[search] provider = "deepseek"`。
+- 在“完全访问”之外，会上传凭据的 `curl` 或 `wget` 命令未经你批准绝不会运行，
+  隐藏了不可见 Unicode 字符的命令会被拒绝。`write` 不再替换智能体尚未读取过的文件，
+  也不再替换在它读取之后发生过变化的文件。
+
+### 模型
+
+内置超过 40 个提供商，包括 Anthropic、OpenAI、DeepSeek、Google、Mistral、Moonshot、
+OpenRouter 和 xAI。任何兼容 OpenAI 的端点都可以使用，通过 Ollama、vLLM 或 SGLang
+运行的本地模型也可以。默认模型是 DeepSeek 的 `deepseek-flash`，DeepSeek 已于 2026-10-17
+将其切换为 DeepSeek-V4.1-Flash-1017；0.10.1 无需更新即可运行它
+（[详情](docs/PROVIDERS.md#deepseek-v41-flash)）。
+
+`/model` 可在回合之间切换模型，`/model auto` 会为每个回合挑选一个模型（用 `/router`
+设置挑选方式）。`/turn inspect` 显示某个回合使用了哪个模型、花费多少以及耗时多久。
+`codewhale auth chatgpt` 让你可以用 ChatGPT 套餐代替 API 密钥（实验性）。
+参见[提供商](docs/PROVIDERS.md)。
+
+### 回执与撤销
+
+`/receipts`（退出后可用 `codewhale receipts --last`）会列出修改过的文件、运行过的命令、
+Web 和 MCP 调用、启动过的智能体、审批及审批人，以及失败记录。`/undo` 撤销你的上一个请求；
+在 0.10.1 中，撤销文件改动需要 `/trust on`，而且每次只回退一个工具调用。`/restore` 把整个工作区回滚到更早的快照；由于这会覆盖之后的编辑，它需要 `/trust on`
+或“完全访问”权限。参见[回执](docs/RECEIPTS.md)。
+
+### 更长的任务
+
+`/goal` 设定一个跨回合持续有效的目标。Codewhale 可以把工作拆分给
+[子智能体](docs/SUBAGENTS.md)，运行由多个智能体组成的 [Fleet](docs/FLEET.md)，
+或者按照提交到仓库中的[工作流](docs/WORKFLOW_AUTHORING.md)执行。
+
+### 从其他智能体迁移
+
+Codewhale 会自动读取 `AGENTS.md`。为其他工具编写的指令文件，例如 `CLAUDE.md`、
+`.cursorrules` 或 `.github/copilot-instructions.md`，只有在你于配置中设置
+`project_instruction_imports = ["claude"]`（或 `"cursor"`、`"cline"`、`"windsurf"`、
+`"copilot"`、`"all"`）主动启用后才会加载；参见 [config.example.toml](config.example.toml)。
+如果 Codewhale 发现了未加载的此类文件，会给出警告。
+
+`/import-claude` 会准备一份导入你的 Claude Code 设置和 MCP 服务器的方案，供你审阅。
+`/plugin install` 接受包含技能、命令、智能体配置文件和 MCP 服务器的 Claude Code 插件，
+但会拒绝需要钩子或 LSP 服务器的插件（[详情](docs/CLAUDE_PLUGIN_COMPAT.md)）。
+
+### 扩展
+
+连接 [MCP 服务器](docs/MCP.md)，添加[技能](docs/SKILLS.md)和[插件](docs/PLUGINS.md)，
+并在会话和工具事件上运行[钩子](docs/HOOKS.md)。代码模式（Code mode，实验性，默认开启）
+让模型编写一个 `execute_tools` 程序来调用多个 MCP 和插件工具；每次调用仍要遵守你的审批规则，
+并保留各自的回执。内置的 Computer Use 插件（实验性，
+仅限 macOS）可以观察和操作其他应用。在你审阅其访问权限并启用之前，它保持关闭
+（[指南](crates/tui/plugins/computer-use/README.md)）。
+
+## 运行方式
+
+| 命令 | 作用 |
+| --- | --- |
+| `codewhale` | 交互式终端应用 |
+| `codewhale exec "…"` | 不启动界面，运行一个任务。单独使用时，它只作答而不使用工具；`--auto` 允许它编辑文件和运行命令，`--output-format stream-json` 以 JSON 形式流式输出事件 |
+| `codewhale web` | 监听 `127.0.0.1` 的本地 Web 界面（[指南](docs/WEB.md)） |
+| `codewhale review --pr N` | 对 GitHub PR 进行仅供参考的审查。除非你加上 `--post`，否则它不会发布任何内容；[GitHub Action](docs/GITHUB_ACTION.md) 会在 CI 中运行同样的审查 |
+| `codewhale app-server --http` | [Runtime API](docs/RUNTIME_API.md)，用于对话线程、事件、审批以及每个回合文件改动的本地 HTTP API |
+| `codewhale serve --acp` | 通过 stdio 提供 Agent Client Protocol，供 Zed 等编辑器使用 |
+
+终端应用、`exec`、`web` 和 Runtime API 共用同一个引擎（[架构](docs/ARCHITECTURE.md)）。
+社区维护的
+[VS Code 扩展](https://marketplace.visualstudio.com/items?itemName=HengQuWorld.brotherwhale-vscode)
+可以从侧边栏连接到它（[源码](https://github.com/HengQuWorld/CodeWhale-VSCode)）。
+基于 Runtime API 构建的原生桌面应用正在开发中，目前还没有公开下载。
+
+## 费用与账号
+
+Codewhale 免费，采用 MIT 许可证。使用你自己的 API 密钥时，费用直接付给提供商；
+本地模型不需要密钥。价格已知时，底部状态栏和 `/cost` 会显示一次会话的花费；
+价格未知时会显示为未知，而不会显示为免费。
+
+你不需要账号。通过 `/provider` 添加的密钥会留在你的机器上。
+
+## 安全与隐私
+
+在“询问”和“自动审核”权限下，只要系统提供操作系统沙箱，命令就会在其中运行：
+macOS 上是 Seatbelt，Linux 上是 bubblewrap（需已安装）。Windows 目前还没有操作系统沙箱，
+而“完全访问”会关闭沙箱。在沙箱内，shell 命令无法读取 `~/.ssh`、`~/.aws` 和 `.env`
+文件等凭据存储；从 0.10.2 起，同样的规则也适用于终端会话和更多文件工具。
+`/preview-request` 会显示下一次请求经过脱敏的预览，但不会发送它。
+
+遥测默认开启。它发送汇总计数（版本和平台、会话时长和结果、你使用了哪些内置提供商、
+功能和错误计数），并附带一个每 90 天轮换一次的随机安装 ID；它从不包含对话、代码、提示词、
+模型名称、文件名或仓库名，也从不包含凭据。运行 `codewhale config set telemetry false` 即可关闭。启动时，Codewhale 还会
+检查 GitHub 上是否有新版本；设置 `CODEWHALE_NO_UPDATE_CHECK=1` 可跳过这一检查。
+更多信息见[授权顺序](docs/AUTHORIZATION_ORDER.md)、[沙箱](docs/SANDBOX.md)和
+[遥测](docs/TELEMETRY.md)。
 
 ## 文档
 
-| 从这里开始 | 深入了解 |
+| 从这里开始 | 参考 |
 | --- | --- |
 | [安装](docs/INSTALL.md) | [配置](docs/CONFIGURATION.md) |
 | [提供商与本地模型](docs/PROVIDERS.md) | [架构](docs/ARCHITECTURE.md) |
@@ -147,21 +214,19 @@ Codewhale 在你的机器上运行，只拥有你授予它的访问权限。审�
 
 ## 社区
 
-欢迎提交缺陷报告、功能想法和拉取请求——无论你已使用 Codewhale 数月，还是第一次尝试。
-如果缺少某个提供商，或某个工作流不顺手，
+如果缺少某个提供商，或某个工作流用起来不顺手，
 请[提交 issue](https://github.com/codewhale-hq/CodeWhale/issues/new/choose)或
-[发送拉取请求](CONTRIBUTING.md)。欢迎首次贡献，
-被合并的工作会保留贡献者的署名。
-[仓库结构](CONTRIBUTING.md#project-structure)是一个不错的起点。
+[提交 PR](CONTRIBUTING.md)。被合并的工作会保留贡献者的署名；
+[仓库结构](CONTRIBUTING.md#project-structure)说明了各部分代码所在的位置。
 
-欢迎加入 [Discord](https://discord.gg/37gfS3ksug)，或在微信上添加 Hunter
+欢迎在 [Discord](https://discord.gg/37gfS3ksug) 上交流，或在微信上添加维护者 Hunter
 （`hunterbown`），申请加入 Whale Brothers 群。
 
 ## 历史与许可证
 
-Codewhale 最初名为 `deepseek-tui`，至今仍会读取该项目的配置和会话。
-它现在与具体提供商无关，由独立团队维护，与任何模型提供商均无隶属关系。
-感谢[每一位贡献者](docs/CONTRIBUTORS.md)，以及帮助它成长的开源社区。
+Codewhale 最初名为 `deepseek-tui`，至今仍会读取该项目的配置和会话。它是独立维护的项目，
+与 DeepSeek 或任何其他模型提供商均无隶属关系。感谢[每一位贡献者](docs/CONTRIBUTORS.md)。
 
-[MIT](LICENSE)。改编自其他开源项目的部分记录在
-[第三方声明](docs/THIRD_PARTY_NOTICES.md)中。
+[![Codewhale contributors](docs/assets/contributors.png)](docs/CONTRIBUTORS.md#everyone)
+
+[MIT](LICENSE)。改编自其他开源项目的代码列在[第三方声明](docs/THIRD_PARTY_NOTICES.md)中。

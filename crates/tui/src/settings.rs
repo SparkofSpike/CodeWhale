@@ -375,7 +375,7 @@ pub struct Settings {
     pub composer_vim_mode: String,
     /// Transcript spacing rhythm: compact, comfortable, spacious
     pub transcript_spacing: String,
-    /// Default mode: "agent" (Act), "plan", or "operate". Legacy permission
+    /// Default mode: "agent" (Work), "plan", or "operate". Legacy permission
     /// shorthands are accepted for migration but never advertised as modes.
     pub default_mode: String,
     /// Legacy sidebar width as percentage of terminal width. Load-only
@@ -1704,14 +1704,14 @@ impl Settings {
                 self.workspace_follow_symlinks = parse_bool(value)?;
             }
             "default_mode" | "mode" => {
-                // Act (wire: agent), Plan, and Operate are valid startup modes.
+                // Work (wire: agent), Plan, and Operate are valid startup modes.
                 // yolo remains a permission-migration alias, not a mode write.
                 self.default_mode = match value.trim().to_ascii_lowercase().as_str() {
                     "agent" | "normal" | "act" | "work" | "edit" => "agent".to_string(),
                     "plan" => "plan".to_string(),
                     "operate" | "operation" | "ops" => "operate".to_string(),
                     _ => anyhow::bail!(
-                        "Failed to update setting: invalid mode '{value}'. Expected: act (agent), plan, or operate."
+                        "Failed to update setting: invalid mode '{value}'. Expected: work (agent), plan, or operate."
                     ),
                 };
             }
@@ -5268,7 +5268,7 @@ zai = ["GLM-5.2", "GLM-5.3"]
             .set("default_mode", "yolo")
             .expect_err("yolo remains a permission migration alias, not a mode write");
         assert!(
-            err.to_string().contains("act (agent), plan, or operate"),
+            err.to_string().contains("work (agent), plan, or operate"),
             "{err}"
         );
     }

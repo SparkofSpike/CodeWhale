@@ -43,9 +43,9 @@ describe("task-based docs index", () => {
     }
   });
 
-  it("covers the PRD reference set: auth, computers, providers, trust, troubleshooting", () => {
+  it("covers the public reference set: auth, fleet, providers, trust, troubleshooting", () => {
     const topicIds = new Set(DOC_TASKS.map((t) => t.topicId));
-    for (const id of ["auth", "computers", "providers", "trust", "troubleshooting", "subagents"]) {
+    for (const id of ["auth", "fleet", "providers", "trust", "troubleshooting", "subagents"]) {
       expect(topicIds.has(id), id).toBe(true);
       expect(DOC_TOPICS.some((t) => t.id === id && t.hasPage), `${id} page`).toBe(true);
     }
@@ -53,8 +53,8 @@ describe("task-based docs index", () => {
 
   it("searches across both languages regardless of locale", () => {
     const hay = DOC_TASKS.map(docTaskHaystack);
-    expect(hay.some((h) => h.includes("dispatch"))).toBe(true);
-    expect(hay.some((h) => h.includes("云端"))).toBe(true);
+    expect(hay.some((h) => h.includes("workflow"))).toBe(true);
+    expect(hay.some((h) => h.includes("工作流"))).toBe(true);
     expect(hay.some((h) => h.includes("/docs/trust"))).toBe(true);
   });
 

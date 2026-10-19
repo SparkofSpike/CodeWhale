@@ -720,7 +720,7 @@ fn gather_files(files: &[String], context: &ToolContext) -> Vec<EvidenceBlock> {
         if raw.is_empty() {
             continue;
         }
-        match context.resolve_path(raw) {
+        match crate::tools::file::resolve_guarded_read_path(context, raw, "verify") {
             Ok(path) => match std::fs::read_to_string(&path) {
                 Ok(content) => {
                     let display = path

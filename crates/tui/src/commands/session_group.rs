@@ -46,6 +46,7 @@ impl CommandGroup for SessionCommands {
             let commands: Vec<Box<dyn Command>> = vec![
                 Box::new(ContextualCommand::from_contract::<HostRegistration<rename::RenameCmd>>().expect("session registration")),
                 Box::new(ContextualCommand::from_contract::<HostRegistration<title::TitleCmd>>().expect("session registration")),
+                Box::new(ContextualCommand::from_contract::<HostRegistration<color::ColorCmd>>().expect("session registration")),
                 Box::new(ContextualCommand::from_contract::<HostRegistration<save::SaveCmd>>().expect("session registration")),
                 Box::new(ContextualCommand::from_contract::<HostRegistration<fork::ForkCmd>>().expect("session registration")),
                 Box::new(ContextualCommand::from_contract::<HostRegistration<new::NewCmd>>().expect("session registration")),

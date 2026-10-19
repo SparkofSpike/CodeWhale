@@ -36,7 +36,7 @@ use unicode_normalization::UnicodeNormalization;
 /// A file's hash is taken over its raw bytes, always before any windowing,
 /// truncation, or rendering, so the value `read` reports is the value `write`,
 /// `edit`, and `patch` verify.
-pub(super) fn content_hash(bytes: &[u8]) -> String {
+pub(crate) fn content_hash(bytes: &[u8]) -> String {
     format!("sha256:{}", crate::hashing::sha256_hex(bytes))
 }
 
@@ -1698,6 +1698,9 @@ impl WriteFileTool {
 
         let prior = load_contract_source(&file_path, false, context).await?;
         let existed_before = prior.is_some();
+        if existed_before {
+            context.require_fresh_read_before_write(&file_path, path_str)?;
+        }
         let prior_bytes = prior.unwrap_or_default();
         let prior_contents = String::from_utf8_lossy(&prior_bytes);
 
@@ -1853,6 +1856,8 @@ impl ToolSpec for WriteFileTool {
                 )));
             }
             verify_expected_hash(Some(expected), prior_contents.as_bytes(), "write", path_str)?;
+        } else if existed_before {
+            context.require_fresh_read_before_write(&file_path, path_str)?;
         }
 
         // Create parent directories if needed

@@ -80,6 +80,9 @@ before operating either one, especially before selecting a non-loopback bind.
   credentials.
 - If a session expired, stop and restart `codewhale web` to mint a new
   process-local session. Reusing an old bootstrap URL is expected to fail.
+- A new tab opened by typing the address is not signed in: the session's
+  request proof stays in the tab that opened it. Use that tab, duplicate it,
+  or restart `codewhale web`.
 
 For integration endpoints, headers, events, and the complete web-session
 contract, see [RUNTIME_API.md](RUNTIME_API.md).

@@ -44,7 +44,7 @@ export const docsReview: DocsReviewDict = {
         },
         { code: "/diff", lang: "Codewhale" },
         {
-          p: "`/diff` shows all changes since this session started. Your own git history is untouched, so `git diff` and `git status` work as usual.",
+          p: "`/diff` shows all changes since this session started. From 0.10.2 it compares with the session's first restore point, so it also works in folders that are not git repositories, and it opens in a pager. Your own git history is untouched, so `git diff` and `git status` work as usual.",
         },
       ],
     },
@@ -65,7 +65,7 @@ export const docsReview: DocsReviewDict = {
           p: "Restoring changes files, so it needs a trusted workspace (`/trust on`) or Full Access; anyone can list snapshots. You can also ask in plain language: “undo your last edit” rolls back Codewhale's own turn.",
         },
         {
-          p: "`/undo` is different: it removes the last exchange from the conversation. Use `/restore` when you want files back.",
+          p: "`/undo` takes back your last request. In 0.10.1 it needs `/trust on` to put files back and steps back one tool call at a time. From 0.10.2 it restores every file the request changed in any access mode and removes the request and its reply. `/restore` rolls the whole workspace back to an earlier snapshot.",
         },
         {
           note: "Snapshots are kept for 7 days. A workspace larger than 2 GB skips snapshots and Codewhale tells you once; raise `[snapshots] max_workspace_gb` in config if you want them anyway. If git is missing or the disk is full, the turn still runs without a snapshot.",

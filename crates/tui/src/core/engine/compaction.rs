@@ -282,6 +282,9 @@ impl Engine {
         route: ResolvedRuntimeRoute,
         compaction: CompactionConfig,
     ) {
+        // Manual compaction terminals identify the compaction operation, never
+        // a surrounding host submission or a model turn.
+        let compaction_id = Some(id.clone());
         self.emit_compaction_started(id.clone(), false, "Making room…".to_string())
             .await;
         let Some(cancel_token) = self.claim_compaction(&id) else {
@@ -289,6 +292,9 @@ impl Engine {
             self.emit_compaction_cancelled(id, false, message).await;
             let _ = self
                 .send_event(Event::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id,
                     usage: Usage::default(),
                     parent_route_usage: Usage::default(),
                     routed_usage_dropped_records: 0,
@@ -307,7 +313,23 @@ impl Engine {
             self.emit_compaction_failed(id, false, message.clone())
                 .await;
             let _ = self
-                .send_event(Event::error(ErrorEnvelope::fatal_auth(message)))
+                .send_event(Event::error(ErrorEnvelope::fatal_auth(message.clone())))
+                .await;
+            // Route rejection is still a terminal for the compaction
+            // operation: hosts waiting on its lifecycle must be released.
+            let _ = self
+                .send_event(Event::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id,
+                    usage: Usage::default(),
+                    parent_route_usage: Usage::default(),
+                    routed_usage_dropped_records: 0,
+                    status: TurnOutcomeStatus::Failed,
+                    error: Some(message),
+                    tool_catalog: None,
+                    base_url: None,
+                })
                 .await;
             return;
         }
@@ -334,6 +356,9 @@ impl Engine {
         id: String,
         cancel_token: CancellationToken,
     ) {
+        // Manual compaction terminals identify the compaction operation, never
+        // a surrounding host submission or a model turn.
+        let compaction_id = Some(id.clone());
         let zero_usage = Usage {
             input_tokens: 0,
             output_tokens: 0,
@@ -349,6 +374,9 @@ impl Engine {
                 .await;
             let _ = self
                 .send_event(Event::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id,
                     usage: zero_usage,
                     parent_route_usage: Usage::default(),
                     routed_usage_dropped_records: 0,
@@ -399,6 +427,9 @@ impl Engine {
             .await;
             let _ = self
                 .send_event(Event::TurnComplete {
+                    turn_id: None,
+                    submission_id: None,
+                    compaction_id,
                     usage: compaction_usage,
                     parent_route_usage: Usage::default(),
                     routed_usage_dropped_records: 0,
@@ -426,6 +457,9 @@ impl Engine {
                         .await;
                         let _ = self
                             .send_event(Event::TurnComplete {
+                                turn_id: None,
+                                submission_id: None,
+                                compaction_id,
                                 usage: compaction_usage,
                                 parent_route_usage: Usage::default(),
                                 routed_usage_dropped_records: 0,
@@ -510,6 +544,9 @@ impl Engine {
 
         let _ = self
             .send_event(Event::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id,
                 usage: compaction_usage,
                 parent_route_usage: Usage::default(),
                 routed_usage_dropped_records: 0,

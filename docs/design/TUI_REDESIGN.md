@@ -151,9 +151,9 @@ flow. The MCP summary opens the existing manager by mouse or keyboard. A
 problem row inserts its stated remedy into the composer so the user can see
 it before submission. No separate command or session authority is introduced.
 
-The composer outline uses action blue only while the composer owns focus.
-Selecting a home action or opening another surface returns it to the quiet
-border tone. Permission and mode retain their own footer status instead of
+The composer outline uses action blue only while the composer owns focus,
+or the chat's own `/color` when one is set. Selecting a home action or
+opening another surface returns it to the quiet border tone. Permission and mode retain their own footer status instead of
 being repeated in a multicolor composer outline. Model metadata remains
 secondary to the message and its controls.
 

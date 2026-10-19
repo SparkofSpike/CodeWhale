@@ -147,7 +147,7 @@ impl BuiltinModule {
 pub(crate) const BUILTIN_MODULES: &[BuiltinModule] = &[
     BuiltinModule {
         id: "harness",
-        source_sha256: "114addde4e6e70ade28a38fe2c1fa0b521729ab9aaa58273c77f33b2a1b608ae",
+        source_sha256: "782094d964894c91fc74da1704d3a793163e9605cc802dd7760578b5ba83135d",
         tools: &[],
     },
     BuiltinModule {

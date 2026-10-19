@@ -1165,6 +1165,17 @@ impl WorkingSet {
             }
 
             let abs = workspace.join(&entry.path);
+            if crate::tools::file::enforce_read_denylist(&abs, "working_set").is_err() {
+                if !header_pushed {
+                    lines.push("### Active file contents (cache-resident)".to_string());
+                    header_pushed = true;
+                }
+                lines.push(format!(
+                    "<!-- file: {} (read deny-list, skipped) -->",
+                    entry.path
+                ));
+                continue;
+            }
             let body = match std::fs::read_to_string(&abs) {
                 Ok(text) => text,
                 Err(_) => {

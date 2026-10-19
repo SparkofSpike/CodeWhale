@@ -456,6 +456,7 @@
             prompt_cache_write_tokens: Some(0),
             reasoning_replay_tokens: Some(40),
             duration_ms: 1834,
+            finish_reason: None,
         };
 
         let value = exec_stream_value(&event).expect("serializes");
@@ -491,6 +492,7 @@
             prompt_cache_write_tokens: None,
             reasoning_replay_tokens: None,
             duration_ms: 250,
+            finish_reason: None,
         };
 
         let value = exec_stream_value(&event).expect("serializes");

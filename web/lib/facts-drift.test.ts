@@ -10,7 +10,7 @@ function response(body: string, status = 200): Response {
 }
 
 const VALID_GENERATED_FACTS =
-  'export const FACTS: RepoFacts = {"toolCount":73,"models":[]};';
+  'export const FACTS: RepoFacts = {"toolCount":73,"contributorCount":390,"models":[]};';
 
 function installGitHubFixture(
   toolCountSource: string | null,
@@ -75,9 +75,9 @@ afterEach(() => {
 });
 
 describe("deriveFactsFromRemote", () => {
-  it("derives tool count and model rows from the same exact remote revision", async () => {
+  it("derives counts and model rows from the same exact remote revision", async () => {
     installGitHubFixture(
-      'export const FACTS: RepoFacts = {"toolCount":73,"models":[' +
+      'export const FACTS: RepoFacts = {"toolCount":73,"contributorCount":390,"models":[' +
         '{"id":"deepseek-v4-pro","provider":"DeepSeek","contextWindow":1000000,' +
         '"maxOutput":128000,"reasoning":true,"addedAt":"2026-07-01"}' +
         "]};",
@@ -88,6 +88,7 @@ describe("deriveFactsFromRemote", () => {
     expect(facts?.sourceRevision).toBe(REVISION);
     expect(facts?.version).toBe("0.9.2");
     expect(facts?.toolCount).toBe(73);
+    expect(facts?.contributorCount).toBe(390);
     expect(facts?.defaultModel).toBe("remote-model");
     expect(facts?.providers).toEqual([{ id: "deepseek", label: "Remote DeepSeek", env: "REMOTE_KEY" }]);
     expect(facts?.models).toEqual([

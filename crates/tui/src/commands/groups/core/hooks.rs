@@ -117,7 +117,7 @@ fn events() -> CommandResult {
         ),
         (
             HookEvent::ModeChange,
-            "fires on Plan/Act/Operate transitions",
+            "fires on Plan/Work/Operate transitions",
         ),
         (
             HookEvent::OnError,

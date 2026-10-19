@@ -35,8 +35,6 @@ export const chrome: ChromeDict = {
 
   installCta: "설치 →",
 
-  authSignIn: "로그인",
-
   dateLocale: "ko-KR",
 
   menuOpen: "메뉴 열기",
@@ -49,7 +47,7 @@ export const chrome: ChromeDict = {
   themeTitle: "테마 · 자동 / 밝게 / 어둡게",
 
   footerTagline:
-    "내 모델과 연결된 도구로 앱을 만들고 업무를 자동화하세요.",
+    "터미널과 원하는 모델로 사용하는 오픈 소스 코딩 에이전트.",
   footerProduct: "제품",
   footerProject: "프로젝트",
   footerDocs: "문서",

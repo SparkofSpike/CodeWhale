@@ -527,9 +527,10 @@ pub(super) async fn create_session_from_thread(
         });
     }
 
-    let messages = messages_from_thread_detail(&detail).map_err(|error| {
-        ApiError::internal(format!("Failed to reconstruct thread history: {error}"))
-    })?;
+    let messages =
+        messages_from_thread_detail(&state.runtime_threads, &detail).map_err(|error| {
+            ApiError::internal(format!("Failed to reconstruct thread history: {error}"))
+        })?;
     if messages.is_empty() {
         return Err(ApiError::bad_request(format!(
             "Thread {thread_id} has no user or assistant messages to save"
@@ -685,7 +686,10 @@ pub(super) fn thread_detail_has_live_work(detail: &ThreadDetail) -> bool {
     })
 }
 
-pub(super) fn messages_from_thread_detail(detail: &ThreadDetail) -> anyhow::Result<Vec<Message>> {
+pub(super) fn messages_from_thread_detail(
+    runtime: &RuntimeThreadManager,
+    detail: &ThreadDetail,
+) -> anyhow::Result<Vec<Message>> {
     let mut items_by_turn = HashMap::new();
     for item in &detail.items {
         items_by_turn
@@ -693,7 +697,7 @@ pub(super) fn messages_from_thread_detail(detail: &ThreadDetail) -> anyhow::Resu
             .or_insert_with(Vec::new)
             .push(item.clone());
     }
-    RuntimeThreadManager::reconstruct_messages_from_turns_with(&detail.turns, &items_by_turn)
+    runtime.history_from_records(&detail.turns, &items_by_turn)
 }
 
 /// Merge the thread's authoritative cost into a session about to be saved.
@@ -804,6 +808,20 @@ pub(crate) async fn save_session_in_runtime(
                 .ok_or_else(|| ApiError::bad_request("No threads to save"))?
         }
     };
+
+    let detail = runtime
+        .get_thread_detail(&thread_id)
+        .await
+        .map_err(map_thread_err)?;
+    if thread_detail_has_live_work(&detail) {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!(
+                "Thread {thread_id} has a queued or active turn; wait for completion before saving the session"
+            ),
+            code: None,
+        });
+    }
 
     // Get the engine handle (loads the thread into an engine if needed),
     // then request a session snapshot. This reuses the same code path as

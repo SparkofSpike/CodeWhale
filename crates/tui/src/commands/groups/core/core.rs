@@ -180,6 +180,7 @@ pub fn clear(app: &mut App) -> CommandResult {
     app.current_session_metadata = None;
     app.session_title = None;
     app.window_title = None;
+    app.composer_color = None;
     let locale = app.ui_locale;
     let message = tr(locale, MessageId::ClearConversation).to_string();
     CommandResult::with_message_and_action(
@@ -218,6 +219,22 @@ pub(crate) fn reset_conversation_state(app: &mut App) -> bool {
     app.mark_history_updated();
     app.clear_api_messages();
     app.system_prompt = None;
+    app.goal = crate::tui::app::HostGoalState::default();
+    app.last_known_goal_state = None;
+    app.pending_goal_controls.clear();
+    app.pending_goal_controls
+        .push_back(crate::tui::app::PendingGoalControl {
+            goal_id: None,
+            intent: crate::tui::app::GoalControlIntent::SetStatus {
+                status: crate::tools::goal::GoalStatus::Active,
+                clear: true,
+            },
+            dispatched: false,
+        });
+    app.goal_continuation_waiting = false;
+    app.paused_goal_objective = None;
+    app.paused = false;
+    app.pausable = false;
     app.viewport.transcript_selection.clear();
     app.queued_messages.clear();
     app.held_restored_queue = 0;

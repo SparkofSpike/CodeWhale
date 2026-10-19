@@ -135,7 +135,7 @@ codewhale doctor         # offline configuration checks`}
     q: "Which providers does Codewhale support?",
     a: (
       <>
-        <p className="mb-2">Codewhale ships with {FACTS.providers.length} built-in provider routes:</p>
+        <p className="mb-2">The current source declares {FACTS.providers.length} built-in provider routes:</p>
         <ul className="list-disc pl-5 space-y-1 text-sm text-ink-soft mb-3">
           <li><strong>DeepSeek</strong> — bundled default with a native API route, reasoning streaming, cache metrics, and thinking effort control.</li>
           <li><strong>OpenRouter</strong> — unified API for DeepSeek models and other open-model routes.</li>
@@ -489,7 +489,7 @@ codewhale doctor         # 离线配置检查`}
     q: "Codewhale 支持哪些提供商？",
     a: (
       <>
-        <p className="mb-2">Codewhale 内建 {FACTS.providers.length} 条提供商路由：</p>
+        <p className="mb-2">当前源码声明了 {FACTS.providers.length} 条内置提供商路由：</p>
         <ul className="list-disc pl-5 space-y-1 text-sm text-ink-soft mb-3">
           <li><strong>DeepSeek</strong> — 内置默认原生 API 路由，支持推理流、缓存指标和思考力度控制。</li>
           <li><strong>OpenRouter</strong> — 统一 API，可访问 DeepSeek 和其他开放模型路由。</li>

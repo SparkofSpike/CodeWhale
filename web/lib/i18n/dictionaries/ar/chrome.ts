@@ -32,8 +32,6 @@ export const chrome: ChromeDict = {
 
   installCta: "ثبّت ←",
 
-  authSignIn: "تسجيل الدخول",
-
   dateLocale: "ar",
 
   menuOpen: "افتح القائمة",
@@ -46,7 +44,7 @@ export const chrome: ChromeDict = {
   themeTitle: "السمة · تلقائي / فاتح / داكن",
 
   footerTagline:
-    "ابنِ تطبيقات وأتمت العمل باستخدام نماذجك وأدواتك المتصلة.",
+    "وكيل البرمجة مفتوح المصدر لطرفيتك والنماذج التي تختارها.",
   footerProduct: "المنتج",
   footerProject: "المشروع",
   footerDocs: "التوثيق",

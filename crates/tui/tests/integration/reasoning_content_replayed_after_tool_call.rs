@@ -28,6 +28,7 @@ fn assistant_thinking_tool_call(
                 thinking: thinking.to_string(),
                 signature: None,
                 state: None,
+                redacted_data: None,
             },
             ContentBlock::ToolUse {
                 execution_id: None,

@@ -334,6 +334,17 @@ pub enum Event {
 
     /// The turn is complete (no more tool calls)
     TurnComplete {
+        /// Actual started turn, captured by its producer; absent on preflight
+        /// rejection.
+        turn_id: Option<String>,
+        /// Original host submission, also echoed when it fails before
+        /// `TurnStarted`. Runtime self-starts and non-message operations never
+        /// borrow a pending host id.
+        submission_id: Option<String>,
+        /// Manual compaction operation id. Mutually exclusive with the two
+        /// fields above; auto compaction closes its enclosing model turn
+        /// instead.
+        compaction_id: Option<String>,
         /// Total usage for session/goal/token metrics, including programmatic
         /// child calls performed inline during this turn.
         usage: Usage,
@@ -377,6 +388,7 @@ pub enum Event {
         /// measured (for example an aggregate REPL child receipt). This is
         /// the denominator for effective session-average throughput.
         request_ms: Option<u64>,
+        finish_reason: Option<String>,
     },
 
     /// Usage telemetry for a programmatic provider call whose cost is carried

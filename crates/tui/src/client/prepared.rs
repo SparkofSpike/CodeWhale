@@ -1652,6 +1652,7 @@ mod dialect_seam_tests {
                         id: Some(id.into()),
                         encrypted_content: format!("opaque-{id}"),
                     }),
+                    redacted_data: None,
                 }],
             });
         }

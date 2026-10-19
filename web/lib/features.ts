@@ -25,17 +25,21 @@ export function featureDocsHref(feature: Feature): string {
   return `${REPO_URL}/blob/main/${feature.docs ?? `docs/features.toml#L${feature.registryLine}`}`;
 }
 
-export function publishedFeatureNames(version: string): string[] {
+export function compareVersions(left: string, right: string): number | null {
   const parts = (value: string) => /^\d+\.\d+\.\d+$/.test(value) ? value.split(".").map(Number) : null;
-  const release = parts(version);
-  if (!release) return [];
+  const a = parts(left);
+  const b = parts(right);
+  if (!a || !b) return null;
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return 0;
+}
+
+export function publishedFeatureNames(version: string): string[] {
   return FEATURE_CATALOGUE.features.filter((feature) => {
     if (feature.status !== "stable" || !feature.since) return false;
-    const since = parts(feature.since);
-    if (!since) return false;
-    for (let i = 0; i < 3; i++) {
-      if (since[i] !== release[i]) return since[i] < release[i];
-    }
-    return true;
+    const comparison = compareVersions(feature.since, version);
+    return comparison !== null && comparison <= 0;
   }).map((feature) => feature.name);
 }

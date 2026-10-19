@@ -14,7 +14,7 @@ export const runtime: RuntimeDict = {
   experimental: "实验性",
   trustTitle: "信任边界",
   factsTitle: "运行时事实",
-  version: "版本",
+  version: "源码版本",
   toolCount: "工具数量",
   sandboxBackends: "沙箱后端",
   details: "详情",

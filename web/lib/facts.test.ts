@@ -30,6 +30,7 @@ function snapshot(overrides: Partial<RepoFacts> = {}): RepoFacts {
     defaultModel: "deepseek-v4-pro",
     nodeEngines: ">=18",
     toolCount: 66,
+    contributorCount: 390,
     license: "MIT",
     latestPublishedRelease: release090,
     ...overrides,

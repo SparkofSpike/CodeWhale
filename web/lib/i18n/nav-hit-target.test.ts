@@ -63,7 +63,7 @@ describe("localized chrome keeps a clickable home control", () => {
 
   it("fits every locale's desktop strip at the lg floor", () => {
     // At lg (1024px) --container is min(100% - 32px, 76rem) → 992px. The
-    // strip is wordmark + links + [theme, locale, GitHub, Sign in, Install].
+    // strip is wordmark + links + [theme, locale, GitHub, Install].
     const container = 1024 - 32;
     const wordmarkMin = 8.75 * 16;
     const gaps = 1.5 * 16 * 2;
@@ -73,9 +73,8 @@ describe("localized chrome keeps a clickable home control", () => {
       const navWidth =
         links.reduce((sum, link) => sum + Math.max(advance(link.label, 0.78), 23), 0) +
         20 * Math.max(links.length - 1, 0);
-      const signIn = 0.5 * 16 + 1.5 * 16 + advance(chrome.authSignIn, 0.8125);
       const install = 0.25 * 16 + 1.7 * 16 + advance(chrome.installCta, 0.8125);
-      const actions = 3 * icon + 2 * iconGap + signIn + install;
+      const actions = 3 * icon + 2 * iconGap + install;
       const used = wordmarkMin + navWidth + actions + gaps;
       expect(used, `${code} strip ${Math.round(used)}px`).toBeLessThanOrEqual(container);
       for (const link of links) {
@@ -86,7 +85,7 @@ describe("localized chrome keeps a clickable home control", () => {
 
   it("fits the compact nav strip inside a 375px viewport", () => {
     // --container is min(100% - 2rem, 76rem) → 343px at 375. Below lg the
-    // strip is wordmark + [theme, locale, menu]: the desktop nav, Sign in and
+    // strip is wordmark + [theme, locale, menu]: the desktop nav and
     // Install are display:none, and the GitHub icon goes at 900px.
     const container = 375 - 2 * 16;
     const innerGap = 0.5 * 16;

@@ -337,7 +337,7 @@ impl ApprovalRequest {
             .into_iter()
             .map(|mut detail| {
                 if matches!(detail.label.as_str(), "File" | "Path" | "Dir") {
-                    detail.value = workspace_relative(&detail.value, &self.workspace);
+                    detail.value = crate::utils::workspace_relative(&detail.value, &self.workspace);
                 }
                 detail.label = localize_detail_label(&detail.label, locale).to_string();
                 if detail.is_preview
@@ -352,20 +352,6 @@ impl ApprovalRequest {
                 detail
             })
             .collect()
-    }
-}
-
-/// Show `value` relative to `workspace` when it is an absolute path inside
-/// it, so the card never spends a row on the workspace prefix.
-fn workspace_relative(value: &str, workspace: &Path) -> String {
-    let path = Path::new(value);
-    if workspace.as_os_str().is_empty() || !path.is_absolute() {
-        return value.to_string();
-    }
-    match path.strip_prefix(workspace) {
-        Ok(relative) if relative.as_os_str().is_empty() => ".".to_string(),
-        Ok(relative) => relative.display().to_string(),
-        Err(_) => value.to_string(),
     }
 }
 

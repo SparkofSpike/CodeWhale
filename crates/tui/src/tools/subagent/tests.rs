@@ -25744,10 +25744,17 @@ mod child_permission_gate {
             .into_iter()
             .enumerate()
             {
-                let err = registry
+                let outcome = registry
                     .execute("agent_gate", "bash", json!({ "command": command }))
-                    .await
-                    .expect_err("a detached agent's catastrophic write is held");
+                    .await;
+                if mode == ApprovalMode::Suggest && index == 2 {
+                    let content =
+                        outcome.expect("the safety check refuses it before any approval is asked");
+                    assert!(content.contains("BLOCKED"), "{mode:?} {command}: {content}");
+                    assert_eq!(manager.read().await.pending_child_approvals(), 0);
+                    continue;
+                }
+                let err = outcome.expect_err("a detached agent's catastrophic write is held");
                 let typed = err
                     .downcast_ref::<ToolError>()
                     .expect("canonical typed refusal");

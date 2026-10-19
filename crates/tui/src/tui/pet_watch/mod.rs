@@ -884,6 +884,9 @@ mod tests {
         observe(
             &mut app,
             &Event::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Default::default(),
                 parent_route_usage: Default::default(),
                 routed_usage_dropped_records: 0,
@@ -1081,6 +1084,9 @@ mod tests {
 
         let done = metadata(
             &Event::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Default::default(),
                 parent_route_usage: Default::default(),
                 routed_usage_dropped_records: 0,
@@ -1176,6 +1182,9 @@ mod tests {
 
         let turn = metadata(
             &Event::TurnComplete {
+                turn_id: None,
+                submission_id: None,
+                compaction_id: None,
                 usage: Default::default(),
                 parent_route_usage: Default::default(),
                 routed_usage_dropped_records: 0,
