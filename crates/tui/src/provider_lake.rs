@@ -41,21 +41,42 @@ static BUNDLED_SNAPSHOT: std::sync::OnceLock<SharedSnapshot> = std::sync::OnceLo
 #[derive(Debug, Default)]
 struct SharedSnapshot {
     offerings: Vec<Arc<CatalogOffering>>,
+    /// `catalog_partition_key(provider) -> rows`, built once with the
+    /// snapshot.
+    ///
+    /// The picker asks for one provider's rows once per model row, and the
+    /// old implementation walked every offering in the process for each ask,
+    /// computing a `trim().to_string()` partition key per offering. On a
+    /// catalog with a few thousand offerings that is tens of millions of
+    /// string allocations per `/model` open, and it measured as 662 ms of a
+    /// 757 ms build.
+    by_provider: BTreeMap<String, Vec<Arc<CatalogOffering>>>,
 }
 
 impl SharedSnapshot {
     fn from_owned(snapshot: CatalogSnapshot) -> Self {
+        Self::new(snapshot.offerings.into_iter().map(Arc::new).collect())
+    }
+
+    fn new(offerings: Vec<Arc<CatalogOffering>>) -> Self {
+        let mut by_provider: BTreeMap<String, Vec<Arc<CatalogOffering>>> = BTreeMap::new();
+        for row in &offerings {
+            by_provider
+                .entry(catalog_partition_key(&row.provider))
+                .or_default()
+                .push(Arc::clone(row));
+        }
         Self {
-            offerings: snapshot.offerings.into_iter().map(Arc::new).collect(),
+            offerings,
+            by_provider,
         }
     }
 
     fn offerings_for_provider(&self, provider: &str) -> Vec<&CatalogOffering> {
-        self.offerings
-            .iter()
-            .map(Arc::as_ref)
-            .filter(|row| row.provider == provider)
-            .collect()
+        self.by_provider
+            .get(provider)
+            .map(|rows| rows.iter().map(Arc::as_ref).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -226,7 +247,7 @@ fn apply_provider_model_cutlines_shared(rows: Vec<Arc<CatalogOffering>>) -> Shar
             Some(offering)
         })
         .collect();
-    SharedSnapshot { offerings }
+    SharedSnapshot::new(offerings)
 }
 
 /// `ProviderKind::parse` scans every provider and alias list per call; the
@@ -1130,13 +1151,7 @@ fn offerings_for_provider_identity<'a>(
     snapshot: &'a SharedSnapshot,
     provider_id: &str,
 ) -> Vec<&'a CatalogOffering> {
-    let provider_key = catalog_partition_key(provider_id);
-    snapshot
-        .offerings
-        .iter()
-        .map(Arc::as_ref)
-        .filter(|row| catalog_partition_key(&row.provider) == provider_key)
-        .collect()
+    snapshot.offerings_for_provider(&catalog_partition_key(provider_id))
 }
 
 fn exact_custom_offerings(provider_identity: &str) -> Vec<CatalogOffering> {
