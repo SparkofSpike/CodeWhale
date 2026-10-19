@@ -220,10 +220,8 @@ struct PickerProfile {
 
 impl PickerProfile {
     fn start() -> Option<Self> {
-        let enabled = std::env::var("CODEWHALE_PICKER_PROFILE")
-            .is_ok_and(|value| !value.trim().is_empty() && value.trim() != "0");
         let now = std::time::Instant::now();
-        enabled.then_some(Self {
+        profile_enabled().then_some(Self {
             started: now,
             last: now,
             marks: Vec::new(),
@@ -248,6 +246,52 @@ impl PickerProfile {
             .join(" ");
         tracing::info!(total_ms = total / 1000, marks = %marks, "{label} build timing");
     }
+}
+
+/// Whether [`PickerProfile`] marks are recorded. Read once per process.
+fn profile_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        std::env::var("CODEWHALE_PICKER_PROFILE")
+            .is_ok_and(|value| !value.trim().is_empty() && value.trim() != "0")
+    })
+}
+
+thread_local! {
+    /// Accumulated per-stage microseconds for the row loop on this thread.
+    ///
+    /// The row builder is shared with callers that only want rows, so the
+    /// accumulator lives here rather than in its signature.
+    static STAGE_TOTALS: RefCell<Vec<(&'static str, u128)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Time one stage of the row build, accumulating across every row.
+fn stage<T>(label: &'static str, work: impl FnOnce() -> T) -> T {
+    if !profile_enabled() {
+        return work();
+    }
+    let started = std::time::Instant::now();
+    let out = work();
+    let micros = started.elapsed().as_micros();
+    STAGE_TOTALS.with_borrow_mut(|totals| {
+        match totals.iter_mut().find(|(name, _)| *name == label) {
+            Some((_, total)) => *total += micros,
+            None => totals.push((label, micros)),
+        }
+    });
+    out
+}
+
+fn take_stage_totals() -> String {
+    STAGE_TOTALS.with_borrow_mut(|totals| {
+        let text = totals
+            .iter()
+            .map(|(name, micros)| format!("{name}={micros}us"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        totals.clear();
+        text
+    })
 }
 
 pub struct ModelPickerView {
@@ -2321,6 +2365,10 @@ fn picker_model_rows_for_app(app: &App, config: &Config) -> Vec<ModelPickerRow> 
         )
     });
     assign_default_sections(&mut rows, app, config, current, &pins);
+    if profile.is_some() {
+        let stages = take_stage_totals();
+        tracing::info!(stages = %stages, "picker row stages");
+    }
     if let Some(profile) = profile {
         profile.finish("picker-rows");
     }
@@ -2590,7 +2638,9 @@ fn push_provider_model_rows(
         if id == "auto" {
             continue;
         }
-        let readiness = readiness_scope.resolve(config, &id, provider_health);
+        let readiness = stage("row-readiness", || {
+            readiness_scope.resolve(config, &id, provider_health)
+        });
         let selectable = readiness.can_attempt();
         let readiness_label = readiness.label();
         let roster_entry = if provider == ProviderKind::OpenaiCodex {
@@ -2604,26 +2654,32 @@ fn push_provider_model_rows(
             None
         };
         let codex_freshness = roster_entry.map(|_| codex_roster.freshness);
-        let metadata = effective_picker_metadata_with_codex(
-            config,
-            Some(provider),
-            Some(identity.as_str()),
-            &id,
-            codex_metadata,
-        );
-        let provider_catalog_receipt = provider_catalog_receipt_for_route(
-            provider,
-            Some(identity.as_str()),
-            config,
-            metadata.source.as_ref(),
-        );
-        let mut hint = render_picker_model_hint(
-            &id,
-            Some(provider),
-            &metadata,
-            codex_freshness,
-            provider_catalog_receipt.as_ref(),
-        );
+        let metadata = stage("row-metadata", || {
+            effective_picker_metadata_with_codex(
+                config,
+                Some(provider),
+                Some(identity.as_str()),
+                &id,
+                codex_metadata,
+            )
+        });
+        let provider_catalog_receipt = stage("row-receipt", || {
+            provider_catalog_receipt_for_route(
+                provider,
+                Some(identity.as_str()),
+                config,
+                metadata.source.as_ref(),
+            )
+        });
+        let mut hint = stage("row-hint", || {
+            render_picker_model_hint(
+                &id,
+                Some(provider),
+                &metadata,
+                codex_freshness,
+                provider_catalog_receipt.as_ref(),
+            )
+        });
         if metadata.display_name.is_some() {
             hint = format!("{id} · {hint}");
         }
@@ -2651,16 +2707,18 @@ fn push_provider_model_rows(
             })
         });
         let before = rows.len();
-        push_model_row(
-            rows,
-            id.clone(),
-            Some(provider),
-            Some(identity.clone()),
-            hint,
-            metadata,
-            selectable,
-            blocked_reason,
-        );
+        stage("row-push", || {
+            push_model_row(
+                rows,
+                id.clone(),
+                Some(provider),
+                Some(identity.clone()),
+                hint,
+                metadata,
+                selectable,
+                blocked_reason,
+            );
+        });
         if rows.len() > before
             && let Some(row) = rows.last_mut()
         {
@@ -2775,7 +2833,10 @@ fn push_auto_model_row(rows: &mut Vec<ModelPickerRow>, app: &App, config: &Confi
 }
 
 fn auto_picker_hint(app: &App, config: &Config) -> String {
-    let inventory = match crate::model_inventory::ModelInventory::from_config(config) {
+    // The hint words four router facts. Building the whole inventory for them
+    // walked every configured route's every model through runtime route
+    // resolution and cost 308 ms of a 1048 ms picker build.
+    let inventory = match crate::model_inventory::ModelInventory::auto_router_only(config) {
         Ok(inventory) => inventory,
         Err(reason) => {
             return format!("{} · {reason}", app.tr(MessageId::ModelPickerAutoLocalHint));
