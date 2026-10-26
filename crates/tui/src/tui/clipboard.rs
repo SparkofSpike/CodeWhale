@@ -962,8 +962,12 @@ fn clipboard_image_target(
     let name = dir
         .file_name()
         .context("clipboard-images dir has no name")?;
-    crate::fleet::files::WorkspaceFile::open(root, &Path::new(name).join(file_name), true)
-        .context("open clipboard-images destination (links are not followed)")
+    crate::fleet::files::WorkspaceFile::open_resolved_root(
+        root,
+        &Path::new(name).join(file_name),
+        true,
+    )
+    .context("open clipboard-images destination (links are not followed)")
 }
 
 /// Encode an RGBA `ImageData` from arboard as PNG and persist it. Returns

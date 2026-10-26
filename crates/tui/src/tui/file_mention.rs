@@ -812,8 +812,12 @@ fn stabilize_screencapture_file(path: &Path, artifact_dir: &Path) -> Option<Path
     let name = stable_attachment_name(path.file_name()?);
     let dest = artifact_dir.join(&name);
     let relative = Path::new(artifact_dir.file_name()?).join(&name);
-    let target =
-        crate::fleet::files::WorkspaceFile::open(artifact_dir.parent()?, &relative, true).ok()?;
+    let target = crate::fleet::files::WorkspaceFile::open_resolved_root(
+        artifact_dir.parent()?,
+        &relative,
+        true,
+    )
+    .ok()?;
     // An existing regular destination is reused; a link there fails to open.
     if target.open_file().is_ok() {
         return Some(dest);

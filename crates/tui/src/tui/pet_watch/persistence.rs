@@ -26,8 +26,8 @@ pub struct Store {
 impl Store {
     /// Shared presentation-owner state. Legacy session habitats stay in place.
     pub fn at(root: &Path) -> io::Result<Self> {
-        let data = WorkspaceFile::open(root, Path::new("habitat.json"), true)?;
-        let lock = WorkspaceFile::open(root, Path::new("habitat.lock"), true)?;
+        let data = WorkspaceFile::open_resolved_root(root, Path::new("habitat.json"), true)?;
+        let lock = WorkspaceFile::open_resolved_root(root, Path::new("habitat.lock"), true)?;
         let original_lock = lock.open_update(true, false)?;
         Ok(Self {
             data,

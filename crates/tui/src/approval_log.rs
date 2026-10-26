@@ -463,7 +463,7 @@ impl ApprovalReceiptStore {
         if create {
             fs::create_dir_all(&self.sessions_dir)?;
         }
-        WorkspaceFile::open(
+        WorkspaceFile::open_resolved_root(
             &self.sessions_dir,
             &PathBuf::from(session_id).join(APPROVAL_LOG_FILE),
             create,
