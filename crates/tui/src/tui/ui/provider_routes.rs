@@ -1151,7 +1151,7 @@ pub(crate) fn clear_active_provider_api_key_from_memory(
 
 pub(crate) fn record_provider_model_setup_progress(app: &mut App, config: &Config) {
     if let Err(err) = crate::tui::setup::record_provider_model_setup_state_for_app(app, config) {
-        let note = format!("Setup provider/model state was not saved: {err}");
+        let note = format!("Setup provider/model state was not saved: {err:#}");
         if let Some(status) = app.status_message.as_mut() {
             status.push_str(" · ");
             status.push_str(&note);

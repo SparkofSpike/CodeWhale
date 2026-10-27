@@ -7332,7 +7332,16 @@ fn doctor_home_has_stale_setup_temp_files() -> bool {
         return false;
     };
     entries.flatten().any(|entry| {
-        entry.file_name().to_string_lossy().starts_with(".tmp")
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            return false;
+        };
+        // `tempfile` stages a write as `.tmpXXXXXX` beside its target: no dot
+        // after the prefix because it is not an extension. Requiring that keeps
+        // a user's own `.tmp-build.log`-style scratch files out of the verdict,
+        // so only a staged write that never landed matches.
+        name.starts_with(".tmp")
+            && !name[4..].contains('.')
             && entry.file_type().is_ok_and(|kind| kind.is_file())
     })
 }
@@ -15983,6 +15992,32 @@ mod doctor_setup_state_tests {
         let issues = report["consistency"]["issues"].to_string();
         assert!(
             issues.contains("stale_setup_temp_files_in_codewhale_home"),
+            "{issues}"
+        );
+    }
+
+    #[test]
+    fn doctor_setup_consistency_ignores_the_user_own_tmp_named_logs() {
+        // The verdict is about a staged write that never landed, not about
+        // every file whose name starts with `.tmp`. User scratch logs such as
+        // `.tmp-build-release.log` carry an extension and are none of its
+        // business; flagging them made a clean home report as half-applied.
+        let _guard = crate::test_support::lock_test_env();
+        let tmp = TempDir::new().expect("tempdir");
+        let (_home_guard, codewhale_home) = prepare_env(&tmp);
+        let _key = crate::test_support::EnvVarGuard::remove("DEEPSEEK_API_KEY");
+        let _source = crate::test_support::EnvVarGuard::remove("DEEPSEEK_API_KEY_SOURCE");
+        let workspace = tmp.path().join("workspace");
+        fs::create_dir_all(&workspace).expect("workspace");
+        fs::write(codewhale_home.join(".tmp-build-release.log"), b"user log").expect("user log");
+        fs::write(codewhale_home.join(".tmp-wt-clippy.log"), b"user log").expect("user log");
+
+        let report = doctor_setup_report_json(&Config::default(), &workspace);
+
+        assert_eq!(report["consistency"]["status"], "consistent");
+        let issues = report["consistency"]["issues"].to_string();
+        assert!(
+            !issues.contains("stale_setup_temp_files_in_codewhale_home"),
             "{issues}"
         );
     }

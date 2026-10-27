@@ -67,10 +67,50 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     tmp.as_file()
         .sync_all()
         .with_context(|| format!("failed to sync temp file for {}", path.display()))?;
-    tmp.persist(path)
-        .map_err(|e| e.error)
-        .with_context(|| format!("failed to persist {}", path.display()))?;
-    Ok(())
+
+    // Two Codewhale instances share one home. The loser of a race can find the
+    // destination held open for a read — Windows refuses the replacing rename
+    // for as long as that handle lives, because the reader does not pass
+    // `FILE_SHARE_DELETE`. That refusal is transient, so retry briefly instead
+    // of reporting a write the caller could have made.
+    let mut attempt: u32 = 0;
+    loop {
+        match tmp.persist(path) {
+            Ok(_) => return Ok(()),
+            Err(error) if attempt + 1 < PERSIST_ATTEMPTS && rename_is_retryable(&error.error) => {
+                attempt += 1;
+                tmp = error.file;
+                std::thread::sleep(std::time::Duration::from_millis(
+                    u64::from(attempt) * PERSIST_RETRY_STEP_MS,
+                ));
+            }
+            Err(error) => {
+                return Err(error.error)
+                    .with_context(|| format!("failed to persist {}", path.display()));
+            }
+        }
+    }
+}
+
+/// How many times the replacing rename is attempted before the error surfaces.
+const PERSIST_ATTEMPTS: u32 = 6;
+
+/// Backoff step; attempt *n* sleeps `n * step`, so the last wait is 75ms.
+const PERSIST_RETRY_STEP_MS: u64 = 15;
+
+/// Whether a failed rename is worth retrying: another process holds the
+/// destination open, which is a momentary condition rather than a refusal the
+/// caller should hear about.
+#[cfg(windows)]
+fn rename_is_retryable(error: &std::io::Error) -> bool {
+    // 5 = ERROR_ACCESS_DENIED, 32 = ERROR_SHARING_VIOLATION,
+    // 33 = ERROR_LOCK_VIOLATION. A reader holding the file raises 5 or 32.
+    matches!(error.raw_os_error(), Some(5 | 32 | 33))
+}
+
+#[cfg(not(windows))]
+fn rename_is_retryable(error: &std::io::Error) -> bool {
+    matches!(error.kind(), std::io::ErrorKind::PermissionDenied)
 }
 
 /// Atomically write `value` as pretty-printed JSON to `path`.
@@ -286,6 +326,36 @@ mod tests {
             .filter(|e| e.file_name() != "state.json")
             .collect();
         assert!(leftovers.is_empty(), "stray temp files: {leftovers:?}");
+    }
+
+    #[test]
+    fn only_a_contended_rename_is_retried() {
+        // The retry exists for one situation: another instance holds the
+        // destination open while it reads the same sidecar. Anything else —
+        // a missing directory, a full disk — must surface at once instead of
+        // being retried five more times.
+        #[cfg(windows)]
+        {
+            for code in [5, 32, 33] {
+                assert!(
+                    rename_is_retryable(&std::io::Error::from_raw_os_error(code)),
+                    "os error {code}"
+                );
+            }
+            assert!(!rename_is_retryable(&std::io::Error::from_raw_os_error(2)));
+            assert!(!rename_is_retryable(&std::io::Error::from_raw_os_error(
+                112
+            )));
+        }
+        #[cfg(not(windows))]
+        {
+            assert!(rename_is_retryable(&std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied
+            )));
+            assert!(!rename_is_retryable(&std::io::Error::from(
+                std::io::ErrorKind::NotFound
+            )));
+        }
     }
 
     #[test]
