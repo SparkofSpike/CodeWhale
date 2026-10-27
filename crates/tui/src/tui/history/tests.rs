@@ -130,6 +130,100 @@ fn calm_options() -> TranscriptRenderOptions {
 }
 
 #[test]
+fn a_system_note_keeps_the_backslashes_in_a_windows_path() {
+    // A note names paths. The markdown renderer honours CommonMark §2.4, where
+    // a backslash before ASCII punctuation is an escape, so `\.` used to print
+    // as `.` and `C:\Users\asus\.codewhale` rendered as
+    // `C:\Users\asus.codewhale` — a directory that does not exist.
+    let cell = HistoryCell::System {
+        content: concat!(
+            "Setup provider/model state was not saved: failed to persist setup state to ",
+            r"C:\Users\asus\.codewhale\setup_state.json"
+        )
+        .to_string(),
+    };
+    let text: String = cell
+        .lines_with_copy_metadata(120, calm_options())
+        .iter()
+        .flat_map(|line| line.line.spans.iter())
+        .map(|span| span.content.as_ref())
+        .collect();
+    assert!(
+        text.contains(r"C:\Users\asus\.codewhale\setup_state.json"),
+        "{text}"
+    );
+    assert!(!text.contains("asus.codewhale"), "{text}");
+}
+
+#[test]
+fn a_system_note_leaves_a_fenced_block_verbatim() {
+    // A fence is already verbatim: doubling inside one would print the extra
+    // backslash instead of protecting it.
+    let cell = HistoryCell::System {
+        content: concat!("env:\n```\n", r"C:\Users\asus\.codewhale", "\n```").to_string(),
+    };
+    let text: String = cell
+        .lines_with_copy_metadata(120, calm_options())
+        .iter()
+        .flat_map(|line| line.line.spans.iter())
+        .map(|span| span.content.as_ref())
+        .collect();
+    assert!(text.contains(r"C:\Users\asus\.codewhale"), "{text}");
+    assert!(!text.contains(r"C:\\Users"), "{text}");
+}
+
+#[test]
+fn a_system_note_leaves_inline_markup_and_table_rows_verbatim() {
+    // The renderer copies inline code, bold, strikethrough and table cells
+    // verbatim, so doubling a backslash inside one prints it doubled. These are
+    // the shapes third-party guidance brings into a note (MCP servers,
+    // extension prompts), and they already render a Windows path correctly.
+    for content in [
+        r"see `C:\Users\asus\.codewhale` for the file".to_string(),
+        r"**C:\Users\asus** is the home".to_string(),
+        r"| C:\Users\asus | ok |".to_string(),
+        r"~~C:\Users\asus~~".to_string(),
+    ] {
+        let cell = HistoryCell::System {
+            content: content.clone(),
+        };
+        let text: String = cell
+            .lines_with_copy_metadata(120, calm_options())
+            .iter()
+            .flat_map(|line| line.line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert!(text.contains(r"C:\Users\asus"), "{content} -> {text}");
+        assert!(!text.contains(r"C:\\Users"), "{content} -> {text}");
+    }
+}
+
+#[test]
+fn a_fence_of_four_backticks_is_not_closed_by_three() {
+    // The renderer closes only on a run at least as long as the opener, so a
+    // three-backtick line inside a four-backtick fence is code content. The
+    // escaper has to agree, or it starts doubling inside a code sample.
+    let content = concat!(
+        "sample:\n````\n",
+        r"C:\Users\asus\.codewhale",
+        "\n```\n",
+        r"C:\Users\asus\.codewhale",
+        "\n````"
+    );
+    let cell = HistoryCell::System {
+        content: content.to_string(),
+    };
+    let text: String = cell
+        .lines_with_copy_metadata(120, calm_options())
+        .iter()
+        .flat_map(|line| line.line.spans.iter())
+        .map(|span| span.content.as_ref())
+        .collect();
+    assert!(text.contains(r"C:\Users\asus"), "{text}");
+    assert!(!text.contains(r"C:\\Users"), "{text}");
+}
+
+#[test]
 fn ordinary_cell_fold_preserves_body_metadata_and_full_exports() {
     let content = format!(
         "[reference](https://example.com/reference)\n\n{}",

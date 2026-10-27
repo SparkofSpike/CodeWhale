@@ -51,10 +51,11 @@ use constants::{
 #[cfg(test)]
 use constants::{TOOL_RUNNING_SYMBOLS, TOOL_STATUS_SYMBOL_MS};
 use message::{
-    RenderedTranscriptLine, assistant_label_style_for, hard_break_copy_lines, message_body_style,
-    render_message, render_message_with_copy_metadata_for_palette, render_plain_message,
-    render_user_message, system_body_style, system_label_style, update_streaming_message_render,
-    user_body_style, user_label_style,
+    RenderedTranscriptLine, assistant_label_style_for, escape_note_backslashes,
+    hard_break_copy_lines, message_body_style, render_message,
+    render_message_with_copy_metadata_for_palette, render_plain_message, render_user_message,
+    system_body_style, system_label_style, update_streaming_message_render, user_body_style,
+    user_label_style,
 };
 #[cfg(test)]
 pub(super) use thinking::render_thinking_with_analysis;
@@ -404,7 +405,7 @@ impl HistoryCell {
                 "Note",
                 system_label_style(),
                 system_body_style(),
-                content,
+                &escape_note_backslashes(content),
                 width,
             ),
             HistoryCell::Error { message, severity } => {
@@ -634,7 +635,7 @@ impl HistoryCell {
                 "Note",
                 system_label_style(),
                 system_body_style(),
-                content,
+                &escape_note_backslashes(content),
                 width,
                 options.palette_mode,
             ),
