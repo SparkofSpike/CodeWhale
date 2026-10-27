@@ -135,6 +135,9 @@ fn a_system_note_keeps_the_backslashes_in_a_windows_path() {
     // a backslash before ASCII punctuation is an escape, so `\.` used to print
     // as `.` and `C:\Users\asus\.codewhale` rendered as
     // `C:\Users\asus.codewhale` — a directory that does not exist.
+    // A width wide enough for the whole line: the point of the case is the
+    // backslash, not the wrapper, and a narrower frame soft-wraps mid-path and
+    // splits the string this asserts on.
     let cell = HistoryCell::System {
         content: concat!(
             "Setup provider/model state was not saved: failed to persist setup state to ",
@@ -143,7 +146,7 @@ fn a_system_note_keeps_the_backslashes_in_a_windows_path() {
         .to_string(),
     };
     let text: String = cell
-        .lines_with_copy_metadata(120, calm_options())
+        .lines_with_copy_metadata(400, calm_options())
         .iter()
         .flat_map(|line| line.line.spans.iter())
         .map(|span| span.content.as_ref())
