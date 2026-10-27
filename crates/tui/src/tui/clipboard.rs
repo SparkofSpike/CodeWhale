@@ -962,7 +962,19 @@ fn clipboard_image_target(
     let name = dir
         .file_name()
         .context("clipboard-images dir has no name")?;
-    crate::fleet::files::WorkspaceFile::open(root, &Path::new(name).join(file_name), true)
+    let relative = Path::new(name).join(file_name);
+    // `dir` sits under the user's own state root unless no home was available
+    // and it fell back to the workspace (`clipboard_images_dir_for_home`). Only
+    // the state root may be a link the user made to relocate `~/.codewhale`; a
+    // caller-supplied workspace root keeps the strict rule.
+    let state_root = codewhale_paths::user_home()
+        .is_some_and(|home| root == home.join(codewhale_paths::CODEWHALE_APP_DIR));
+    let open = if state_root {
+        crate::fleet::files::WorkspaceFile::open_resolved_root
+    } else {
+        crate::fleet::files::WorkspaceFile::open
+    };
+    open(root, &relative, true)
         .context("open clipboard-images destination (links are not followed)")
 }
 
