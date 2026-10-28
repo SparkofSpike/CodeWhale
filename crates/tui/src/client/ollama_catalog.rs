@@ -307,7 +307,7 @@ where
         })
         .buffer_unordered(SHOW_PROBE_LIMIT)
         .filter_map(|(tag, result)| futures_util::future::ready(match result {
-            Ok(profile) => Some((tag.clone(), profile)),
+            Ok(profile) => Some((tag, profile)),
             Err(err) => {
                 tracing::debug!(target: "local_ollama", error = %err, tag = %tag, "POST /api/show probe failed");
                 None

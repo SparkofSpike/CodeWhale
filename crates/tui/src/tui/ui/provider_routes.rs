@@ -843,7 +843,8 @@ async fn switch_provider_inner(
             apply_route,
         )
     } else {
-        Some(apply_route())
+        apply_route();
+        Some(())
     };
     if applied.is_none() {
         app.pending_provider_switch = None;
