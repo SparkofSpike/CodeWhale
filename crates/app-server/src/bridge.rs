@@ -17,7 +17,10 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWrite;
-#[cfg(test)]
+// Only `acquire_historical_runtime_bridge` uses this, and that function is
+// `cfg(all(test, unix))`: importing it on every test build made a Windows
+// `-D warnings` build fail on an unused import.
+#[cfg(all(test, unix))]
 use tokio::sync::Mutex;
 
 /// Historical cold-child cache comparator. It has no production producer.

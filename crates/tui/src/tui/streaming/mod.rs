@@ -390,6 +390,16 @@ impl StreamingState {
         }
     }
 
+    /// Whether the block at `index` carries reasoning text.
+    ///
+    /// Display beats must route a committed delta by the block's own kind.
+    /// An assistant cell can already be live when a later thinking block
+    /// starts inside the same response, so the mere presence of a streaming
+    /// message index does not say which cell the delta belongs to (#7123).
+    pub fn block_is_thinking(&self, index: usize) -> bool {
+        matches!(self.blocks.get(index), Some(Some(block)) if block.is_thinking)
+    }
+
     /// Bytes waiting in a block's buffer.
     pub fn pending_len(&self, index: usize) -> usize {
         self.blocks
