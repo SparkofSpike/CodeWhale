@@ -2667,6 +2667,20 @@ pub(crate) async fn run_event_loop(
                 let turn_end_lifecycle = TurnEndLifecycleReceipt::capture(&event);
                 match event {
                     EngineEvent::MessageStarted { .. } => {
+                        // #7123: deliver a live reasoning block's tail BEFORE
+                        // `flush_active_cell`, which clears
+                        // `streaming_thinking_active_entry` on every path
+                        // (`App::flush_active_cell`). It only marks the cell
+                        // finished; a delta that never reached it is not
+                        // delivered by the flush, so draining afterwards would
+                        // be dead code and the tail would be lost by the reset
+                        // below.
+                        if app.streaming_thinking_active_entry.is_some() {
+                            if streaming_thinking::finalize_current(app) {
+                                transcript_batch_updated = true;
+                            }
+                            streaming_thinking::stash_reasoning_buffer_into_last_reasoning(app);
+                        }
                         // Assistant text starting after parallel tool work
                         // means the tool group is done. Flush the active
                         // cell first so the message lands BELOW the
@@ -2675,16 +2689,6 @@ pub(crate) async fn run_event_loop(
                         app.flush_active_cell();
                         current_streaming_text.clear();
                         app.streaming_output_token_estimate = 0;
-                        // #7123: the mirror of the text→thinking boundary. A
-                        // reasoning block can still hold an uncommitted tail
-                        // here when `ThinkingComplete` never arrived; resetting
-                        // would discard it and leave the card streaming.
-                        if app.streaming_thinking_active_entry.is_some() {
-                            if streaming_thinking::finalize_current(app) {
-                                transcript_batch_updated = true;
-                            }
-                            streaming_thinking::stash_reasoning_buffer_into_last_reasoning(app);
-                        }
                         app.streaming_state.reset();
                         app.streaming_state.start_text(0);
                         app.streaming_message_index = None;

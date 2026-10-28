@@ -221,13 +221,20 @@ fn flush_pending_text_tail(app: &mut App) {
     if app.streaming_state.block_is_thinking(0) {
         return;
     }
+    // Nothing buffered: do not create an assistant cell just to write nothing
+    // into it.
+    if app.streaming_state.pending_len(0) == 0 {
+        return;
+    }
+    // Resolve the destination before taking the buffer. Draining first and
+    // then discovering there is nowhere to put the text discarded it (#7123).
+    let index = app
+        .streaming_message_index
+        .unwrap_or_else(|| crate::tui::ui::frame::ensure_streaming_assistant_history_cell(app));
     let remaining = app.streaming_state.finalize_block_text(0);
     if remaining.is_empty() {
         return;
     }
-    let Some(index) = app.streaming_message_index else {
-        return;
-    };
     crate::tui::ui::frame::append_streaming_text(app, index, &remaining);
     crate::tui::ui::frame::accrue_streaming_token_estimate(app, &remaining);
 }
@@ -235,6 +242,12 @@ fn flush_pending_text_tail(app: &mut App) {
 /// Finalize the currently-streaming thinking entry: drain the pending
 /// state buffer, compute elapsed duration, stop the spinner.
 pub(super) fn finalize_current(app: &mut App) -> bool {
+    // #7123: with no live entry there is no cell to deliver into. Taking the
+    // buffer anyway would discard it, so leave it for the next owner.
+    if app.streaming_thinking_active_entry.is_none() {
+        app.thinking_started_at = None;
+        return false;
+    }
     let duration = app
         .thinking_started_at
         .take()
@@ -445,6 +458,65 @@ mod tests {
         assert!(
             app.streaming_state.block_is_thinking(0),
             "the new block must be the reasoning block"
+        );
+    }
+
+    /// #7123: `MessageStarted` must deliver a live reasoning tail *before*
+    /// `flush_active_cell`, because that flush clears
+    /// `streaming_thinking_active_entry` on every path and only marks the cell
+    /// finished. Draining afterwards is dead code and the tail is lost.
+    #[test]
+    fn issue_7123_message_started_order_keeps_the_reasoning_tail() {
+        let mut app = test_app();
+        let entry = ensure_active_entry(&mut app);
+        app.thinking_started_at = Some(Instant::now());
+        app.streaming_state.reset();
+        app.streaming_state.start_thinking(0);
+        app.streaming_state.push_content(0, "reasoning tail");
+
+        // The real handler order.
+        assert!(finalize_current(&mut app));
+        stash_reasoning_buffer_into_last_reasoning(&mut app);
+        let before_flush = thinking_content(&app, entry);
+        app.flush_active_cell();
+
+        let flushed = app
+            .history
+            .iter()
+            .find_map(|cell| match cell {
+                HistoryCell::Thinking { content, .. } => Some(content.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        assert_eq!(
+            before_flush, "reasoning tail",
+            "finalize must deliver the tail into the entry while it is still live"
+        );
+        assert_eq!(
+            flushed, "reasoning tail",
+            "the flush must carry that tail into the transcript"
+        );
+        assert!(
+            app.streaming_thinking_active_entry.is_none(),
+            "flush_active_cell clears the pointer"
+        );
+    }
+
+    /// #7123: with no live entry there is no cell to deliver into, so the
+    /// buffer must be left alone rather than drained and discarded.
+    #[test]
+    fn issue_7123_finalize_current_keeps_the_buffer_without_an_entry() {
+        let mut app = test_app();
+        app.streaming_thinking_active_entry = None;
+        app.streaming_state.reset();
+        app.streaming_state.start_thinking(0);
+        app.streaming_state.push_content(0, "orphan reasoning");
+
+        assert!(!finalize_current(&mut app));
+        assert_eq!(
+            app.streaming_state.pending_len(0),
+            "orphan reasoning".len(),
+            "text with nowhere to go must stay buffered"
         );
     }
 
