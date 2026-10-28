@@ -2844,7 +2844,12 @@ pub(crate) async fn run_event_loop(
                                 .streaming_thinking_active_entry
                                 .map(|entry_idx| app.history.len() + entry_idx);
                             let original_thinking = app.reasoning_buffer.clone();
-                            let _ = app.streaming_state.finalize_block_text(0);
+                            // #7123: only the reasoning block may be drained
+                            // here. A text block that lost its boundary event
+                            // would otherwise be consumed and dropped.
+                            if app.streaming_state.block_is_thinking(0) {
+                                let _ = app.streaming_state.finalize_block_text(0);
+                            }
                             let duration = app
                                 .thinking_started_at
                                 .take()
