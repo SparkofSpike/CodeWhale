@@ -287,20 +287,24 @@ where
     F: FnMut(String) -> Fut,
     Fut: std::future::Future<Output = anyhow::Result<OllamaTagProfile>>,
 {
-    let candidates: Vec<&String> = tags
+    // Owned tags, not references: `buffer_unordered` needs every item of the
+    // stream to share one future type, and a future borrowing the tag from
+    // `tags` infers a lifetime per element, so the closure stops satisfying
+    // `FnOnce<(String,)>` for an arbitrary caller lifetime.
+    let candidates: Vec<String> = tags
         .iter()
         .filter(|tag| {
             profiles
                 .get(*tag)
                 .is_none_or(|profile| profile.capabilities.is_none())
         })
+        .cloned()
         .collect();
-    futures_util::stream::iter(candidates
-        .into_iter()
+    futures_util::stream::iter(candidates)
         .map(|tag| {
             let future = fetch(tag.clone());
             async move { (tag, future.await) }
-        }))
+        })
         .buffer_unordered(SHOW_PROBE_LIMIT)
         .filter_map(|(tag, result)| futures_util::future::ready(match result {
             Ok(profile) => Some((tag.clone(), profile)),
