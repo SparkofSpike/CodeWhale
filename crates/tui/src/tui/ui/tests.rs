@@ -35218,11 +35218,7 @@ fn issue_7123_reasoning_after_prose_stays_in_the_thinking_cell() {
     let mut clock = StreamDisplayClock::new(Duration::from_millis(33));
     let now = Instant::now();
     clock.note_delta(now);
-    let _ = commit_streaming_display_tick(
-        &mut app,
-        &mut clock,
-        now + Duration::from_millis(50),
-    );
+    let _ = commit_streaming_display_tick(&mut app, &mut clock, now + Duration::from_millis(50));
 
     let thinking = match app
         .active_cell
