@@ -2368,8 +2368,43 @@ pub(crate) fn workflow_tool_is_running(app: &App) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{register_info_interaction_targets, render_info_row, short_title_truncate};
+    use super::{
+        drain_text_block, register_info_interaction_targets, render_info_row, short_title_truncate,
+    };
     use ratatui::{Terminal, backend::TestBackend};
+
+    /// #7123: the text drain must never take a reasoning block. A reasoning
+    /// tail handed to the assistant cell would appear as prose, which is the
+    /// split sentence this fix exists to prevent.
+    #[test]
+    fn issue_7123_drain_text_block_leaves_a_reasoning_block_alone() {
+        use crate::tui::streaming::StreamingState;
+
+        let mut state = StreamingState::new();
+        state.start_thinking(0);
+        state.push_content(0, "reasoning tail");
+        assert_eq!(
+            drain_text_block(&mut state),
+            "",
+            "a reasoning block must not be drained into the prose"
+        );
+        assert_eq!(
+            state.pending_len(0),
+            "reasoning tail".len(),
+            "the reasoning tail must stay buffered for its own drain"
+        );
+
+        let mut state = StreamingState::new();
+        state.start_text(0);
+        state.push_content(0, "prose tail");
+        assert_eq!(drain_text_block(&mut state), "prose tail");
+        assert_eq!(state.pending_len(0), 0);
+
+        // An empty state has no block at index 0; the drain is a no-op rather
+        // than a panic.
+        let mut state = StreamingState::new();
+        assert_eq!(drain_text_block(&mut state), "");
+    }
 
     /// Chrome that answers a click must also answer the pointer, or the app
     /// teaches people that pointing at things does not work here.

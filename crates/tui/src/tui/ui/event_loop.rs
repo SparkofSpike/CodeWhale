@@ -2675,6 +2675,16 @@ pub(crate) async fn run_event_loop(
                         app.flush_active_cell();
                         current_streaming_text.clear();
                         app.streaming_output_token_estimate = 0;
+                        // #7123: the mirror of the text→thinking boundary. A
+                        // reasoning block can still hold an uncommitted tail
+                        // here when `ThinkingComplete` never arrived; resetting
+                        // would discard it and leave the card streaming.
+                        if app.streaming_thinking_active_entry.is_some() {
+                            if streaming_thinking::finalize_current(app) {
+                                transcript_batch_updated = true;
+                            }
+                            streaming_thinking::stash_reasoning_buffer_into_last_reasoning(app);
+                        }
                         app.streaming_state.reset();
                         app.streaming_state.start_text(0);
                         app.streaming_message_index = None;
