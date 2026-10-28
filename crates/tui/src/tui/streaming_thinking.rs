@@ -213,7 +213,14 @@ pub(super) fn finalize_current(app: &mut App) -> bool {
         .thinking_started_at
         .take()
         .map(|t| t.elapsed().as_secs_f32());
-    let remaining = app.streaming_state.finalize_block_text(0);
+    // #7123: drain only the reasoning block. If a text block owns index 0 at
+    // this point (a boundary lost an event), taking its buffer here would
+    // append prose to the thinking card and drop it from the answer.
+    let remaining = if app.streaming_state.block_is_thinking(0) {
+        app.streaming_state.finalize_block_text(0)
+    } else {
+        String::new()
+    };
     finalize_active_entry(app, duration, &remaining)
 }
 

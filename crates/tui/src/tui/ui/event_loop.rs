@@ -2720,7 +2720,7 @@ pub(crate) async fn run_event_loop(
                         if let Some(index) = app.streaming_message_index.take() {
                             completed_message_index = Some(index);
                             stream_display_clock.flush_now(Instant::now());
-                            let remaining = app.streaming_state.finalize_block_text(0);
+                            let remaining = drain_text_block(&mut app.streaming_state);
                             if !remaining.is_empty() {
                                 append_streaming_text(app, index, &remaining);
                                 accrue_streaming_token_estimate(app, &remaining);
@@ -4633,7 +4633,7 @@ pub(crate) async fn run_event_loop(
                                 transcript_batch_updated = true;
                             }
                             if let Some(index) = app.streaming_message_index.take() {
-                                let remaining = app.streaming_state.finalize_block_text(0);
+                                let remaining = drain_text_block(&mut app.streaming_state);
                                 if !remaining.is_empty() {
                                     append_streaming_text(app, index, &remaining);
                                     accrue_streaming_token_estimate(app, &remaining);

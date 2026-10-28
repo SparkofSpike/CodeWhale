@@ -1387,6 +1387,18 @@ pub(crate) fn accrue_streaming_token_estimate(app: &mut App, visible_text: &str)
         .saturating_add(estimate_output_tokens_from_text(visible_text));
 }
 
+/// Take a finished text block's remaining buffer, leaving a reasoning block
+/// untouched (#7123). A text drain must never carry reasoning into the
+/// assistant cell, and must never take a block that is not its own: taking a
+/// reasoning tail here would append it to the prose and drop it from the card.
+pub(crate) fn drain_text_block(state: &mut crate::tui::streaming::StreamingState) -> String {
+    if state.block_is_thinking(0) {
+        String::new()
+    } else {
+        state.finalize_block_text(0)
+    }
+}
+
 pub(crate) fn commit_streaming_display_tick(
     app: &mut App,
     stream_display_clock: &mut StreamDisplayClock,
