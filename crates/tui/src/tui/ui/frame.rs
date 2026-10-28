@@ -1401,27 +1401,31 @@ pub(crate) fn commit_streaming_display_tick(
     // function of the clock instead of the provider's chunking.
     let interval = stream_display_clock.interval();
     let mut updated = false;
-    if let Some(index) = app.streaming_message_index {
-        let budget =
-            crate::tui::streaming::reveal_budget(interval, app.streaming_state.pending_len(0));
-        let committed = app.streaming_state.commit_text(0, budget);
-        if !committed.is_empty() {
-            append_streaming_text(app, index, &committed);
-            accrue_streaming_token_estimate(app, &committed);
-            updated = true;
-        }
-    } else if let Some(entry_idx) = app.streaming_thinking_active_entry {
-        let budget =
-            crate::tui::streaming::reveal_budget(interval, app.streaming_state.pending_len(0));
-        let committed = app.streaming_state.commit_text(0, budget);
-        if !committed.is_empty() {
+    let budget = crate::tui::streaming::reveal_budget(interval, app.streaming_state.pending_len(0));
+    let committed = app.streaming_state.commit_text(0, budget);
+    if !committed.is_empty() {
+        // #7123: route by the block's own kind. An assistant cell stays live
+        // from an earlier text block while a later thinking block streams, so
+        // preferring `streaming_message_index` wrote reasoning into the prose
+        // body, splitting one sentence across the thinking card and the
+        // answer that follows it.
+        if app.streaming_state.block_is_thinking(0) {
+            let entry_idx = app
+                .streaming_thinking_active_entry
+                .unwrap_or_else(|| streaming_thinking::ensure_active_entry(app));
             if app.translation_enabled {
                 streaming_thinking::set_placeholder(app, entry_idx);
             } else {
                 streaming_thinking::append(app, entry_idx, &committed);
             }
-            updated = true;
+        } else {
+            let index = app
+                .streaming_message_index
+                .unwrap_or_else(|| ensure_streaming_assistant_history_cell(app));
+            append_streaming_text(app, index, &committed);
+            accrue_streaming_token_estimate(app, &committed);
         }
+        updated = true;
     }
 
     if app.streaming_state.has_pending_stream_text(0) {

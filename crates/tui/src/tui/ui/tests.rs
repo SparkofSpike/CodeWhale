@@ -35184,3 +35184,64 @@ fn ended_parent_turn_retires_approvals_and_elevations_but_keeps_child_requests()
             .contains_approval_id("agent:child-wait:approval:boot:1")
     );
 }
+
+/// #7123: a reasoning block that opens *after* assistant prose has already
+/// streamed must not deliver its text into the assistant cell. The display
+/// beat used to route by `streaming_message_index` first, so a live thinking
+/// block was written into the message body — splitting one sentence across
+/// the thinking card and the prose that follows it.
+#[test]
+fn issue_7123_reasoning_after_prose_stays_in_the_thinking_cell() {
+    use crate::tui::streaming::StreamDisplayClock;
+    use crate::tui::ui::frame::{
+        append_streaming_text, commit_streaming_display_tick,
+        ensure_streaming_assistant_history_cell,
+    };
+
+    let mut app = create_test_app();
+
+    // 1. Assistant prose streams first (MessageStarted + MessageDelta).
+    app.streaming_state.reset();
+    app.streaming_state.start_text(0);
+    app.streaming_state.push_content(0, "answer text");
+    let message_index = ensure_streaming_assistant_history_cell(&mut app);
+    let prose = app.streaming_state.commit_text(0, usize::MAX);
+    append_streaming_text(&mut app, message_index, &prose);
+
+    // 2. The same response now opens a thinking block (ThinkingStarted).
+    let entry = crate::tui::streaming_thinking::ensure_active_entry(&mut app);
+    app.streaming_state.reset();
+    app.streaming_state.start_thinking(0);
+    app.streaming_state.push_content(0, "reasoning tail");
+
+    // 3. A display beat commits the buffered delta.
+    let mut clock = StreamDisplayClock::new(Duration::from_millis(33));
+    let now = Instant::now();
+    clock.note_delta(now);
+    let _ = commit_streaming_display_tick(
+        &mut app,
+        &mut clock,
+        now + Duration::from_millis(50),
+    );
+
+    let thinking = match app
+        .active_cell
+        .as_ref()
+        .and_then(|active| active.entries().get(entry))
+    {
+        Some(HistoryCell::Thinking { content, .. }) => content.clone(),
+        other => panic!("expected a thinking entry at {entry}: {other:?}"),
+    };
+    let prose = match app.history.get(message_index) {
+        Some(HistoryCell::Assistant { content, .. }) => content.clone(),
+        other => panic!("expected the assistant cell at {message_index}: {other:?}"),
+    };
+    assert_eq!(
+        thinking, "reasoning tail",
+        "reasoning must land in the thinking cell"
+    );
+    assert_eq!(
+        prose, "answer text",
+        "the assistant cell must not absorb reasoning text"
+    );
+}
