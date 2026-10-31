@@ -6810,6 +6810,11 @@ command = "echo project"
             // the classification it already had as a deferred tool. Making it
             // eager must not silently re-gate it.
             ("load_skill", "other"),
+            // Replay over this session's own compaction archive. Both take a
+            // hash id or a phrase, never a caller-named path, so a hook that
+            // gates file reads or writes sees nothing new to allow.
+            ("context_archive_get", "other"),
+            ("context_archive_search", "other"),
         ];
         for name in crate::core::engine::tool_catalog::DEFAULT_ACTIVE_NATIVE_TOOLS {
             let expected = EXPECTED.iter().find(|(n, _)| n == name).map(|(_, c)| *c);

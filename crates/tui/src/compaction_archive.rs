@@ -126,31 +126,31 @@ fn render_image(url: &str) -> String {
 #[must_use]
 pub fn message_id(role: &str, message: &Message) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(role.as_bytes());
+    hash_str(&mut hasher, role);
     for block in &message.content {
         hasher.update([0u8]);
         match block {
             ContentBlock::Text { text, .. } => {
                 hasher.update(b"text");
-                hasher.update(text.as_bytes());
+                hash_str(&mut hasher, text);
             }
             ContentBlock::Thinking { .. } => hasher.update(b"thinking"),
             ContentBlock::ImageUrl { image_url } => {
                 hasher.update(b"image");
-                hasher.update(image_url.url.as_bytes());
+                hash_str(&mut hasher, &image_url.url);
             }
             ContentBlock::ToolUse {
                 id, name, input, ..
             } => {
                 hasher.update(b"tool_use");
-                hasher.update(id.as_bytes());
-                hasher.update(name.as_bytes());
+                hash_str(&mut hasher, id);
+                hash_str(&mut hasher, name);
                 hash_json(&mut hasher, input);
             }
             ContentBlock::ServerToolUse { id, name, input } => {
                 hasher.update(b"server_tool_use");
-                hasher.update(id.as_bytes());
-                hasher.update(name.as_bytes());
+                hash_str(&mut hasher, id);
+                hash_str(&mut hasher, name);
                 hash_json(&mut hasher, input);
             }
             ContentBlock::ToolResult {
@@ -161,8 +161,8 @@ pub fn message_id(role: &str, message: &Message) -> String {
                 ..
             } => {
                 hasher.update(b"tool_result");
-                hasher.update(tool_use_id.as_bytes());
-                hasher.update(content.as_bytes());
+                hash_str(&mut hasher, tool_use_id);
+                hash_str(&mut hasher, content);
                 hasher.update([u8::from(is_error.unwrap_or(false))]);
                 if let Some(blocks) = content_blocks {
                     for block in blocks {
@@ -175,7 +175,7 @@ pub fn message_id(role: &str, message: &Message) -> String {
                 content,
             } => {
                 hasher.update(b"tool_search_tool_result");
-                hasher.update(tool_use_id.as_bytes());
+                hash_str(&mut hasher, tool_use_id);
                 hash_json(&mut hasher, content);
             }
             ContentBlock::CodeExecutionToolResult {
@@ -183,7 +183,7 @@ pub fn message_id(role: &str, message: &Message) -> String {
                 content,
             } => {
                 hasher.update(b"code_execution_tool_result");
-                hasher.update(tool_use_id.as_bytes());
+                hash_str(&mut hasher, tool_use_id);
                 hash_json(&mut hasher, content);
             }
         }
@@ -191,9 +191,18 @@ pub fn message_id(role: &str, message: &Message) -> String {
     hex12(&hasher.finalize())
 }
 
+/// Feed one outer string with its length in front, so two different sequences of
+/// fields cannot hash the same by bare concatenation (`id="ab" name="c"` versus
+/// `id="a" name="bc"`).
+fn hash_str(hasher: &mut Sha256, value: &str) {
+    hasher.update((value.len() as u64).to_le_bytes());
+    hasher.update(value.as_bytes());
+}
+
 /// Feed JSON to the hasher with sorted keys and length-prefixed strings, so two
 /// equal values hash equally and two different ones cannot collide by
-/// concatenation.
+/// concatenation *inside one value*. Strings the caller feeds around a value
+/// must be length-prefixed too; see [`hash_str`].
 fn hash_json(hasher: &mut Sha256, value: &serde_json::Value) {
     match value {
         serde_json::Value::Null => hasher.update(b"null"),

@@ -1016,6 +1016,8 @@ fn machine_verifier_catalog_and_dispatch_add_only_bounded_run() {
         let mut expected = vec![
             "Run",
             "Web",
+            "context_archive_get",
+            "context_archive_search",
             "diagnostics",
             "file_search",
             "finance",
@@ -1896,6 +1898,8 @@ fn machine_readonly_catalog_is_exactly_the_evidence_profile() {
         let mut expected = vec![
             "Web",
             "bash",
+            "context_archive_get",
+            "context_archive_search",
             "diagnostics",
             "file_search",
             "finance",
