@@ -53,9 +53,10 @@ fn load(session_id: &str) -> Result<ArchiveLoad, ToolError> {
 /// declare what they actually produced.
 ///
 /// Known cost: that makes the route's independent 3 % check a no-op for these
-/// two tools, and the only real bound is [`MAX_GET_CHARS`]. 12 000 characters is
-/// roughly 36 KB of CJK text, which exceeds the 3 % char budget of every route
-/// smaller than ~100 k tokens.
+/// two tools, and per call the only real bound is [`MAX_GET_CHARS`] (12 000
+/// characters). Nothing bounds the sum across pages: a model that keeps paging
+/// can exceed the route's 3 % allowance and push a near-full window into
+/// another compaction.
 fn bounded(payload: &Value) -> Result<ToolResult, ToolError> {
     let result = ToolResult::json(payload).map_err(|error| {
         ToolError::execution_failed(format!("failed to encode archive result: {error}"))

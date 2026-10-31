@@ -17,7 +17,11 @@
 //! which a sub-agent inherits from its caller, so one archive can hold snapshots
 //! written by several engines of the same session tree. A snippet marks its hit
 //! with `<<` and `>>`; text that already contains those characters reads
-//! ambiguously, and `match_offset` is the precise locator.
+//! ambiguously, and `match_offset` is the precise locator. Ids keep 48 bits, so
+//! among a million messages a birthday collision is roughly 0.2% likely, and
+//! `load` keeps the first entry for a repeated id; two executions of one tool
+//! call that share provider id, name and input are one entry because
+//! `execution_id` and `caller` stay out of the hash.
 
 use std::io::{self, Read};
 use std::path::Path;
@@ -199,10 +203,11 @@ fn hash_str(hasher: &mut Sha256, value: &str) {
     hasher.update(value.as_bytes());
 }
 
-/// Feed JSON to the hasher with sorted keys and length-prefixed strings, so two
-/// equal values hash equally and two different ones cannot collide by
-/// concatenation *inside one value*. Strings the caller feeds around a value
-/// must be length-prefixed too; see [`hash_str`].
+/// Feed JSON to the hasher as a prefix code: sorted keys, an item count for
+/// arrays and objects, and a byte length for every string and number. Two equal
+/// values hash equally and two different values cannot collide by concatenation.
+/// Strings the caller feeds around a value must be length-prefixed too; see
+/// [`hash_str`].
 fn hash_json(hasher: &mut Sha256, value: &serde_json::Value) {
     match value {
         serde_json::Value::Null => hasher.update(b"null"),
@@ -210,8 +215,10 @@ fn hash_json(hasher: &mut Sha256, value: &serde_json::Value) {
             hasher.update(if *flag { &b"true"[..] } else { &b"false"[..] })
         }
         serde_json::Value::Number(number) => {
+            let text = number.to_string();
             hasher.update(b"num");
-            hasher.update(number.to_string().as_bytes());
+            hasher.update((text.len() as u64).to_le_bytes());
+            hasher.update(text.as_bytes());
         }
         serde_json::Value::String(text) => {
             hasher.update(b"str");
@@ -502,4 +509,37 @@ pub fn slice_chars(text: &str, offset: usize, max_chars: usize) -> (String, usiz
     let total = text.chars().count();
     let slice: String = text.chars().skip(offset).take(max_chars).collect();
     (slice, total)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{hash_json, hex12};
+    use serde_json::{Map, Value, json};
+    use sha2::{Digest, Sha256};
+
+    fn digest(value: &Value) -> String {
+        let mut hasher = Sha256::new();
+        hash_json(&mut hasher, value);
+        hex12(&hasher.finalize())
+    }
+
+    fn little_endian_text(value: u64) -> String {
+        value
+            .to_le_bytes()
+            .iter()
+            .map(|byte| char::from(*byte))
+            .collect()
+    }
+
+    #[test]
+    fn a_number_cannot_swallow_the_field_after_it() {
+        let long = "x".repeat(291);
+        let tail = format!("str{}{long}", little_endian_text(295));
+        let mut left = Map::new();
+        left.insert(String::new(), json!(1));
+        left.insert(format!("\u{0}a{tail}"), json!(0));
+        let left = Value::Object(left);
+        let right = json!({ "": 10, "a": format!("{long}num0") });
+        assert_ne!(digest(&left), digest(&right));
+    }
 }

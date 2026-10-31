@@ -1037,7 +1037,7 @@ fn machine_verifier_catalog_and_dispatch_add_only_bounded_run() {
             "web.run",
         ];
         if crate::tools::image_ocr::ocr_available() {
-            expected.insert(7, "image_ocr");
+            expected.insert(9, "image_ocr");
         }
         expected
     });
@@ -1919,7 +1919,7 @@ fn machine_readonly_catalog_is_exactly_the_evidence_profile() {
             "web.run",
         ];
         if crate::tools::image_ocr::ocr_available() {
-            expected.insert(7, "image_ocr");
+            expected.insert(9, "image_ocr");
         }
         expected
     });
