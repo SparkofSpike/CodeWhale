@@ -1,0 +1,49 @@
+name: conformance-refresh
+
+# Temporary fork-only workflow: records the prompt conformance goldens on
+# Linux, where the scripted families actually run. The artifact is reviewed
+# and committed by hand; this file is deleted before the branch is proposed
+# upstream.
+
+on:
+  push:
+    branches: [codex/compaction-archive-recall]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: conformance-refresh
+      - name: Record prompt conformance goldens
+        env:
+          CODEWHALE_CONFORMANCE_UPDATE: "1"
+          RUST_MIN_STACK: "16777216"
+          CARGO_TERM_COLOR: never
+        run: |
+          # The fixture guard refuses update mode when CI is non-empty. This
+          # runner is the Linux recording host, not CI proper; the resulting
+          # diff is reviewed before it is committed.
+          unset CI
+          sh scripts/with-hermetic-test-home.sh \
+            cargo test --locked -p codewhale-tui --lib -- \
+            conformance::prompt::model_visible_prefix_bytes_match_goldens --exact --nocapture
+      - name: Show the recorded diff
+        if: always()
+        run: |
+          git --no-pager diff --stat -- crates/tui/tests/fixtures/conformance/prompt/ || true
+          git --no-pager diff -- crates/tui/tests/fixtures/conformance/prompt/ | head -400 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-prompt-goldens
+          path: crates/tui/tests/fixtures/conformance/prompt/
+          if-no-files-found: error
