@@ -192,7 +192,7 @@ answer before the next pass can do anything useful, call `update_goal` with
 `status: "yield"`, ask what you need in your answer, and end there; their reply
 resumes the goal. Asking in prose without calling `update_goal` does not pause
 this goal: the next pass starts with your question still unanswered, so do not
-answer it yourself and carry on. If `update_goal` is not in your tool list,
+invent an answer to keep the loop moving. If `update_goal` is not in your tool list,
 load it with `tool_search` first.
 "#;
 /// Memory hygiene guidance — appended to the system prompt only when the
