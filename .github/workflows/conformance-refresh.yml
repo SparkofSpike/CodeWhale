@@ -23,6 +23,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: conformance-refresh
+      - name: Install system dependencies
+        run: bash scripts/ci-apt-install.sh libdbus-1-dev pkg-config
       - name: Record prompt conformance goldens
         env:
           CODEWHALE_CONFORMANCE_UPDATE: "1"
