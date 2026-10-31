@@ -1898,6 +1898,19 @@ fn parse_inline_spans(line: &str, base_style: Style, link_style: Style) -> Vec<I
         }
         // Plain text: consume until next marker or URL; always advance at least 1 char.
         let next = find_next_marker(rest).max(rest.chars().next().map_or(1, |c| c.len_utf8()));
+        // Never split a grapheme cluster. A marker character can be the base of
+        // one: the `*` keycap is U+002A U+FE0F U+20E3, a single cluster, and
+        // `*` alone is not emphasis here (no closing `*`), so the marker search
+        // stops right after it. Cutting there left the two zero-width marks in
+        // a span of their own; the terminal then drew the cluster two columns
+        // wide while the spans reported one, and every separator after the cell
+        // moved off the box. A digit keycap never hit this because a digit is
+        // not a marker, which is why only `*` broke.
+        let next = rest
+            .grapheme_indices(true)
+            .map(|(start, grapheme)| start + grapheme.len())
+            .find(|end| *end >= next)
+            .unwrap_or(next);
         out.push(InlineToken::new(rest[..next].to_string(), base_style, None));
         rest = &rest[next..];
     }
@@ -2339,6 +2352,65 @@ mod tests {
                     .collect()
             })
             .collect()
+    }
+
+    /// Render `lines` into a fresh ratatui buffer at the given size.
+    fn buffer_of(lines: &[Line<'static>], width: u16, height: u16) -> ratatui::buffer::Buffer {
+        use ratatui::widgets::{Paragraph, Widget};
+
+        let area = ratatui::layout::Rect::new(0, 0, width, height);
+        let mut buf = ratatui::buffer::Buffer::empty(area);
+        Paragraph::new(lines.to_vec()).render(area, &mut buf);
+        buf
+    }
+
+    /// True column indices in `buf` whose symbol is the `|` box-drawing
+    /// separator. Scanning columns (not string chars) matters: a wide grapheme
+    /// such as a keycap fills one cell and leaves the next empty, so a char
+    /// index over a flattened row would not be a column index.
+    fn border_columns(buf: &ratatui::buffer::Buffer, width: u16, y: u16) -> Vec<usize> {
+        (0..width)
+            .filter(|x| buf[(*x, y)].symbol() == "\u{2502}")
+            .map(|x| x as usize)
+            .collect()
+    }
+
+    /// Flatten one buffer row for assertion messages.
+    fn row_text(buf: &ratatui::buffer::Buffer, width: u16, y: u16) -> String {
+        (0..width).map(|x| buf[(x, y)].symbol()).collect()
+    }
+
+    #[test]
+    fn keycap_table_puts_every_border_in_the_same_column() {
+        // A cell that holds a keycap must not shift the separators after it.
+        // `Line::width()` cannot see the drift because it sums span widths,
+        // so compare the columns the buffer actually filled.
+        let md = "| A | B |\n| --- | --- |\n\
+                  | 1\u{fe0f}\u{20e3} | x |\n| *\u{fe0f}\u{20e3} | y |\n\
+                  | #\u{fe0f}\u{20e3} | z |\n| plain | w |";
+        let lines = render_markdown(md, 80, Style::default());
+        let height = lines.len() as u16;
+        let buf = buffer_of(&lines, 80, height);
+
+        // Top and bottom borders use corner and tee glyphs, so compare only the
+        // rows that carry a `|` separator against each other.
+        let separated: Vec<(u16, Vec<usize>)> = (0..height)
+            .map(|y| (y, border_columns(&buf, 80, y)))
+            .filter(|(_, cols)| !cols.is_empty())
+            .collect();
+        assert!(
+            separated.len() >= 3,
+            "expected a header and data rows with separators"
+        );
+        let expected = separated[0].1.clone();
+        for (y, cols) in &separated {
+            assert_eq!(
+                cols,
+                &expected,
+                "row {y} separators drifted: {:?}",
+                row_text(&buf, 80, *y)
+            );
+        }
     }
 
     #[test]
