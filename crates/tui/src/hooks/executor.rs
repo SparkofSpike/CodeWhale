@@ -6811,8 +6811,10 @@ command = "echo project"
             // eager must not silently re-gate it.
             ("load_skill", "other"),
             // Replay over this session's own compaction archive. Both take a
-            // hash id or a phrase, never a caller-named path, so a hook that
-            // gates file reads or writes sees nothing new to allow.
+            // hash id or a phrase and resolve it against a file the host
+            // already owns, so neither hands the classifier a path to gate on
+            // and a hook that gates file reads or writes has nothing new to
+            // inspect.
             ("context_archive_get", "other"),
             ("context_archive_search", "other"),
         ];
