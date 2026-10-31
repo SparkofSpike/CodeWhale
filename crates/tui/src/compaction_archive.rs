@@ -2,15 +2,22 @@
 //!
 //! Compaction already persists the complete history before replacing it, in
 //! `artifacts/context-transfer-<checkpoint>.json`. This module turns those
-//! snapshots into addressable entries: ids derive from role and rendered text,
-//! so a message that survives several compactions keeps one id and is offered
-//! once.
+//! snapshots into addressable entries. An id hashes the message structure —
+//! role plus block kinds, block ids and text — so the same message keeps one id
+//! across cumulative snapshots, while two separate calls that happened to render
+//! identically stay distinct.
 //!
-//! Known limits: thinking blocks are not archived; only the most recent
-//! [`MAX_LOAD_BYTES`] of snapshots are loaded; `seq` is the message index in the
-//! snapshot it first appeared in, not a global ordinal; every tool call reloads
-//! and re-parses the snapshots, so paging through one large entry repeats that
-//! work.
+//! Known limits: thinking blocks are not archived and images render as their
+//! url only; two messages whose blocks are byte-identical are one entry, so a
+//! repeated `continue` shows up once; a tool result that a later pruning pass
+//! rewrote to a stub is a second entry, because its text is no longer the same;
+//! only the most recent [`MAX_LOAD_BYTES`] of snapshots are loaded; every tool
+//! call reloads and re-parses the snapshots, so paging through one large entry
+//! repeats that work; and snapshots are keyed by the engine's session namespace,
+//! which a sub-agent inherits from its caller, so one archive can hold snapshots
+//! written by several engines of the same session tree. A snippet marks its hit
+//! with `<<` and `>>`; text that already contains those characters reads
+//! ambiguously, and `match_offset` is the precise locator.
 
 use std::io::{self, Read};
 use std::path::Path;
@@ -26,7 +33,7 @@ const ID_HEX_LEN: usize = 12;
 const MAX_LOAD_BYTES: u64 = 64 * 1024 * 1024;
 
 /// One addressable message from a pre-compaction snapshot.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ArchiveEntry {
     pub id: String,
     pub seq: usize,
@@ -36,12 +43,13 @@ pub struct ArchiveEntry {
 }
 
 /// What a load covered, so the tools can say what they could and could not see.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ArchiveLoad {
     pub entries: Vec<ArchiveEntry>,
     pub snapshots: usize,
     pub skipped_snapshots: usize,
     pub truncation_note: Option<String>,
+    pub directory_present: bool,
 }
 
 /// Render one message into the plain text an archive entry stores.
@@ -55,11 +63,13 @@ pub fn render_message(message: &Message) -> String {
                     parts.push(text.clone());
                 }
             }
-            ContentBlock::ToolUse { name, input, .. } => {
-                parts.push(format!("[tool_use {name}] {input}"));
+            ContentBlock::ToolUse {
+                id, name, input, ..
+            } => {
+                parts.push(format!("[tool_use {name}#{id}] {input}"));
             }
-            ContentBlock::ServerToolUse { name, input, .. } => {
-                parts.push(format!("[server_tool_use {name}] {input}"));
+            ContentBlock::ServerToolUse { id, name, input } => {
+                parts.push(format!("[server_tool_use {name}#{id}] {input}"));
             }
             ContentBlock::ToolResult {
                 tool_use_id,
@@ -90,20 +100,137 @@ pub fn render_message(message: &Message) -> String {
                     "[code_execution_tool_result] {tool_use_id}\n{content}"
                 ));
             }
+            ContentBlock::ImageUrl { image_url } => {
+                parts.push(render_image(&image_url.url));
+            }
             _ => {}
         }
     }
     parts.join("\n\n")
 }
 
-/// The content-derived id a message is addressed by.
+fn render_image(url: &str) -> String {
+    let mut head: String = url.chars().take(120).collect();
+    if head.chars().count() < url.chars().count() {
+        head.push('\u{2026}');
+    }
+    format!("[image] {head}")
+}
+
+/// The structural id a message is addressed by.
+///
+/// Hashing the rendered text would fold two separate tool calls that happened to
+/// render the same, orphaning the second call's result. Hashing the blocks keeps
+/// a call distinct by its provider id while still giving the same message the
+/// same id in every cumulative snapshot.
 #[must_use]
-pub fn entry_id(role: &str, text: &str) -> String {
+pub fn message_id(role: &str, message: &Message) -> String {
     let mut hasher = Sha256::new();
     hasher.update(role.as_bytes());
-    hasher.update([0u8]);
-    hasher.update(text.as_bytes());
-    let digest = hasher.finalize();
+    for block in &message.content {
+        hasher.update([0u8]);
+        match block {
+            ContentBlock::Text { text, .. } => {
+                hasher.update(b"text");
+                hasher.update(text.as_bytes());
+            }
+            ContentBlock::Thinking { .. } => hasher.update(b"thinking"),
+            ContentBlock::ImageUrl { image_url } => {
+                hasher.update(b"image");
+                hasher.update(image_url.url.as_bytes());
+            }
+            ContentBlock::ToolUse {
+                id, name, input, ..
+            } => {
+                hasher.update(b"tool_use");
+                hasher.update(id.as_bytes());
+                hasher.update(name.as_bytes());
+                hash_json(&mut hasher, input);
+            }
+            ContentBlock::ServerToolUse { id, name, input } => {
+                hasher.update(b"server_tool_use");
+                hasher.update(id.as_bytes());
+                hasher.update(name.as_bytes());
+                hash_json(&mut hasher, input);
+            }
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+                content_blocks,
+                ..
+            } => {
+                hasher.update(b"tool_result");
+                hasher.update(tool_use_id.as_bytes());
+                hasher.update(content.as_bytes());
+                hasher.update([u8::from(is_error.unwrap_or(false))]);
+                if let Some(blocks) = content_blocks {
+                    for block in blocks {
+                        hash_json(&mut hasher, block);
+                    }
+                }
+            }
+            ContentBlock::ToolSearchToolResult {
+                tool_use_id,
+                content,
+            } => {
+                hasher.update(b"tool_search_tool_result");
+                hasher.update(tool_use_id.as_bytes());
+                hash_json(&mut hasher, content);
+            }
+            ContentBlock::CodeExecutionToolResult {
+                tool_use_id,
+                content,
+            } => {
+                hasher.update(b"code_execution_tool_result");
+                hasher.update(tool_use_id.as_bytes());
+                hash_json(&mut hasher, content);
+            }
+        }
+    }
+    hex12(&hasher.finalize())
+}
+
+/// Feed JSON to the hasher with sorted keys and length-prefixed strings, so two
+/// equal values hash equally and two different ones cannot collide by
+/// concatenation.
+fn hash_json(hasher: &mut Sha256, value: &serde_json::Value) {
+    match value {
+        serde_json::Value::Null => hasher.update(b"null"),
+        serde_json::Value::Bool(flag) => {
+            hasher.update(if *flag { &b"true"[..] } else { &b"false"[..] })
+        }
+        serde_json::Value::Number(number) => {
+            hasher.update(b"num");
+            hasher.update(number.to_string().as_bytes());
+        }
+        serde_json::Value::String(text) => {
+            hasher.update(b"str");
+            hasher.update((text.len() as u64).to_le_bytes());
+            hasher.update(text.as_bytes());
+        }
+        serde_json::Value::Array(items) => {
+            hasher.update(b"arr");
+            hasher.update((items.len() as u64).to_le_bytes());
+            for item in items {
+                hash_json(hasher, item);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            hasher.update(b"obj");
+            hasher.update((map.len() as u64).to_le_bytes());
+            let mut entries: Vec<(&String, &serde_json::Value)> = map.iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(b.0));
+            for (key, item) in entries {
+                hasher.update((key.len() as u64).to_le_bytes());
+                hasher.update(key.as_bytes());
+                hash_json(hasher, item);
+            }
+        }
+    }
+}
+
+fn hex12(digest: &[u8]) -> String {
     let mut id = String::with_capacity(ID_HEX_LEN);
     for byte in &digest[..ID_HEX_LEN / 2] {
         id.push_str(&format!("{byte:02x}"));
@@ -120,6 +247,9 @@ fn is_transfer_snapshot(name: &str) -> bool {
 }
 
 fn snapshot_dir(session_id: &str) -> Option<std::path::PathBuf> {
+    if !codewhale_runtime::artifacts::is_valid_session_id(session_id) {
+        return None;
+    }
     codewhale_runtime::artifacts::artifact_sessions_root()
         .map(|root| root.join(session_id).join(TRANSFER_DIR_NAME))
 }
@@ -130,13 +260,13 @@ struct Snapshot {
     modified: u64,
 }
 
-fn list_snapshots(session_id: &str) -> io::Result<Vec<Snapshot>> {
+fn list_snapshots(session_id: &str) -> io::Result<(Vec<Snapshot>, bool)> {
     let Some(dir) = snapshot_dir(session_id) else {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     };
     let read = match std::fs::read_dir(&dir) {
         Ok(read) => read,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok((Vec::new(), false)),
         Err(error) => return Err(error),
     };
     let mut snapshots: Vec<Snapshot> = read
@@ -161,7 +291,7 @@ fn list_snapshots(session_id: &str) -> io::Result<Vec<Snapshot>> {
         })
         .collect();
     snapshots.sort_by_key(|snapshot| (snapshot.modified, snapshot.name.clone()));
-    Ok(snapshots)
+    Ok((snapshots, true))
 }
 
 fn read_snapshot(session_id: &str, name: &str) -> io::Result<Vec<Message>> {
@@ -174,7 +304,7 @@ fn read_snapshot(session_id: &str, name: &str) -> io::Result<Vec<Message>> {
 
 /// Load every reachable snapshot for this session, oldest first.
 pub fn load(session_id: &str) -> io::Result<ArchiveLoad> {
-    let snapshots = list_snapshots(session_id)?;
+    let (snapshots, directory_present) = list_snapshots(session_id)?;
     let mut budget = MAX_LOAD_BYTES;
     let mut selected: Vec<&Snapshot> = Vec::new();
     let mut skipped = 0usize;
@@ -212,7 +342,7 @@ pub fn load(session_id: &str) -> io::Result<ArchiveLoad> {
             if text.trim().is_empty() {
                 continue;
             }
-            let id = entry_id(&role, &text);
+            let id = message_id(&role, message);
             if !seen.insert(id.clone()) {
                 continue;
             }
@@ -229,7 +359,7 @@ pub fn load(session_id: &str) -> io::Result<ArchiveLoad> {
     let mut notes: Vec<String> = Vec::new();
     if budget_skipped > 0 {
         notes.push(format!(
-            "{budget_skipped} older pre-compaction snapshots exceeded the {MAX_LOAD_BYTES}-byte load budget and were skipped"
+            "{budget_skipped} pre-compaction snapshots exceeded the {MAX_LOAD_BYTES}-byte load budget and were skipped"
         ));
     }
     if unreadable > 0 {
@@ -243,6 +373,7 @@ pub fn load(session_id: &str) -> io::Result<ArchiveLoad> {
         snapshots: selected.len(),
         skipped_snapshots: skipped,
         truncation_note: (!notes.is_empty()).then(|| notes.join("; ")),
+        directory_present,
     })
 }
 
@@ -277,18 +408,30 @@ pub fn find_entry<'a>(
     }
 }
 
-/// Case-insensitive substring search across archived messages.
+/// One search hit: the message, where in it the query landed, and a snippet.
+pub struct SearchHit<'a> {
+    pub entry: &'a ArchiveEntry,
+    pub char_offset: usize,
+    pub snippet: String,
+}
+
+/// ASCII-case-insensitive substring search across archived messages.
+///
+/// `char_offset` is a character offset into `entry.text`, so a caller can hand
+/// it straight to [`slice_chars`]. `skip` pages through further matches while
+/// `total` keeps counting every hit.
 #[must_use]
 pub fn search_entries<'a>(
     entries: &'a [ArchiveEntry],
     query: &str,
+    skip: usize,
     limit: usize,
-) -> (Vec<(&'a ArchiveEntry, String)>, usize) {
+) -> (Vec<SearchHit<'a>>, usize) {
     let needle = query.trim().to_ascii_lowercase();
     if needle.is_empty() {
         return (Vec::new(), 0);
     }
-    let mut matches = Vec::new();
+    let mut hits = Vec::new();
     let mut total = 0usize;
     for entry in entries {
         let haystack = entry.text.to_ascii_lowercase();
@@ -296,21 +439,19 @@ pub fn search_entries<'a>(
             continue;
         };
         total += 1;
-        if matches.len() < limit {
-            matches.push((entry, snippet(&entry.text, position, needle.len())));
+        if total <= skip || hits.len() >= limit {
+            continue;
         }
+        hits.push(SearchHit {
+            entry,
+            char_offset: entry.text[..position].chars().count(),
+            snippet: snippet(&entry.text, position, needle.len()),
+        });
     }
-    (matches, total)
+    (hits, total)
 }
 
-const SNIPPET_RADIUS_BYTES: usize = 120;
-
-fn floor_char_boundary(text: &str, mut index: usize) -> usize {
-    while index > 0 && !text.is_char_boundary(index) {
-        index -= 1;
-    }
-    index
-}
+const SNIPPET_RADIUS_CHARS: usize = 80;
 
 fn ceil_char_boundary(text: &str, mut index: usize) -> usize {
     while index < text.len() && !text.is_char_boundary(index) {
@@ -321,9 +462,16 @@ fn ceil_char_boundary(text: &str, mut index: usize) -> usize {
 
 /// A short window around one hit, marked so the model can see where it landed.
 fn snippet(text: &str, byte_position: usize, needle_len: usize) -> String {
-    let start = floor_char_boundary(text, byte_position.saturating_sub(SNIPPET_RADIUS_BYTES));
+    let start = text[..byte_position]
+        .char_indices()
+        .rev()
+        .nth(SNIPPET_RADIUS_CHARS)
+        .map_or(0, |(index, _)| index);
     let hit_end = ceil_char_boundary(text, (byte_position + needle_len).min(text.len()));
-    let end = ceil_char_boundary(text, (hit_end + SNIPPET_RADIUS_BYTES).min(text.len()));
+    let end = text[hit_end..]
+        .char_indices()
+        .nth(SNIPPET_RADIUS_CHARS)
+        .map_or(text.len(), |(index, _)| index + hit_end);
     let mut out = String::new();
     if start > 0 {
         out.push('…');

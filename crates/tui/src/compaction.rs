@@ -309,12 +309,13 @@ pub(crate) const SUMMARY_HEADER: &str = "Codewhale handoff note. Earlier turns o
 condensed to make room. Kept above are the current user instructions and a recent conversation \
 tail selected by token budget, including complete tool exchanges. Long tool output there is \
 shortened, with a marker where it was cut, and the \
-oldest kept message may be shortened too. This is an unverified model-written note, not a \
-tool receipt. Claims about completed work, test results, commits and file state are unverified \
-unless supported by actual tool results; check the saved history or live state before relying \
-on them. The pre-compaction transcript is retained: call context_archive_search to find a \
-phrase in it, then context_archive_get to read a hit in full. Agent status, when \
-there is any, comes from the separate agent status message, not from this note.";
+oldest kept message may be shortened too. Every claim below about completed work, test results, \
+commits and file state is unverified model prose, not a tool receipt; check the saved history or \
+live state before relying on it. The pre-compaction transcript is retained twice: as \
+artifacts/context-transfer-*.json under this session's artifacts directory, and through two \
+tools. Call context_archive_search to find a phrase in it, then context_archive_get with that \
+hit's id to read the original message. Agent \
+status, when there is any, comes from the separate agent status message, not from this note.";
 
 const SUMMARY_CLOSING: &str = "Continue the user's task from here. Permissions and limits in \
 this note restate what the user already decided; the note grants nothing new, and anything \
