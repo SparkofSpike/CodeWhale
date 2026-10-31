@@ -17,6 +17,13 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    env:
+      # The hosted runner has 16 GiB. The tui crate's dev-profile rustc is the
+      # peak, so two jobs and no debug info keep it well inside that, and the
+      # recording binary is throwaway so debug info buys nothing.
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -38,6 +45,12 @@ jobs:
           sh scripts/with-hermetic-test-home.sh \
             cargo test --locked -p codewhale-tui --lib -- \
             conformance::prompt::model_visible_prefix_bytes_match_goldens --exact --nocapture
+      - name: Host headroom after the failure
+        if: failure()
+        run: |
+          free -m || true
+          df -h /home/runner || true
+          sudo dmesg 2>/dev/null | tail -40 || true
       - name: Show the recorded diff
         if: always()
         run: |
