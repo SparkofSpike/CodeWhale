@@ -312,7 +312,8 @@ shortened, with a marker where it was cut, and the \
 oldest kept message may be shortened too. This is an unverified model-written note, not a \
 tool receipt. Claims about completed work, test results, commits and file state are unverified \
 unless supported by actual tool results; check the saved history or live state before relying \
-on them. Earlier steps remain in the saved context-transfer artifact. Agent status, when \
+on them. The pre-compaction transcript is retained: call context_archive_search to find a \
+phrase in it, then context_archive_get to read a hit in full. Agent status, when \
 there is any, comes from the separate agent status message, not from this note.";
 
 const SUMMARY_CLOSING: &str = "Continue the user's task from here. Permissions and limits in \
