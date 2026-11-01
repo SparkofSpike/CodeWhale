@@ -17,7 +17,7 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWrite;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use tokio::sync::Mutex;
 
 /// Historical cold-child cache comparator. It has no production producer.
