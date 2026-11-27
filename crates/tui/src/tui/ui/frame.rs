@@ -1387,6 +1387,18 @@ pub(crate) fn accrue_streaming_token_estimate(app: &mut App, visible_text: &str)
         .saturating_add(estimate_output_tokens_from_text(visible_text));
 }
 
+/// Take a finished text block's remaining buffer, leaving a reasoning block
+/// untouched (#7123). A text drain must never carry reasoning into the
+/// assistant cell, and must never take a block that is not its own: taking a
+/// reasoning tail here would append it to the prose and drop it from the card.
+pub(crate) fn drain_text_block(state: &mut crate::tui::streaming::StreamingState) -> String {
+    if state.block_is_thinking(0) {
+        String::new()
+    } else {
+        state.finalize_block_text(0)
+    }
+}
+
 pub(crate) fn commit_streaming_display_tick(
     app: &mut App,
     stream_display_clock: &mut StreamDisplayClock,
@@ -1401,27 +1413,31 @@ pub(crate) fn commit_streaming_display_tick(
     // function of the clock instead of the provider's chunking.
     let interval = stream_display_clock.interval();
     let mut updated = false;
-    if let Some(index) = app.streaming_message_index {
-        let budget =
-            crate::tui::streaming::reveal_budget(interval, app.streaming_state.pending_len(0));
-        let committed = app.streaming_state.commit_text(0, budget);
-        if !committed.is_empty() {
-            append_streaming_text(app, index, &committed);
-            accrue_streaming_token_estimate(app, &committed);
-            updated = true;
-        }
-    } else if let Some(entry_idx) = app.streaming_thinking_active_entry {
-        let budget =
-            crate::tui::streaming::reveal_budget(interval, app.streaming_state.pending_len(0));
-        let committed = app.streaming_state.commit_text(0, budget);
-        if !committed.is_empty() {
+    let budget = crate::tui::streaming::reveal_budget(interval, app.streaming_state.pending_len(0));
+    let committed = app.streaming_state.commit_text(0, budget);
+    if !committed.is_empty() {
+        // #7123: route by the block's own kind. An assistant cell stays live
+        // from an earlier text block while a later thinking block streams, so
+        // preferring `streaming_message_index` wrote reasoning into the prose
+        // body, splitting one sentence across the thinking card and the
+        // answer that follows it.
+        if app.streaming_state.block_is_thinking(0) {
+            let entry_idx = app
+                .streaming_thinking_active_entry
+                .unwrap_or_else(|| streaming_thinking::ensure_active_entry(app));
             if app.translation_enabled {
                 streaming_thinking::set_placeholder(app, entry_idx);
             } else {
                 streaming_thinking::append(app, entry_idx, &committed);
             }
-            updated = true;
+        } else {
+            let index = app
+                .streaming_message_index
+                .unwrap_or_else(|| ensure_streaming_assistant_history_cell(app));
+            append_streaming_text(app, index, &committed);
+            accrue_streaming_token_estimate(app, &committed);
         }
+        updated = true;
     }
 
     if app.streaming_state.has_pending_stream_text(0) {
@@ -2352,8 +2368,43 @@ pub(crate) fn workflow_tool_is_running(app: &App) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{register_info_interaction_targets, render_info_row, short_title_truncate};
+    use super::{
+        drain_text_block, register_info_interaction_targets, render_info_row, short_title_truncate,
+    };
     use ratatui::{Terminal, backend::TestBackend};
+
+    /// #7123: the text drain must never take a reasoning block. A reasoning
+    /// tail handed to the assistant cell would appear as prose, which is the
+    /// split sentence this fix exists to prevent.
+    #[test]
+    fn issue_7123_drain_text_block_leaves_a_reasoning_block_alone() {
+        use crate::tui::streaming::StreamingState;
+
+        let mut state = StreamingState::new();
+        state.start_thinking(0);
+        state.push_content(0, "reasoning tail");
+        assert_eq!(
+            drain_text_block(&mut state),
+            "",
+            "a reasoning block must not be drained into the prose"
+        );
+        assert_eq!(
+            state.pending_len(0),
+            "reasoning tail".len(),
+            "the reasoning tail must stay buffered for its own drain"
+        );
+
+        let mut state = StreamingState::new();
+        state.start_text(0);
+        state.push_content(0, "prose tail");
+        assert_eq!(drain_text_block(&mut state), "prose tail");
+        assert_eq!(state.pending_len(0), 0);
+
+        // An empty state has no block at index 0; the drain is a no-op rather
+        // than a panic.
+        let mut state = StreamingState::new();
+        assert_eq!(drain_text_block(&mut state), "");
+    }
 
     /// Chrome that answers a click must also answer the pointer, or the app
     /// teaches people that pointing at things does not work here.

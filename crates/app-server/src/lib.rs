@@ -18,7 +18,9 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
-use std::process::{Child, Command};
+use std::process::Child;
+#[cfg(all(test, unix))]
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufRead, AsyncWrite, BufReader};

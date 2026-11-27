@@ -2667,6 +2667,20 @@ pub(crate) async fn run_event_loop(
                 let turn_end_lifecycle = TurnEndLifecycleReceipt::capture(&event);
                 match event {
                     EngineEvent::MessageStarted { .. } => {
+                        // #7123: deliver a live reasoning block's tail BEFORE
+                        // `flush_active_cell`, which clears
+                        // `streaming_thinking_active_entry` on every path
+                        // (`App::flush_active_cell`). It only marks the cell
+                        // finished; a delta that never reached it is not
+                        // delivered by the flush, so draining afterwards would
+                        // be dead code and the tail would be lost by the reset
+                        // below.
+                        if app.streaming_thinking_active_entry.is_some() {
+                            if streaming_thinking::finalize_current(app) {
+                                transcript_batch_updated = true;
+                            }
+                            streaming_thinking::stash_reasoning_buffer_into_last_reasoning(app);
+                        }
                         // Assistant text starting after parallel tool work
                         // means the tool group is done. Flush the active
                         // cell first so the message lands BELOW the
@@ -2720,7 +2734,7 @@ pub(crate) async fn run_event_loop(
                         if let Some(index) = app.streaming_message_index.take() {
                             completed_message_index = Some(index);
                             stream_display_clock.flush_now(Instant::now());
-                            let remaining = app.streaming_state.finalize_block_text(0);
+                            let remaining = drain_text_block(&mut app.streaming_state);
                             if !remaining.is_empty() {
                                 append_streaming_text(app, index, &remaining);
                                 accrue_streaming_token_estimate(app, &remaining);
@@ -2844,7 +2858,12 @@ pub(crate) async fn run_event_loop(
                                 .streaming_thinking_active_entry
                                 .map(|entry_idx| app.history.len() + entry_idx);
                             let original_thinking = app.reasoning_buffer.clone();
-                            let _ = app.streaming_state.finalize_block_text(0);
+                            // #7123: only the reasoning block may be drained
+                            // here. A text block that lost its boundary event
+                            // would otherwise be consumed and dropped.
+                            if app.streaming_state.block_is_thinking(0) {
+                                let _ = app.streaming_state.finalize_block_text(0);
+                            }
                             let duration = app
                                 .thinking_started_at
                                 .take()
@@ -4633,7 +4652,7 @@ pub(crate) async fn run_event_loop(
                                 transcript_batch_updated = true;
                             }
                             if let Some(index) = app.streaming_message_index.take() {
-                                let remaining = app.streaming_state.finalize_block_text(0);
+                                let remaining = drain_text_block(&mut app.streaming_state);
                                 if !remaining.is_empty() {
                                     append_streaming_text(app, index, &remaining);
                                     accrue_streaming_token_estimate(app, &remaining);
